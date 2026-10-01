@@ -1,0 +1,16 @@
+.git
+.yarn
+**/node_modules
+**/dist
+**/coverage
+**/src/generated/prisma
+**/*.tsbuildinfo
+**/.env
+**/.env.*
+!**/.env.example
+**/*.log
+**/test-results
+**/playwright-report
+storage
+**/.DS_Store
+**/Thumbs.db

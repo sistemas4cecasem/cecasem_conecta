@@ -1,0 +1,67 @@
+name: cecasem_conecta
+
+services:
+  db:
+    image: postgres:18.6-bookworm@sha256:3725f4e2499eef5134592b3b4ab79a543ed7f8e533b05b5b637af926630f6650
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Configure POSTGRES_DB}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Configure POSTGRES_ADMIN_PASSWORD}
+      POSTGRES_APP_USER: ${POSTGRES_USER:?Configure POSTGRES_USER}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_PASSWORD:?Configure POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+      - ./infra/postgres/init-app.sql:/docker-entrypoint-initdb.d/10-init-app.sql:ro
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -h 127.0.0.1 -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  api:
+    image: ${COMPOSE_PROJECT_NAME:-cecasem_conecta}-api:local
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: runtime
+    environment:
+      NODE_ENV: production
+      APP_PORT: ${APP_PORT:-3000}
+      DATABASE_URL: ${DATABASE_URL:?Configure DATABASE_URL con hostname db}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, node, -e, 'fetch("http://127.0.0.1:" + process.env.APP_PORT + "/api/v1/health", {signal: AbortSignal.timeout(4000)}).then(r => {if (!r.ok) process.exit(1)}).catch(() => process.exit(1))']
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    init: true
+    restart: unless-stopped
+
+  web:
+    image: ${COMPOSE_PROJECT_NAME:-cecasem_conecta}-web:local
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: runtime
+    environment:
+      API_PORT: ${APP_PORT:-3000}
+    ports:
+      - '${WEB_PORT:-8080}:80'
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, 'http://127.0.0.1/']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

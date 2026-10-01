@@ -1,0 +1,6 @@
+# Operación manual; no añade servicios ni incluye Prisma CLI en runtime.
+services:
+  api:
+    image: ${COMPOSE_PROJECT_NAME:-cecasem_conecta}-migrations:local
+    build:
+      target: build

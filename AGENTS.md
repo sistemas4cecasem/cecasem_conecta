@@ -1,6 +1,6 @@
 # CECASEM Conecta — Agent Instructions
 
-## Project purpose
+## 1. Project purpose
 
 CECASEM Conecta is a web system for managing institutional relationships and cooperation activities inside CECASEM.
 
@@ -9,63 +9,125 @@ Its purpose is to centralize institutional knowledge about:
 - organizations;
 - people and their institutional roles;
 - contact methods;
-- outreach processes;
+- institutional outreach processes;
 - emails sent and received;
+- internal notes;
 - meetings;
 - opportunities and applications;
 - attachments;
 - notifications;
-- verification and audit history.
+- verification history;
+- audit history.
 
-The system must allow one authorized CECASEM user to understand and continue work previously performed by another user without depending on personal memory, private inboxes, or spreadsheets.
+The system must allow one authorized CECASEM user to understand and continue work previously performed by another user without depending on:
+
+- personal memory;
+- private inboxes;
+- isolated spreadsheets;
+- informal conversations;
+- knowledge held only by one employee.
+
+The institutional history belongs to CECASEM, not only to the person who originally performed an action.
 
 ---
 
-## Working principle
+# 2. Source of truth
+
+The project's functional and technical decisions are documented outside the repository in the CECASEM Conecta project documentation.
+
+The current task or development subphase defines the immediate implementation scope.
+
+Do not invent, replace or reinterpret documented business rules merely to simplify implementation.
+
+If the repository, current prompt and documented architecture appear to contradict each other:
+
+1. inspect the current implementation;
+2. identify the contradiction explicitly;
+3. do not silently redesign the system;
+4. propose the smallest valid solution;
+5. report the issue before making an architectural change when necessary.
+
+---
+
+# 3. Working principle
 
 Implement only the scope explicitly requested in the current task or development subphase.
 
-Do not implement features from future phases unless they are strictly required by the current scope.
+Do not implement functionality from future phases unless it is strictly necessary to complete the current scope.
 
-If a requested change conflicts with an existing architectural or business rule:
+Do not perform unrelated refactors.
 
-1. do not silently redesign the system;
-2. explain the conflict;
-3. propose the smallest valid solution;
-4. wait for an explicit architectural decision when necessary.
+Do not add infrastructure because it might be useful someday.
 
-Avoid speculative abstractions and unnecessary infrastructure.
+Prefer:
+
+- simple solutions;
+- explicit behavior;
+- maintainable code;
+- traceability;
+- predictable structure.
+
+Avoid:
+
+- speculative abstractions;
+- premature optimization;
+- unnecessary dependencies;
+- premature distributed architecture.
+
+The current prompt defines the implementation boundary.
 
 ---
 
-## Architecture
+# 4. Development workflow
+
+CECASEM Conecta is developed incrementally by phases and subphases.
+
+The expected workflow is:
+
+1. inspect the current repository;
+2. understand the requested subphase;
+3. identify the files and modules involved;
+4. implement only that scope;
+5. run applicable validations;
+6. inspect the diff;
+7. report what changed;
+8. report any unresolved issue;
+9. close the subphase only when its acceptance criteria are satisfied.
+
+Do not start the next subphase automatically.
+
+Do not implement future tasks "while already touching the same file" unless required by the current task.
+
+---
+
+# 5. Architecture
 
 CECASEM Conecta uses a **modular monolith**.
 
-Do not introduce microservices unless the project architecture is explicitly changed.
+Do not introduce microservices unless the architecture is explicitly changed.
 
 Current technical direction:
 
-- TypeScript
-- Node.js LTS
-- Yarn 4
-- Yarn Workspaces
-- React
-- Vite
-- NestJS
-- PostgreSQL
-- Prisma ORM
-- Docker
-- Docker Compose
-- Nginx for production web serving/reverse proxy
-- REST API
-- TanStack Query
-- React Hook Form
-- Zod where appropriate on the frontend
-- class-validator / class-transformer on the backend
-- Tailwind CSS
-- ExcelJS for spreadsheet import/export
-- LibreTranslate as an optional translation provider
+- TypeScript;
+- Node.js LTS;
+- Yarn 4;
+- Yarn Workspaces;
+- React;
+- Vite;
+- NestJS;
+- PostgreSQL;
+- Prisma ORM;
+- REST API;
+- Docker;
+- Docker Compose;
+- Nginx;
+- TanStack Query;
+- React Hook Form;
+- Zod where appropriate in the frontend;
+- class-validator / class-transformer in the backend;
+- Tailwind CSS;
+- ExcelJS for spreadsheet import/export;
+- LibreTranslate as an optional translation provider.
 
 Do not introduce the following without explicit approval:
 
@@ -74,65 +136,190 @@ Do not introduce the following without explicit approval:
 - Kafka;
 - RabbitMQ;
 - Redis;
-- Elasticsearch/OpenSearch;
+- Elasticsearch;
+- OpenSearch;
 - GraphQL;
 - CQRS;
 - Event Sourcing;
-- external paid SaaS dependencies for core functionality.
+- external paid SaaS dependencies for essential functionality;
+- automatic Gmail/Zoho synchronization;
+- email sending from CECASEM Conecta;
+- native mobile applications.
+
+Architecture must solve current CECASEM requirements, not hypothetical future scale.
 
 ---
 
-## Repository structure
+# 6. Repository structure
 
-Expected structure:
+The expected monorepo structure is:
 
 ```text
 cecasem_conecta/
+├── AGENTS.md
+├── .gitignore
+├── .env.example
+├── .yarnrc.yml
+├── package.json
+├── yarn.lock
+├── docker-compose.yml
+├── README.md
+│
 ├── apps/
 │   ├── api/
 │   └── web/
+│
 ├── packages/
+│
 ├── infra/
+│
 ├── docs/
-├── AGENTS.md
-├── package.json
-├── yarn.lock
-├── .yarnrc.yml
-└── docker-compose.yml
+│
+└── storage/
 ```
 
-### apps/api
+## apps/api
 
-NestJS backend.
+NestJS backend application.
 
-### apps/web
+## apps/web
 
-React + Vite frontend.
+React + Vite frontend application.
 
-### packages
+## packages
 
 Shared packages only when there is a demonstrated need.
 
 Do not create shared packages prematurely.
 
-### infra
+A possible future package is:
 
-Docker, Nginx, deployment scripts, and infrastructure configuration.
+```text
+packages/contracts
+```
 
-### docs
+but it must only be created if stable shared contracts justify it.
 
-Local technical/project documentation when required.
+## infra
+
+Infrastructure-related files such as:
+
+- Nginx;
+- Docker support;
+- deployment scripts;
+- infrastructure configuration.
+
+## docs
+
+Repository-local technical documentation when necessary.
+
+## storage
+
+Local runtime storage.
+
+Runtime files inside this directory must not normally be committed.
 
 ---
 
-## Package management
+# 7. AGENTS.md hierarchy
+
+The repository uses hierarchical agent instructions.
+
+Expected structure after Bootstrap Subphase 0.1:
+
+```text
+cecasem_conecta/
+├── AGENTS.md
+└── apps/
+    ├── api/
+    │   └── AGENTS.md
+    └── web/
+        └── AGENTS.md
+```
+
+## Root AGENTS.md
+
+This file defines:
+
+- project context;
+- architecture;
+- global constraints;
+- Git discipline;
+- security rules;
+- business invariants;
+- validation expectations;
+- development workflow.
+
+It applies to the entire repository.
+
+## apps/api/AGENTS.md
+
+This file will be created after the monorepo structure exists and has been validated.
+
+It will contain backend-specific conventions such as:
+
+- NestJS module structure;
+- controllers;
+- application services/use cases;
+- policies;
+- DTOs;
+- validation;
+- Prisma;
+- migrations;
+- authorization;
+- tests;
+- module dependencies.
+
+It must complement this root file and must not contradict it.
+
+## apps/web/AGENTS.md
+
+This file will also be created after the monorepo structure exists and has been validated.
+
+It will contain frontend-specific conventions such as:
+
+- feature organization;
+- React Router;
+- TanStack Query;
+- React Hook Form;
+- Zod;
+- reusable components;
+- responsive behavior;
+- loading/error/empty states;
+- frontend testing.
+
+It must complement this root file and must not contradict it.
+
+## Important
+
+All `AGENTS.md` files are intentional project documentation.
+
+They must be committed to Git.
+
+Never add:
+
+```gitignore
+AGENTS.md
+**/AGENTS.md
+```
+
+to `.gitignore`.
+
+Do not ignore all Markdown files.
+
+---
+
+# 8. Package management
 
 Yarn is the only package manager for this repository.
 
-Use:
+Use Yarn 4 and Yarn Workspaces.
+
+Allowed commands include:
 
 ```bash
 yarn
+yarn install
 yarn add
 yarn remove
 yarn workspace
@@ -147,28 +334,192 @@ npm ci
 pnpm
 ```
 
-Do not generate:
+Do not generate or commit:
 
-- package-lock.json
-- pnpm-lock.yaml
+```text
+package-lock.json
+pnpm-lock.yaml
+```
 
-The repository must keep a single `yarn.lock`.
+The repository must maintain a single:
 
-Yarn Workspaces manage the monorepo.
+```text
+yarn.lock
+```
 
-Use the `node-modules` linker unless the project explicitly changes this decision.
+The root `package.json` must declare the Yarn version using the `packageManager` field.
 
-Expected `.yarnrc.yml` direction:
+Example direction:
+
+```json
+{
+  "packageManager": "yarn@4.x.x"
+}
+```
+
+Do not manually edit `yarn.lock`.
+
+---
+
+# 9. Yarn linker
+
+Use:
 
 ```yaml
 nodeLinker: node-modules
 ```
 
+in:
+
+```text
+.yarnrc.yml
+```
+
+The project intentionally prefers compatibility with:
+
+- NestJS;
+- Vite;
+- Prisma;
+- Docker;
+- VS Code;
+- ecosystem tooling.
+
+Do not migrate to Yarn Plug'n'Play without an explicit architecture decision.
+
 ---
 
-## Backend conventions
+# 10. Gitignore policy
 
-The backend lives in `apps/api`.
+The repository must maintain a root `.gitignore`.
+
+The purpose of `.gitignore` is to exclude:
+
+- secrets;
+- real environment files;
+- local runtime files;
+- dependencies;
+- build output;
+- caches;
+- logs;
+- generated temporary files;
+- uploaded files;
+- database runtime files.
+
+It must not exclude important source-controlled project instructions.
+
+The following must remain versioned:
+
+- `AGENTS.md`;
+- `apps/api/AGENTS.md`;
+- `apps/web/AGENTS.md`;
+- `.gitignore`;
+- `.env.example`;
+- application-specific `.env.example` files;
+- `package.json`;
+- `yarn.lock`;
+- `.yarnrc.yml`;
+- Prisma schema;
+- Prisma migrations;
+- Docker configuration without secrets;
+- Nginx configuration without secrets;
+- source code;
+- tests;
+- documentation.
+
+Never add broad rules such as:
+
+```gitignore
+*.md
+```
+
+if they would exclude project documentation.
+
+---
+
+# 11. Environment variables and secrets
+
+Real environment files must never be committed.
+
+Ignore files such as:
+
+```text
+.env
+.env.local
+.env.development.local
+.env.production
+.env.production.local
+apps/api/.env
+apps/web/.env
+apps/web/.env.local
+```
+
+Environment templates must remain versioned.
+
+Examples:
+
+```text
+.env.example
+apps/api/.env.example
+apps/web/.env.example
+```
+
+Every required environment variable must be documented in an `.env.example` file using a safe placeholder value.
+
+Never store real:
+
+- passwords;
+- database credentials;
+- session secrets;
+- private tokens;
+- API keys;
+- production credentials;
+- certificates;
+- private keys;
+
+inside tracked files.
+
+Do not commit secrets even temporarily.
+
+---
+
+# 12. Frontend environment variables
+
+Vite variables prefixed with:
+
+```text
+VITE_
+```
+
+are exposed to browser code.
+
+Therefore no secret may ever use the `VITE_` prefix.
+
+Allowed public configuration may include values such as:
+
+```text
+VITE_API_URL=/api
+```
+
+Never expose values such as:
+
+```text
+VITE_DATABASE_PASSWORD
+VITE_SESSION_SECRET
+VITE_PRIVATE_KEY
+VITE_INTERNAL_TOKEN
+```
+
+Frontend code must never require database credentials or backend secrets.
+
+---
+
+# 13. Backend conventions
+
+The backend lives in:
+
+```text
+apps/api
+```
 
 Use NestJS as a modular monolith.
 
@@ -189,9 +540,9 @@ Expected high-level modules include:
 - data-exchange;
 - settings.
 
-Do not treat every domain module as a separate service.
+Do not treat every module as an independent service.
 
-Prefer dependencies such as:
+Prefer a pragmatic separation similar to:
 
 ```text
 Controller
@@ -205,17 +556,52 @@ Repository / Infrastructure
 
 Controllers must not contain significant business logic.
 
-Business rules must be enforced on the backend even when the frontend already restricts an action.
+Business rules must be enforced by the backend.
 
 Avoid circular module dependencies.
 
-Do not access another module's internal persistence implementation when a public application service can express the interaction.
+A module should interact with another module through its public application interface whenever possible.
+
+Do not directly manipulate another module's internal persistence implementation merely for convenience.
+
+Do not implement ceremonial architecture with unnecessary layers when a simpler structure preserves the required boundaries.
 
 ---
 
-## Frontend conventions
+# 14. API conventions
 
-The frontend lives in `apps/web`.
+The backend exposes a REST API.
+
+Base path:
+
+```text
+/api/v1
+```
+
+Use:
+
+- explicit DTOs;
+- validation;
+- predictable HTTP status codes;
+- pagination for potentially large lists;
+- query parameters for filters;
+- consistent error responses;
+- server-side authorization;
+- opaque identifiers in URLs where appropriate.
+
+Swagger/OpenAPI should be available in development.
+
+Do not expose technical stack traces to normal clients.
+
+---
+
+# 15. Frontend conventions
+
+The frontend lives in:
+
+```text
+apps/web
+```
 
 Organize primarily by feature.
 
@@ -242,193 +628,414 @@ Feature examples:
 - notifications;
 - admin.
 
-Use TanStack Query for server state.
+Feature-specific components should remain close to their feature.
 
-Prefer local React state for local UI state.
+Move components to shared directories only when they are genuinely reused.
+
+Avoid global directories containing large unrelated collections of:
+
+- services;
+- hooks;
+- components;
+- helpers.
+
+---
+
+# 16. Frontend state management
+
+Use TanStack Query for server state:
+
+- queries;
+- mutations;
+- caching;
+- invalidation;
+- loading/error states;
+- refresh behavior.
+
+Use React local state for local UI concerns.
+
+Use Context only when appropriate.
 
 Do not introduce Redux or another global state library without a demonstrated need.
 
-Do not duplicate backend business rules as the only enforcement mechanism.
-
-Frontend validation improves UX; backend validation remains authoritative.
+Do not duplicate server data into global frontend state without a concrete reason.
 
 ---
 
-## Authentication
+# 17. Forms
 
-Authentication uses email and password.
+Use React Hook Form for significant forms.
 
-Passwords must never be stored in plaintext or with reversible encryption.
+Use Zod where frontend schema validation adds value.
 
-Use Argon2id or the approved password-hashing strategy.
+Typical forms include:
 
-The intended authentication model is:
+- organizations;
+- people;
+- contact methods;
+- processes;
+- communications;
+- opportunities;
+- meetings.
 
+Frontend validation improves user experience.
+
+Backend validation remains authoritative.
+
+Never rely on frontend validation for security or business-rule enforcement.
+
+---
+
+# 18. Authentication
+
+Authentication uses:
+
+- email;
+- password;
 - revocable server-side sessions;
-- session token stored in an HttpOnly cookie;
-- sessions persisted and controlled by the backend.
+- HttpOnly cookies.
 
-Do not implement JWT access/refresh token architecture unless this architectural decision is explicitly changed.
+Passwords must never be stored:
 
-An administrator may initiate account creation or password reset, but must never know or retrieve the user's final password.
+- in plaintext;
+- with reversible encryption;
+- in logs;
+- in audit records.
 
-Temporary activation/reset credentials must be:
+Use Argon2id or the approved secure password hashing strategy.
 
-- time limited;
-- single use;
-- revocable.
+The intended session model is:
+
+1. user sends credentials;
+2. backend verifies password;
+3. backend creates revocable session;
+4. browser receives a session token using an HttpOnly cookie;
+5. backend validates session and user state on requests.
+
+Do not implement JWT access/refresh architecture unless this architectural decision is explicitly changed.
 
 ---
 
-## Authorization
+# 19. Sessions
+
+Sessions should support:
+
+- secure random tokens;
+- token hash storage;
+- expiration;
+- revocation;
+- user association;
+- session invalidation when required.
+
+A deactivated user must not retain functional access through an old session.
+
+A role change should take effect without requiring long-lived authorization claims to expire.
+
+---
+
+# 20. Account creation and password reset
+
+An Administrator may:
+
+- create users;
+- initiate first access;
+- initiate password reset.
+
+An Administrator must never know or retrieve the user's final password.
+
+Temporary credentials/tokens must be:
+
+- random;
+- time-limited;
+- single-use;
+- stored securely;
+- invalidated after use.
+
+---
+
+# 21. Authorization
 
 Initial roles:
 
-- Administrator
-- Directorio
-- Búsqueda
-- Planificación
+- Administrator;
+- Directorio;
+- Búsqueda;
+- Planificación.
 
-Authorization uses both:
+Authorization uses:
 
-- role-based permissions;
+- role-based access control;
 - contextual business rules.
 
 Example:
 
-A Búsqueda user may have general permission to close a relationship process, but only if that user is an actual participant in that process.
+A user with role Búsqueda may have general permission to close relationship processes but may only close a process when that user is a valid participant.
 
 Directorio and Administrador may have explicit exceptions defined by business rules.
 
-Never rely only on hidden/disabled frontend buttons for authorization.
+Authorization must always be enforced by the backend.
+
+Frontend visibility is only a user-interface convenience.
+
+Never assume:
+
+```text
+button hidden = action protected
+```
 
 ---
 
-## Core domain rules
+# 22. Core domain principles
 
-### Historical actions
+The principal domain is institutional relationship management.
 
-Historical communications and process actions must not be silently overwritten.
+The central concept is the:
 
-A sent/received communication is historical evidence.
+```text
+Relationship Process
+```
 
-Once consolidated:
+A relationship process represents one concrete institutional objective.
 
-- preserve the original body;
-- preserve sender and recipients;
-- preserve the user who registered it;
-- preserve its event date and registration date.
+Organizations and people may participate in multiple processes over time.
 
-Corrections must be represented as explicit, traceable corrections or invalidations.
+The system must preserve institutional history between users.
 
-### Editable master data
+---
 
-Organizations, people, roles, contact information and other master records may be corrected.
+# 23. Master data
 
-Relevant changes must preserve history:
+Editable master data includes concepts such as:
+
+- organizations;
+- people;
+- institutional links;
+- positions;
+- contact methods;
+- categories.
+
+Authorized users may correct this information.
+
+Relevant changes must preserve history where required:
 
 - previous value;
 - new value;
 - user;
 - timestamp.
 
-### Imported data
+Editing master data is different from rewriting historical process events.
 
-Data imported from the historical Excel file is not automatically trusted.
+---
 
-Imported records must remain identifiable as imported and pending verification until explicitly verified.
+# 24. Historical actions
 
-Never invent missing historical information.
+Historical communications and formal process actions must not be silently overwritten.
 
-### Verification
+Once a communication is consolidated, preserve:
+
+- original body;
+- sender;
+- recipients;
+- CC;
+- BCC;
+- subject;
+- actual event date;
+- registration date;
+- registering user;
+- CECASEM mailbox used;
+- attachments metadata.
+
+Corrections must be implemented as:
+
+- explicit corrections;
+- supplementary observations;
+- invalidations;
+- traceable events.
+
+Do not silently rewrite the original historical record.
+
+---
+
+# 25. Relationship processes
+
+The same organization may have multiple processes:
+
+- at different times;
+- simultaneously when objectives differ.
+
+Closing one process does not prohibit future processes.
+
+Initial process states:
+
+- En preparación;
+- En curso;
+- Esperando respuesta;
+- En negociación;
+- Cerrado.
+
+A closed process requires a closure result.
+
+Initial closure results:
+
+- Concretado;
+- No aceptado;
+- Sin respuesta;
+- Desistido por CECASEM;
+- Otro.
+
+If result is:
+
+```text
+Otro
+```
+
+an explanation is required.
+
+A late response concerning the same outreach may reopen the existing process.
+
+A genuinely different objective should create a new process.
+
+---
+
+# 26. Process participants
+
+A user becomes a process participant through a formal action such as:
+
+- creating the process;
+- registering an outgoing communication;
+- registering an incoming response;
+- registering a meeting;
+- performing another formal relationship action.
+
+Adding only an internal note does not grant participant status for closure permissions.
+
+Do not confuse:
+
+```text
+can read process
+```
+
+with:
+
+```text
+is process participant
+```
+
+---
+
+# 27. Contact intentions
+
+An intention represents planned institutional outreach before a formal interaction occurs.
+
+An intention should preserve:
+
+- author;
+- purpose;
+- target organization/person;
+- creation date;
+- activity;
+- status.
+
+An intention remains until it is:
+
+- converted;
+- cancelled;
+- closed;
+
+according to domain rules.
+
+It should not disappear automatically merely because time passed.
+
+---
+
+# 28. Contact methods
+
+A contact method is a domain entity, not merely a text field inside a person or organization.
+
+Possible types include:
+
+- email;
+- phone;
+- LinkedIn;
+- official website;
+- web form;
+- other.
+
+Contact methods may preserve:
+
+- source;
+- verification status;
+- last verification date;
+- active/inactive status;
+- notes.
+
+Exact contact information should be reused rather than duplicated unnecessarily.
+
+---
+
+# 29. Verification
 
 Modification is not verification.
 
 Creation is not verification.
 
-Imported is not verification.
+Import is not verification.
 
-Personal information initially requires review after 6 months without verification.
+Verification must be an explicit action.
 
-Institutional information initially requires review after 12 months without verification.
+Initial verification intervals:
 
-These intervals are configurable.
+- personal information: 6 months;
+- institutional information: 12 months.
 
-### Duplicates
+These values are configurable.
 
-Exact contact information should be reused instead of duplicated where appropriate.
-
-Similarity may produce duplicate candidates.
-
-Never automatically merge organizations or people based solely on similarity.
-
-Final duplicate consolidation requires an authorized human decision.
-
-### Relationship processes
-
-A relationship process represents one concrete institutional objective.
-
-The same organization may have multiple processes over time or simultaneously when objectives differ.
-
-Closing one process does not prohibit future processes.
-
-Initial states:
-
-- En preparación
-- En curso
-- Esperando respuesta
-- En negociación
-- Cerrado
-
-A closed process requires a result.
-
-Initial closure results:
-
-- Concretado
-- No aceptado
-- Sin respuesta
-- Desistido por CECASEM
-- Otro
-
-`Otro` requires an explanation.
-
-A late response related to the same outreach may reopen the existing process.
-
-A new objective should create a new process.
-
-### Participants
-
-A process participant is a user who:
-
-- created the process;
-- registered an outgoing communication;
-- registered an incoming response;
-- registered a meeting;
-- performed another formal relationship action.
-
-Adding only an internal note does not grant participant status for process closure.
-
-### No-contact restrictions
-
-An explicit request not to be contacted is different from:
-
-- rejecting one proposal;
-- not answering;
-- discarding an opportunity.
-
-Explicit no-contact restrictions must be prominently respected.
+Do not hardcode assumptions that prevent future configuration.
 
 ---
 
-## Communications
+# 30. Duplicate handling
 
-CECASEM Conecta does not send email in the initial version.
+Exact contact information should be reused when appropriate.
 
-Zoho/Gmail remain the sending and receiving channels.
+Similarity may produce duplicate candidates.
 
-The system manually records the institutional history.
+The system may suggest potential duplicates.
 
-Initial communication information may include:
+Never automatically merge organizations or people only because names are similar.
+
+Final consolidation requires an authorized human decision.
+
+A duplicate merge must preserve relevant historical relationships.
+
+---
+
+# 31. Imported data
+
+The historical Excel file is an initial data source, not an authoritative source of truth.
+
+Imported records must remain identifiable as:
+
+- imported;
+- pending verification where applicable.
+
+Never invent missing information during import.
+
+If historical records are incomplete, preserve them as incomplete rather than manufacturing values.
+
+Importing does not mean verifying.
+
+---
+
+# 32. Communications
+
+CECASEM Conecta does not initially send emails.
+
+Zoho, Gmail or another approved provider remains the actual sending and receiving channel.
+
+CECASEM Conecta manually records institutional communication history.
+
+Communication information may include:
 
 - sender;
 - To;
@@ -436,49 +1043,205 @@ Initial communication information may include:
 - BCC;
 - subject;
 - original body;
-- actual communication date;
+- actual date;
 - registration date;
-- internal user who recorded it;
-- CECASEM mailbox used;
+- registering user;
+- CECASEM mailbox;
 - attachments.
 
-Internal notes must always be visually and semantically distinguishable from external communications.
+Do not claim:
 
-Do not claim automatic email synchronization or delivery verification.
+- email delivery verification;
+- automatic inbox synchronization;
+- automatic sending;
+
+unless such functionality is explicitly implemented in a future phase.
 
 ---
 
-## Files
+# 33. Internal notes
 
-Files must not be stored directly as general-purpose blobs in PostgreSQL.
+Internal notes are not external communications.
+
+They must remain semantically and visually distinguishable.
+
+Do not display an internal note in a way that could be interpreted as an email sent to the external actor.
+
+Adding an internal note alone does not make a user a formal process participant.
+
+---
+
+# 34. No-contact restrictions
+
+An explicit no-contact restriction must be respected.
+
+It is different from:
+
+- a rejected proposal;
+- no response;
+- a discarded opportunity;
+- an inactive process.
+
+The system should prominently warn users when an explicit restriction applies.
+
+Removing/overriding such a restriction requires authorized action and auditability.
+
+---
+
+# 35. Opportunities
+
+An opportunity may arise from:
+
+- research;
+- a communication;
+- a process;
+- a referral.
+
+Possible opportunity data includes:
+
+- title;
+- organization;
+- application link;
+- deadline;
+- requirements;
+- source process;
+- source communication;
+- attachments.
+
+Initial states:
+
+- Pendiente de revisión;
+- En preparación;
+- Postulada;
+- Descartada;
+- Finalizada.
+
+Discarding or deciding not to continue must preserve the reason where required.
+
+An opportunity may involve multiple organizations.
+
+Planificación receives particular visibility for opportunity workflows.
+
+---
+
+# 36. Meetings
+
+Meetings may be linked to:
+
+- relationship processes;
+- opportunities.
+
+Meeting information may include:
+
+- date;
+- time;
+- timezone;
+- participants;
+- modality;
+- platform;
+- link/location;
+- purpose;
+- agreements;
+- attendance;
+- attachments.
+
+Future meeting details may be updated.
+
+Historical meeting outcomes must preserve traceability.
+
+---
+
+# 37. Files
+
+Files must not normally be stored directly as database blobs.
 
 PostgreSQL stores file metadata.
 
-File bytes are stored through an abstracted file-storage service.
+File bytes are stored through an abstracted storage service.
 
 Initial implementation:
 
-- private local filesystem / Docker volume.
+```text
+private local filesystem / Docker volume
+```
 
-Files must not be directly publicly accessible through predictable static URLs.
+Files must not be served through publicly predictable static URLs.
 
-Download access must pass through authorization.
+Access should pass through backend authorization.
 
 Initial maximum file size:
 
-- 20 MB per file.
+```text
+20 MB
+```
 
-Do not automatically compress every file.
+Do not automatically compress every uploaded file.
+
+Preserve original files unless a later requirement explicitly defines transformation.
 
 ---
 
-## Search
+# 38. File storage abstraction
 
-PostgreSQL is the search engine for the initial version.
+Storage should be implemented behind an abstraction conceptually similar to:
 
-Do not introduce Elasticsearch/OpenSearch.
+```text
+FileStorage
+```
 
-Exact email lookup is a high-priority use case.
+Initial implementation may be:
+
+```text
+LocalFileStorage
+```
+
+Potential future implementations:
+
+```text
+MinioFileStorage
+S3FileStorage
+```
+
+Do not implement future storage providers prematurely.
+
+---
+
+# 39. Translation
+
+Translation is optional infrastructure.
+
+The intended first provider is a self-hosted LibreTranslate-compatible service.
+
+Backend code should depend on an abstraction conceptually similar to:
+
+```text
+TranslationProvider
+```
+
+Translation must:
+
+- preserve original content;
+- occur on demand;
+- remain optional;
+- fail gracefully;
+- never block the primary workflow.
+
+Do not spread provider-specific calls throughout domain/application code.
+
+---
+
+# 40. Search
+
+PostgreSQL is the initial search engine.
+
+Do not introduce Elasticsearch or OpenSearch.
+
+High-priority search use cases include:
+
+- organization;
+- person;
+- email;
+- process.
 
 Searching an email should make it possible to determine:
 
@@ -487,34 +1250,61 @@ Searching an email should make it possible to determine:
 - related organization;
 - date;
 - internal user;
-- process.
+- related process.
 
-Approximate duplicate detection may use PostgreSQL capabilities such as `pg_trgm` when implemented.
+Approximate duplicate search may later use PostgreSQL features such as:
 
----
+```text
+pg_trgm
+```
 
-## Translation
-
-Translation is optional infrastructure.
-
-The intended initial provider is a self-hosted LibreTranslate-compatible adapter.
-
-Translation must:
-
-- preserve the original content;
-- be requested on demand;
-- fail gracefully;
-- never block the core relationship-management workflow.
-
-Depend on an abstraction such as `TranslationProvider`, not directly on one provider throughout the codebase.
+when required.
 
 ---
 
-## Data deletion
+# 41. Notifications
+
+Initial notifications are internal to CECASEM Conecta.
+
+Do not introduce email notifications without explicit scope.
+
+Notifications should focus on meaningful events.
+
+Examples:
+
+- new opportunity;
+- meeting;
+- discarded application;
+- concreted process;
+- reminder.
+
+Avoid generating excessive low-value notifications.
+
+---
+
+# 42. Reminders
+
+Initial inactivity reminder:
+
+```text
+7 days
+```
+
+This interval must remain configurable.
+
+A reminder must not automatically change the business state of an intention or process.
+
+The initial scheduler may run inside the NestJS application.
+
+Do not introduce a queue or distributed scheduler unless scale requires it.
+
+---
+
+# 43. Data deletion
 
 Business history must not be physically deleted through ordinary application workflows.
 
-Prefer states such as:
+Prefer logical states such as:
 
 - inactive;
 - archived;
@@ -523,17 +1313,151 @@ Prefer states such as:
 
 Historical references must remain intact.
 
+Physical deletion must not be added casually to CRUD interfaces.
+
 ---
 
-## Deployment
+# 44. Audit and history
 
-Initial target:
+Technical logs and business audit are different concepts.
 
-- CECASEM local network.
+Business-sensitive actions may require persisted audit records.
 
-Users will access the system from a browser through the server's LAN address.
+Examples:
 
-The application must remain portable to the existing CECASEM VPS.
+- role change;
+- user deactivation;
+- password reset initiation;
+- duplicate consolidation;
+- exceptional close/reopen;
+- no-contact restriction removal;
+- imports.
+
+Do not depend only on application logs for institutional auditability.
+
+---
+
+# 45. Logging
+
+Logs may include:
+
+- startup;
+- shutdown;
+- errors;
+- technical failures;
+- integration failures;
+- relevant diagnostics.
+
+Never log:
+
+- passwords;
+- raw session tokens;
+- secrets;
+- private keys;
+- full uploaded files;
+- complete email contents without an explicit controlled debugging requirement.
+
+Avoid leaking sensitive information in error responses.
+
+---
+
+# 46. Database
+
+Use PostgreSQL as the primary persistence layer.
+
+Use one application database for the modular monolith.
+
+Do not create a database per module.
+
+Do not introduce distributed consistency mechanisms.
+
+Use Prisma as the primary ORM.
+
+Prisma is responsible for:
+
+- schema;
+- migrations;
+- typed queries;
+- transactions;
+- indexes;
+- constraints.
+
+Prisma does not replace domain rules.
+
+---
+
+# 47. Prisma migrations
+
+Prisma migrations are source-controlled artifacts.
+
+Never add:
+
+```text
+prisma/migrations
+```
+
+to `.gitignore`.
+
+If a task changes the Prisma schema and requires a migration:
+
+1. create the migration;
+2. inspect it;
+3. include it in the diff;
+4. validate it;
+5. report it.
+
+Do not modify production schema manually outside the migration strategy.
+
+---
+
+# 48. IDs and URLs
+
+Use opaque identifiers where appropriate.
+
+Do not expose sequential IDs as a business requirement.
+
+The concrete identifier strategy may be UUID, CUID or another approved approach.
+
+Do not hardcode assumptions about IDs into frontend behavior.
+
+---
+
+# 49. Docker
+
+Docker and Docker Compose are the intended deployment mechanisms.
+
+Expected services eventually include:
+
+```text
+web
+api
+db
+translator
+```
+
+where the translator remains optional.
+
+Use persistent volumes for:
+
+- PostgreSQL;
+- uploaded files;
+- translation models/cache if required.
+
+Do not commit Docker runtime data.
+
+---
+
+# 50. Deployment
+
+Initial deployment target:
+
+```text
+CECASEM local network
+```
+
+Users access the system through a browser.
+
+The system must remain portable to the CECASEM VPS.
 
 Do not hardcode:
 
@@ -541,52 +1465,102 @@ Do not hardcode:
 - domains;
 - ports;
 - credentials;
-- environment-specific URLs.
+- production paths.
 
 Use environment variables.
 
-Docker Compose is the intended deployment unit.
-
 Internet deployment requires HTTPS.
+
+LAN deployment does not remove the need for:
+
+- authentication;
+- authorization;
+- input validation;
+- file protection.
 
 ---
 
-## Testing philosophy
+# 51. Runtime data
 
-Prioritize tests for business rules and critical flows.
+Do not commit:
 
-Important backend test areas:
+- uploaded files;
+- PostgreSQL runtime data;
+- local database files;
+- logs;
+- temporary exports;
+- generated backups;
+- coverage reports;
+- test reports;
+- build output;
+- caches.
+
+If a runtime directory must exist in the repository, retain it using a safe placeholder such as:
+
+```text
+.gitkeep
+```
+
+while ignoring its runtime contents.
+
+---
+
+# 52. Testing philosophy
+
+Prioritize tests that protect valuable business behavior.
+
+Important backend areas include:
 
 - authentication;
+- sessions;
 - authorization;
 - process closure;
 - participant rules;
 - historical communication immutability;
 - no-contact restrictions;
 - verification;
-- duplicate handling;
+- duplicates;
 - import behavior.
 
-Important integration/e2e flows:
+Important integration/e2e flows include:
 
 1. login;
-2. create organization/person/contact;
-3. search previous contact;
-4. create relationship process;
-5. register outgoing email;
-6. register response;
-7. continue process as another user;
-8. verify historical data remains intact;
-9. close according to permissions;
-10. derive an opportunity or meeting.
+2. create organization;
+3. create person/contact;
+4. search previous contact;
+5. create relationship process;
+6. register outgoing communication;
+7. register incoming communication;
+8. continue process as another user;
+9. verify previous history remains intact;
+10. close according to permissions;
+11. derive opportunity;
+12. register meeting.
 
 Do not pursue arbitrary coverage percentages at the expense of useful tests.
 
 ---
 
-## Required validation
+# 53. Frontend testing
 
-Before declaring a subphase complete, run the applicable commands.
+Prioritize testing for:
+
+- critical forms;
+- permissions reflected in UI;
+- loading states;
+- error states;
+- empty states;
+- process timeline;
+- important interactions;
+- high-value user flows.
+
+Avoid excessive tests that only verify framework behavior.
+
+---
+
+# 54. Required validation
+
+Before declaring a subphase complete, run the applicable project validations.
 
 Target root commands:
 
@@ -597,64 +1571,326 @@ yarn test
 yarn build
 ```
 
-Also verify where applicable:
+Also verify when applicable:
 
-- database migrations;
+- Prisma migrations;
+- database connectivity;
 - Docker build;
 - Docker Compose startup;
 - relevant manual functional flow;
-- `git diff --check`;
-- `git status --short`.
+- uploads;
+- authorization;
+- responsive behavior.
 
-Do not claim a command passed if it was not actually executed.
+Do not claim a validation passed if it was not actually executed.
 
-If a command cannot run, report why.
+If a command cannot run, report:
+
+- the command;
+- the reason;
+- whether it blocks the subphase.
 
 ---
 
-## Git discipline
+# 55. Git discipline
 
-Keep changes scoped to the requested subphase.
+Keep changes limited to the requested subphase.
 
 Do not perform unrelated refactors.
 
-Do not modify generated lockfiles manually.
+Do not rewrite files only to change formatting unless required.
+
+Do not revert unrelated user changes.
+
+Do not manually edit generated lockfiles.
 
 Do not commit secrets.
 
-Do not commit:
+Before finishing a task, inspect:
 
-- `.env`;
-- runtime uploads;
-- database data;
-- credentials;
-- temporary build artifacts.
+```bash
+git status --short
+git diff --check
+```
 
-Do not revert unrelated existing user changes.
+Also inspect the actual diff.
 
-Before finishing, inspect the diff.
+Verify that no unintended files are included.
 
 ---
 
-## Working with AI-generated changes
+# 56. Secret review before completion
 
-When implementing a task:
+Before reporting completion, verify that the diff does not contain:
 
-1. inspect the current repository first;
-2. understand existing patterns;
-3. change only what is necessary;
-4. avoid speculative abstractions;
+- `.env` files;
+- real passwords;
+- database credentials;
+- session secrets;
+- private tokens;
+- API keys;
+- certificates;
+- uploaded files;
+- runtime database data;
+- backup files.
+
+If any secret is accidentally discovered in tracked changes:
+
+1. stop;
+2. remove it from the tracked content;
+3. report the issue;
+4. do not reproduce the secret unnecessarily in the response.
+
+---
+
+# 57. Dependency discipline
+
+Do not add a dependency just because it simplifies a few lines of code.
+
+Before adding a package, determine:
+
+- what problem it solves;
+- whether the platform already provides the capability;
+- whether an existing dependency already covers the use case;
+- whether the dependency introduces unnecessary operational complexity.
+
+Do not introduce major architectural dependencies without explicit approval.
+
+---
+
+# 58. AI-generated changes
+
+When implementing with an AI agent:
+
+1. inspect the repository first;
+2. understand existing conventions;
+3. read applicable `AGENTS.md` files;
+4. modify only necessary files;
 5. run validation;
-6. review the diff;
+6. inspect the diff;
 7. report exactly what changed.
 
-Do not assume missing functionality should be implemented just because it appears in future project documentation.
+Do not assume that missing future functionality should be implemented.
 
-The current prompt/subphase defines the implementation boundary.
+Do not generate entire unused architectures for future phases.
+
+Prefer incremental code that serves the current subphase.
 
 ---
 
-## Completion report
+# 59. Code quality
+
+Prefer:
+
+- descriptive names;
+- small focused functions;
+- explicit types at module boundaries;
+- clear error handling;
+- simple control flow;
+- business terminology consistent with the domain.
+
+Avoid:
+
+- generic names such as `data`, `manager`, `helper` when a more precise domain name exists;
+- oversized services;
+- duplicated business rules;
+- large controllers;
+- hidden side effects;
+- premature abstraction;
+- unnecessary inheritance.
+
+---
+
+# 60. Domain language
+
+Use project terminology consistently.
+
+Important terms include:
+
+- Organization;
+- Person;
+- Contact Method;
+- Relationship Process;
+- Contact Intention;
+- Communication;
+- Internal Note;
+- Opportunity;
+- Meeting;
+- Participant;
+- Verification;
+- No-contact Restriction;
+- Audit Event.
+
+Do not invent alternative names for the same concept without reason.
+
+Naming in code may be English while user-facing text may be Spanish.
+
+Be consistent within each layer.
+
+---
+
+# 61. User-facing language
+
+The application is primarily intended for CECASEM staff.
+
+Initial user-facing language is Spanish.
+
+Avoid exposing internal technical terminology unnecessarily.
+
+Errors shown to users should explain:
+
+- what happened;
+- what they can do next;
+
+without exposing implementation details.
+
+---
+
+# 62. Error handling
+
+Backend errors must follow a predictable format.
+
+Distinguish between:
+
+- validation errors;
+- authentication errors;
+- authorization errors;
+- not-found errors;
+- conflicts;
+- business-rule violations;
+- unexpected server failures.
+
+Do not return raw exceptions to the frontend.
+
+Frontend must provide useful error feedback.
+
+---
+
+# 63. Dates and timezones
+
+Persist timestamps consistently.
+
+Avoid using ambiguous local timestamps without context.
+
+Meeting information may require an explicit timezone.
+
+Actual communication date and system registration date are different concepts and must not be collapsed into one field.
+
+---
+
+# 64. Accessibility and responsive design
+
+Frontend must remain usable on:
+
+- desktop;
+- laptop;
+- tablet;
+- mobile browser.
+
+Prioritize semantic HTML and accessible controls.
+
+Do not rely only on color to communicate important states.
+
+Forms should provide visible validation messages.
+
+Interactive elements should have usable target sizes.
+
+---
+
+# 65. Initial development priorities
+
+The project prioritizes the following complete flow:
+
+```text
+login
+→ institutional directory
+→ search previous contact
+→ contact intention
+→ relationship process
+→ communication
+→ response
+→ continuation by another user
+→ opportunity / meeting
+→ institutional visibility
+```
+
+A visually impressive dashboard must not take priority over this working flow.
+
+---
+
+# 66. Development phase discipline
+
+Current development is organized into:
+
+```text
+FASE 0 — Bootstrap y base técnica
+FASE 1 — Identidad, autenticación y autorización
+FASE 2 — Directorio institucional
+FASE 3 — Procesos y comunicaciones
+FASE 4 — Archivos, oportunidades y reuniones
+FASE 5 — Dashboard, búsqueda e intercambio
+FASE 6 — Integración, QA y LAN
+FASE 7 — Operación segura y VPS
+FASE 8 — Evolución
+```
+
+Respect phase boundaries.
+
+If the current task belongs to Fase 0, do not implement Fase 1 functionality unless strictly required for infrastructure.
+
+---
+
+# 67. Bootstrap-specific instruction
+
+During Bootstrap Fase 0:
+
+- establish repository structure;
+- establish Yarn Workspaces;
+- configure Git;
+- configure `.gitignore`;
+- configure safe environment templates;
+- establish build/test/lint/typecheck commands;
+- create the application shells;
+- prepare Docker progressively.
+
+Do not prematurely implement:
+
+- authentication;
+- organizations;
+- communications;
+- opportunities;
+- meetings;
+- domain workflows.
+
+---
+
+# 68. AGENTS creation timing
+
+The root `AGENTS.md` exists from the beginning.
+
+After Subphase 0.1 creates and validates:
+
+```text
+apps/api
+apps/web
+```
+
+create:
+
+```text
+apps/api/AGENTS.md
+apps/web/AGENTS.md
+```
+
+before significant backend/frontend implementation begins.
+
+Do not create those files with speculative structure before the corresponding applications exist.
+
+Their contents should reflect the real generated project structure.
+
+---
+
+# 69. Completion report
 
 When finishing an implementation subphase, respond using a concise structure similar to:
 
@@ -682,14 +1918,50 @@ Decisiones nuevas:
 - ninguna / ...
 ```
 
-Only report `OK` for validations actually executed successfully.
+Only report `OK` for commands that were actually executed successfully.
 
-If something fails, report the failure instead of hiding it.
+If something failed, report it honestly.
+
+If a validation does not apply yet, report:
+
+```text
+N/A
+```
+
+rather than pretending it passed.
 
 ---
 
-## Final rule
+# 70. Completion criteria
 
-Prefer a simple, explicit and maintainable solution that satisfies the documented business rules.
+Do not declare a task complete only because code was written.
 
-Do not increase architectural complexity without solving a concrete CECASEM Conecta requirement.
+Completion requires, as applicable:
+
+- requested behavior implemented;
+- business rules preserved;
+- authorization preserved;
+- tests passing;
+- lint passing;
+- typecheck passing;
+- build passing;
+- migrations valid;
+- Git diff reviewed;
+- no secrets included;
+- no unrelated changes introduced.
+
+---
+
+# 71. Final rule
+
+Prefer the simplest explicit solution that satisfies CECASEM Conecta's documented requirements.
+
+Protect:
+
+- institutional history;
+- authorization;
+- traceability;
+- data integrity;
+- maintainability.
+
+Do not increase architectural complexity without solving a concrete current requirement.
