@@ -1,7 +1,14 @@
 # CECASEM Conecta
 
 Base técnica de Fase 0: monorepo Yarn, API NestJS, React/Vite y PostgreSQL/Prisma.
-Todavía no contiene autenticación ni funcionalidades de negocio.
+Incluye el modelo interno de usuarios y cuentas de correo de Subfase 1.1 y la
+autenticación por contraseña/sesión de Subfase 1.2. No incluye primer acceso,
+restablecimiento, RBAC funcional ni administración de usuarios.
+
+La ruta `/` requiere sesión y `/login` permite iniciar sesión. Las cuentas nuevas
+conservan `passwordHash=null`: el propio usuario establecerá su contraseña en 1.3.
+No hay seeds ni contraseñas provisionales. Consulta los contratos y límites en
+[la documentación de API](apps/api/README.md#contraseñas-y-sesiones--subfase-12).
 
 ## Requisitos y configuración Docker
 
@@ -90,9 +97,9 @@ explícita en PostgreSQL, conservando los datos.
 
 ## Migraciones de despliegue
 
-Todavía no existen modelos ni migraciones funcionales. No se inventa ninguna y
-no se ejecutan migraciones automáticamente al iniciar API. Antes de un despliegue
-con migraciones reales, prepara DB y ejecuta el comando manual:
+Existe la primera migración funcional de identidades, documentada en
+`apps/api/README.md`. No se ejecutan migraciones automáticamente al iniciar API.
+Antes de desplegar el nuevo build, prepara DB y ejecuta el comando manual:
 
 ```sh
 docker compose up -d --wait db
@@ -103,8 +110,8 @@ docker compose up -d --wait --wait-timeout 120
 El override usa la etapa de build, que contiene Prisma CLI, con la misma conexión
 y red. No altera la imagen runtime ni añade un cuarto servicio permanente.
 Prisma CLI solo se necesita para esta operación. Usa `migrate deploy`, nunca
-`migrate dev` ni `db push` en un despliegue. La primera migración real corresponde
-al primer modelo funcional, previsiblemente en Fase 1.1.
+`migrate dev` ni `db push` en un despliegue. Para desarrollo, shadow database y
+pruebas con escrituras, utiliza el entorno separado de `infra/development/README.md`.
 
 ## Validación y problemas comunes
 

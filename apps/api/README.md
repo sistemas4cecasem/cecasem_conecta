@@ -1,7 +1,7 @@
 # CECASEM Conecta API
 
 Backend base de las subfases 0.2 y 0.4: NestJS, PostgreSQL y Prisma ORM 7.10.0.
-No incluye autenticación, modelos de negocio ni seeds.
+Incorpora el modelo de identidades de Subfase 1.1. No incluye autenticación ni seeds.
 
 ## Ejecución
 
@@ -94,12 +94,12 @@ yarn workspace @cecasem-conecta/api prisma:migrate:dev --name nombre_del_cambio
 yarn workspace @cecasem-conecta/api prisma:migrate:deploy
 ```
 
-La ubicación configurada es `prisma/migrations`; las migraciones futuras deben
-versionarse. No existe una primera migración porque el schema no contiene modelos
-reales. Aparecerá con el primer modelo funcional, previsiblemente en Fase 1.1.
-No se creó SQL vacío, modelos artificiales ni una carpeta de migraciones ficticia.
+La ubicación configurada es `prisma/migrations`. La primera migración funcional,
+`20261001205420_identity_users_roles`, incorpora usuarios, el enum de roles,
+cuentas de correo y su asociación explícita. Las migraciones deben versionarse.
+Nunca se editan después de aplicarlas; los cambios posteriores requieren otra migración.
 
-En una base nueva, `migrate status` puede indicar que aún no está gestionada y
+Antes de aplicar la primera migración, `migrate status` puede indicar que la base aún no está gestionada y
 terminar con código 1. `migrate deploy` inicializa el registro estándar interno
 `_prisma_migrations`; sin migraciones, informa que no hay pendientes. Después,
 `migrate status` devuelve que está al día. Esto no crea un esquema de aplicación
@@ -150,3 +150,179 @@ este equipo. La infraestructura permanente corresponde a 0.5.
 Prisma CLI 7.10.0 incluye Studio y emite avisos de peers React internos de ese
 paquete. Los comandos de generación, validación y migraciones funcionan; no se
 añadieron dependencias de UI al backend para ocultar esos avisos.
+
+## Identidades — Subfase 1.1
+
+`UsersModule`, en `src/modules/users`, exporta `UsersService` como interfaz interna
+para crear identidades, buscarlas por correo, crear cuentas disponibles y asociarlas.
+En 1.1 no contenía controllers, credenciales, sesiones ni autorización HTTP. Los
+módulos consumidores deben importar este módulo, no manipular su persistencia.
+
+### Modelo e invariantes
+
+- `User`: UUID generado por PostgreSQL mediante `gen_random_uuid()`, nombres y
+  apellidos compuestos (`givenNames`, `familyNames`), username y email únicos,
+  rol obligatorio, estado y fechas. El rol no tiene default.
+- `UserRole`: `ADMINISTRATOR` = Administrador, `BOARD` = Directorio,
+  `RESEARCH` = Búsqueda y `PLANNING` = Planificación.
+- `EmailAccount`: UUID, dirección única, descripción obligatoria, proveedor
+  descriptivo opcional, estado y fechas. Nunca contiene credenciales externas.
+- `UserEmailAccount`: asociación N↔N explícita con PK compuesta, fecha de creación
+  e índice para consultar usuarios de una cuenta. Ambas FK usan RESTRICT en
+  DELETE y UPDATE; no hay cascadas destructivas.
+- Los instantes son `TIMESTAMPTZ(3)`, representados como `Date` en la aplicación.
+  `updatedAt` se actualiza mediante Prisma; no se introducen triggers.
+
+La migración añade CHECK para exigir que un usuario activo tenga fecha de
+desactivación null y uno inactivo tenga fecha. Un cambio futuro de estado debe
+actualizar ambos campos atómicamente. No hay operación administrativa de estado
+en esta subfase. Cambiar el estado no elimina identidades ni asociaciones y no
+libera email, username o dirección de buzón.
+
+### Normalización y username
+
+La aplicación valida el correo con `class-validator`, limita a 254 caracteres y
+aplica exclusivamente trim y lowercase. Conserva puntos y sufijos `+`. Creación
+y búsqueda utilizan la misma función. Dos CHECK rechazan escrituras directas de
+emails/direcciones no canónicas, y sus índices únicos protegen la unicidad.
+Los CHECK no reemplazan la validación de formato de la aplicación.
+
+Los nombres/descripciones conservan sus caracteres y capitalización; se recortan
+y colapsan espacios, con un máximo de 150 caracteres. Para username:
+
+1. NFKD, eliminación de marcas diacríticas y lowercase.
+2. Eliminación de apóstrofes rectos y variantes `’`/`ʼ` dentro de componentes.
+3. Primer componente alfanumérico ASCII útil; guiones y otros separadores delimitan
+   componentes. Entradas sin componente útil se rechazan, sin inventar nombres.
+4. Cada componente se limita a 30 caracteres: `nombre.apellido` mide hasta 61.
+5. Intentos 1–100: base sin sufijo, después `2`, `3`, …, `100`. Máximo 64 caracteres.
+
+Ejemplos: `Diego Armando` / `Fariñas Ávila` → `diego.farinas`;
+`Ana-María` / `Pérez-Gómez` → `ana.perez`;
+`D'Artagnan` / `O'Neill` → `dartagnan.oneill`.
+
+Cada intento hace un INSERT independiente. Solo un P2002 del índice de username
+permite reintentar: se reconocen campos de `meta.target` o el índice estructurado
+de `driverAdapterError.cause.constraint` utilizado por adapter-pg 7.10. No se
+analizan mensajes SQL ni se registran datos personales. Un conflicto de email o
+un fallo inesperado no inicia esa secuencia. Tras 100 colisiones se devuelve un
+conflicto interno explícito. PostgreSQL es la garantía final ante concurrencia.
+
+### Pruebas y migración
+
+Las unitarias cubren normalización, componentes, longitudes, errores y límites de
+reintento. `test/users.integration-spec.ts` usa PostgreSQL real y verifica roles,
+unicidad, CHECK, concurrencia, cardinalidad, FK y conservación tras cambios de estado.
+La suite escribe únicamente fixtures de una base `_test` y limpia sus UUID después
+de cada prueba. Las pruebas de conectividad heredadas también siguen ejecutándose.
+
+Consulta [el entorno aislado](../../infra/development/README.md) para ejecutar
+`migrate dev`, shadow y pruebas. La primera migración es aditiva: crea un enum,
+tres tablas, índices y constraints; no borra ni transforma datos existentes.
+El despliegue continúa usando el override manual documentado en el README raíz.
+
+## Contraseñas y sesiones — Subfase 1.2
+
+`AuthModule` consume la interfaz pública de `UsersModule`. `createIdentity`,
+`findByEmail` y `findIdentityById` seleccionan identidad sin hash. La proyección
+de credenciales es exclusivamente interna; los contratos HTTP enumeran solo
+id, nombres, apellidos, username, email y rol. Swagger marca password writeOnly.
+
+`User.passwordHash` es nullable y no tiene default. Una identidad sin contraseña
+no puede iniciar sesión; ninguna operación de 1.2 asigna contraseña al crearla.
+Primer acceso y restablecimiento pertenecen a las siguientes subfases.
+
+### Contraseña
+
+Argon2id mediante `argon2`: 65536 KiB, tres iteraciones, paralelismo uno, salt de
+la biblioteca y PHC completo. Se aplica NFC al hash y verificación, sin trim ni
+cambios de espacios/capitalización. La política preparada para nuevas contraseñas
+es 15–128 puntos de código después de NFC. Login permite entradas no vacías con
+máximo 128 puntos normalizados y límite previo de 256 unidades UTF-16.
+
+Un hash de referencia se genera una vez por arranque para verificar solicitudes
+de cuentas inexistentes/sin contraseña con trabajo Argon2 comparable. No pertenece
+a un usuario. Todos los rechazos de credenciales utilizan 401 genérico. Tras login
+correcto se rehashan parámetros antiguos mediante reemplazo condicional; si la
+credencial cambió durante la verificación, no se crea sesión. No se almacena
+passwordChangedAt y un rehash no representa un cambio personal de contraseña.
+
+### Sesiones y coordinación
+
+`UserSession` conserva UUID, SHA-256 hexadecimal único del token, userId,
+createdAt, expiresAt y revokedAt. El token procede de 32 bytes aleatorios y usa
+Base64URL canónico sin padding. Solo se emite en cookie; no se persiste en plano,
+no aparece en JSON, URL ni logs. No se almacenan IP, User-Agent o rol duplicado.
+
+TTL absoluto por defecto 28800 segundos. No hay renovación ni scheduler. Una
+sesión expirada o revocada es inválida aunque la fila permanezca. Los CHECK de
+la segunda migración protegen fechas y formato SHA-256; las FK usan RESTRICT.
+Hay índices por usuario y expiración y se permiten varias sesiones por usuario.
+
+`SessionGuard` consulta sesión, fechas e identidad vigente en cada petición;
+comprueba isActive y recupera el rol actual, sin aplicar todavía RBAC.
+`UserAccessService.deactivate` es interno, sin endpoint: usa el lock del usuario
+para cambiar estado/fecha y revocar todas las sesiones en la misma transacción.
+La operación administrativa de 1.6 deberá consumir este servicio. Cambiar solo
+isActive mediante SQL bloquea acceso inmediato, pero no sustituye esa coordinación.
+
+Login verifica y calcula rehash antes del lock. Bajo un `SELECT ... FOR UPDATE`
+parametrizado, vuelve a comprobar estado y hash, revoca la cookie anterior y crea
+la nueva sesión. Desactivación usa el mismo lock; las sesiones antiguas no reviven
+al reactivar. No se mantiene una transacción abierta durante Argon2.
+
+### HTTP, cookie y entorno
+
+| Endpoint | Contrato |
+| --- | --- |
+| POST `/api/v1/auth/login` | JSON email/password; 200 identidad y Set-Cookie; 401 genérico |
+| POST `/api/v1/auth/logout` | JSON `{}`; 204, revocación actual y cookie expirada |
+| GET `/api/v1/auth/me` | 200 identidad vigente; 401 sin sesión válida |
+
+Todos los resultados de estas rutas, incluidos errores, usan `Cache-Control:
+no-store`. Logout es idempotente ante cookie ausente/desconocida o sesión ya
+revocada/expirada. Si falla la persistencia, no confirma revocación ni borra la
+cookie. Login fallido conserva la sesión anterior; login correcto reemplaza solo
+la sesión del navegador, manteniendo otras sesiones.
+
+Cookie `cecasem_session`: HttpOnly, SameSite=Lax, Path=/api/v1, sin Domain y
+Max-Age según TTL. Su borrado comparte scope y atributos. `cookie` es dependencia
+directa de lectura; no se utiliza cookie-parser ni express-session.
+
+Solo se añaden `SESSION_TTL_SECONDS` (1–604800, default 28800) y
+`SESSION_COOKIE_SECURE` (true/false explícito, default false). Usar true con HTTPS;
+NODE_ENV=production no implica HTTPS en la LAN actual. No existe SESSION_SECRET.
+El despliegue conserva mismo origen Nginx/Vite y no habilita CORS. Se exige JSON
+en operaciones mutadoras; no se añaden APP_ORIGIN ni infraestructura de throttling.
+Rate limiting, controles adicionales de origen y endurecimiento para Internet
+quedan deliberadamente pendientes. HTTP no protege el transporte de credenciales.
+
+### Validación y mediciones
+
+`test/auth.integration-spec.ts` combina persistencia y HTTP real en PostgreSQL
+dedicado `_test`. Limpia solo UUID propios y sus sesiones. Cubre constraints,
+login/logout/me, cookies, errores, múltiples sesiones, rehash y concurrencia.
+Los fixtures generan credenciales aleatorias en ejecución; no hay usuarios seed.
+
+Después de build, desde `apps/api` en PowerShell:
+
+```powershell
+Get-Content ../../infra/development/benchmark-password.cjs -Raw | node -
+```
+
+Para el contenedor runtime, desde raíz:
+
+```powershell
+Get-Content infra/development/benchmark-password.cjs -Raw | docker compose exec -T api node -
+```
+
+La medición usa el servicio compilado, warmup y cinco muestras por operación;
+no crea usuarios ni imprime contraseñas/hashes. En este equipo con Node 24.21.0:
+Windows hash media/máximo 111/114 ms y verify 116/123 ms; Docker Linux hash
+155/163 ms y verify 158/168 ms. Son mediciones locales sin carga concurrente.
+
+La comprobación de navegador se realizó con fixture temporal en una base limpia
+aislada: login, navegación, refresh, me=200, logout, redirección y me=401. La cookie
+no fue visible a JavaScript del frontend y los dos almacenamientos tenían cero
+entradas. Los atributos se validaron también por HTTP/E2E. Se eliminaron el
+fixture y los contenedores auxiliares; no se incorporaron endpoints diagnósticos.

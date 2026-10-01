@@ -1,7 +1,8 @@
-# CECASEM Conecta — Frontend base (0.3)
+# CECASEM Conecta — Frontend
 
-SPA React + TypeScript + Vite. La pantalla inicial valida la base de aplicación;
-no contiene autenticación, datos de negocio ni consultas automáticas a la API.
+SPA React + TypeScript + Vite con autenticación mínima de Subfase 1.2.
+Consulta la identidad actual antes de mostrar el área autenticada; no contiene
+administración de usuarios ni funcionalidades de negocio posteriores.
 
 ## Desarrollo
 
@@ -20,8 +21,28 @@ consulta la dirección impresa en consola. Para iniciar solo Web, incluso sin AP
 yarn workspace @cecasem-conecta/web dev
 ```
 
-Las rutas disponibles son `/` y una página 404 para cualquier otra dirección,
-con enlace de regreso al inicio. No existen aún `/login` ni rutas de negocio.
+Las rutas disponibles son `/login`, `/` autenticada y una página 404.
+La pantalla inicial conserva su contenido temporal; no se añade dashboard.
+
+## Autenticación — 1.2
+
+React Hook Form, Zod y su resolver gestionan el formulario accesible de login.
+Solo se normaliza el correo; la contraseña mantiene espacios y capitalización.
+El backend aplica NFC de forma autoritativa. La contraseña se vacía al enviar y
+no se conserva en la caché de mutaciones; la solicitud usa el cliente API central.
+
+TanStack Query mantiene la identidad con key `['auth', 'me']`. El estado de carga
+evita mostrar contenido protegido; un 401 de me representa sesión anónima y un
+401 de login muestra rechazo genérico. Un 401 de un endpoint protegido futuro
+invalida la identidad y elimina otras queries, notificando al layout existente.
+No hay reintentos automáticos ni bucles de navegación.
+
+Login correcto elimina cachés anteriores y actualiza la identidad; logout llama
+al servidor, elimina cachés y vuelve a login. Un error de logout no confirma el
+cierre. No se almacenan tokens, contraseñas ni session IDs en localStorage,
+sessionStorage o un store global. Cookies viajan con credentials=include a través
+del proxy del mismo origen; la UI no intenta leerlas. Los usuarios sin contraseña
+esperan el primer acceso de 1.3; no se ofrecen registro ni recuperación pública.
 
 ## Entorno y API
 

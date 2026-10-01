@@ -3,9 +3,10 @@ import { Link } from 'react-router';
 
 interface ApplicationFrameProps {
   children: ReactNode;
+  actions?: ReactNode;
 }
 
-export function ApplicationFrame({ children }: ApplicationFrameProps) {
+export function ApplicationFrame({ children, actions }: ApplicationFrameProps) {
   return (
     <div className="flex min-h-dvh flex-col">
       <a href="#contenido" className="sr-only focus:not-sr-only focus:m-4 focus:p-3">
@@ -16,6 +17,7 @@ export function ApplicationFrame({ children }: ApplicationFrameProps) {
           <Link to="/" className="inline-flex min-h-11 items-center text-lg font-semibold tracking-tight">
             CECASEM <span className="ml-1 font-normal text-slate-600">Conecta</span>
           </Link>
+          {actions}
         </div>
       </header>
       <main id="contenido" tabIndex={-1} className="mx-auto flex w-full max-w-5xl flex-1 items-center px-6 py-16 sm:px-10 sm:py-24">

@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppProviders } from '../providers/app-providers';
 import { AppRoutes } from './app-routes';
 
@@ -14,9 +14,14 @@ function renderApplication(path: string) {
 }
 
 describe('Aplicación base', () => {
-  it('muestra la pantalla inicial sin depender de la API', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(Response.json({
+      id: 'fixture', givenNames: 'Ana', familyNames: 'Prueba', username: 'ana.prueba', email: 'fixture@example.test', role: 'RESEARCH',
+    }))));
+  });
+  it('muestra la pantalla inicial después de comprobar la sesión', async () => {
     renderApplication('/');
-    expect(screen.getByRole('heading', { name: 'CECASEM Conecta', level: 1 })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'CECASEM Conecta', level: 1 })).toBeInTheDocument();
     expect(screen.getByText('Sistema de Gestión de Relaciones Institucionales y Cooperación')).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Aplicación base en funcionamiento' })).toBeVisible();
     expect(screen.getByRole('main')).toBeInTheDocument();
@@ -27,7 +32,7 @@ describe('Aplicación base', () => {
     renderApplication('/ruta-inexistente');
     expect(screen.getByRole('heading', { name: 'Página no encontrada' })).toBeVisible();
     await user.click(screen.getByRole('link', { name: 'Volver al inicio' }));
-    expect(screen.getByRole('heading', { name: 'CECASEM Conecta', level: 1 })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: 'CECASEM Conecta', level: 1 })).toBeVisible();
     expect(screen.queryByRole('heading', { name: 'Página no encontrada' })).not.toBeInTheDocument();
   });
 });

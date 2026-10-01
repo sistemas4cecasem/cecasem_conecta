@@ -4,6 +4,8 @@ export interface AppEnvironment {
   NODE_ENV: 'development' | 'test' | 'production';
   APP_PORT: number;
   DATABASE_URL: string;
+  SESSION_TTL_SECONDS: number;
+  SESSION_COOKIE_SECURE: boolean;
 }
 
 export function validateEnvironment(
@@ -27,9 +29,21 @@ export function validateEnvironment(
     throw new Error('APP_PORT debe ser un entero entre 1 y 65535.');
   }
 
+  const rawTtl = environment.SESSION_TTL_SECONDS ?? '28800';
+  if ((typeof rawTtl !== 'string' && typeof rawTtl !== 'number') || !/^\d+$/.test(String(rawTtl)) ||
+      !Number.isSafeInteger(Number(rawTtl)) || Number(rawTtl) < 1 || Number(rawTtl) > 604800) {
+    throw new Error('SESSION_TTL_SECONDS debe ser un entero entre 1 y 604800.');
+  }
+  const rawSecure = environment.SESSION_COOKIE_SECURE ?? 'false';
+  if (rawSecure !== 'true' && rawSecure !== 'false' && typeof rawSecure !== 'boolean') {
+    throw new Error('SESSION_COOKIE_SECURE debe ser true o false.');
+  }
+
   return {
     NODE_ENV: nodeEnv,
     APP_PORT: port,
     DATABASE_URL: validateDatabaseUrl(environment.DATABASE_URL),
+    SESSION_TTL_SECONDS: Number(rawTtl),
+    SESSION_COOKIE_SECURE: rawSecure === true || rawSecure === 'true',
   };
 }

@@ -39,7 +39,12 @@ export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'cr
     throw new ApiError('No se pudo conectar con el servidor. Revisa tu conexión e intenta nuevamente.', null);
   }
 
-  if (!response.ok) throw new ApiError(httpErrorMessage(response.status), response.status);
+  if (!response.ok) {
+    if (response.status === 401 && !/^\/?auth(?:\/|$)/.test(path)) {
+      window.dispatchEvent(new Event('cecasem:unauthorized'));
+    }
+    throw new ApiError(httpErrorMessage(response.status), response.status);
+  }
   if (response.status === 204) return undefined;
 
   try {

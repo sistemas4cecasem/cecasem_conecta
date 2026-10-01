@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { HttpExceptionFilter } from '../common/filters/http-exception.filter';
 import { AppEnvironment } from './environment';
+import type { Request, Response, NextFunction } from 'express';
 
 export function createValidationPipe(): ValidationPipe {
   return new ValidationPipe({
@@ -15,6 +16,10 @@ export function createValidationPipe(): ValidationPipe {
 
 export function configureApplication(app: INestApplication): void {
   app.setGlobalPrefix('api/v1');
+  app.use('/api/v1/auth', (_request: Request, response: Response, next: NextFunction) => {
+    response.setHeader('Cache-Control', 'no-store');
+    next();
+  });
   app.useGlobalPipes(createValidationPipe());
   app.useGlobalFilters(new HttpExceptionFilter());
 
@@ -24,6 +29,7 @@ export function configureApplication(app: INestApplication): void {
       .setTitle('CECASEM Conecta API')
       .setDescription('API REST de CECASEM Conecta.')
       .setVersion('0.2.0')
+      .addCookieAuth('cecasem_session', { type: 'apiKey', in: 'cookie' }, 'cecasem_session')
       .build();
     SwaggerModule.setup('api/docs', app, () =>
       SwaggerModule.createDocument(app, documentConfig),
