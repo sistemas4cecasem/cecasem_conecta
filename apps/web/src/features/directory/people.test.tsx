@@ -30,6 +30,7 @@ describe('Personas y episodios institucionales en UI',()=>{
       }
       if(path.startsWith('organizations?'))return Promise.resolve(Response.json(page([org,{...org,id:'org-b',name:'Organización B'}])));
       if(path.includes('/children'))return Promise.resolve(Response.json(page([])));
+      if(path.includes('/contacts?'))return Promise.resolve(Response.json(page([])));
       if(path.includes('/people?')||path.includes('/relations?'))return Promise.resolve(Response.json(page(relations)));
       if(path==='organizations/org-a')return Promise.resolve(Response.json(org));
       if(path==='people'&&method==='POST'){row={...base,...JSON.parse(String(options?.body)) as object};return Promise.resolve(Response.json(row,{status:201}));}

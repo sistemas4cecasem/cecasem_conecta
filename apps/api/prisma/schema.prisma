@@ -33,6 +33,26 @@ enum AuditAction {
   PERSON_STATUS_CHANGED
   PERSON_RELATION_UPDATED
   PERSON_RELATION_ENDED
+  CONTACT_METHOD_UPDATED
+  CONTACT_METHOD_CONDITION_CHANGED
+  CONTACT_ASSOCIATION_CREATED
+  CONTACT_ASSOCIATION_UPDATED
+  CONTACT_ASSOCIATION_ENDED
+  CONTACT_ASSOCIATION_STATUS_CHANGED
+}
+
+enum ContactType {
+  EMAIL
+  PHONE
+  LINKEDIN
+  FORM
+  WEB
+  OTHER
+}
+
+enum ContactCondition {
+  USABLE
+  UNUSABLE
 }
 
 model User {
@@ -89,6 +109,9 @@ model AuditEvent {
   operationId          String?   @db.Uuid
   personId             String?   @db.Uuid
   personRelationId     String?   @db.Uuid
+  contactMethodId      String?   @db.Uuid
+  personContactId      String?   @db.Uuid
+  organizationContactId String? @db.Uuid
   createdAt            DateTime  @default(now()) @db.Timestamptz(3)
   actor                User?     @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   target               User?     @relation("AuditTarget", fields: [targetUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
@@ -98,6 +121,9 @@ model AuditEvent {
   category             Category? @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   person               Person? @relation(fields: [personId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   personRelation       PersonOrganizationRelation? @relation(fields: [personRelationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  contactMethod        ContactMethod? @relation(fields: [contactMethodId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  personContact        PersonContact? @relation(fields: [personContactId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  organizationContact OrganizationContact? @relation(fields: [organizationContactId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([targetUserId, createdAt])
   @@index([actorUserId])
@@ -107,6 +133,9 @@ model AuditEvent {
   @@index([categoryId, createdAt])
   @@index([personId, createdAt])
   @@index([personRelationId, createdAt])
+  @@index([contactMethodId, createdAt])
+  @@index([personContactId, createdAt])
+  @@index([organizationContactId, createdAt])
 }
 
 model Organization {
@@ -128,6 +157,7 @@ model Organization {
   changes         DirectoryChange[]
   auditEvents     AuditEvent[]
   personRelations PersonOrganizationRelation[]
+  contacts        OrganizationContact[]
 
   @@index([parentId, name, id])
   @@index([isActive, name, id])
@@ -164,6 +194,9 @@ model DirectoryChange {
   categoryId     String? @db.Uuid
   personId       String? @db.Uuid
   personRelationId String? @db.Uuid
+  contactMethodId String? @db.Uuid
+  personContactId String? @db.Uuid
+  organizationContactId String? @db.Uuid
   operationId    String @db.Uuid
   field          String @db.VarChar(32)
   previousValue  Json
@@ -174,12 +207,18 @@ model DirectoryChange {
   category       Category? @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   person         Person? @relation(fields: [personId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   personRelation PersonOrganizationRelation? @relation(fields: [personRelationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  contactMethod ContactMethod? @relation(fields: [contactMethodId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  personContact PersonContact? @relation(fields: [personContactId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  organizationContact OrganizationContact? @relation(fields: [organizationContactId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   actor          User @relation(fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([organizationId, createdAt, id])
   @@index([categoryId, createdAt, id])
   @@index([personId, createdAt, id])
   @@index([personRelationId, createdAt, id])
+  @@index([contactMethodId, createdAt, id])
+  @@index([personContactId, createdAt, id])
+  @@index([organizationContactId, createdAt, id])
   @@index([actorUserId])
   @@unique([operationId, field])
 }
@@ -195,6 +234,7 @@ model Person {
   updatedAt      DateTime @default(now()) @updatedAt @db.Timestamptz(3)
   lastVerifiedAt DateTime? @db.Timestamptz(3)
   relations      PersonOrganizationRelation[]
+  contacts       PersonContact[]
   changes        DirectoryChange[]
   auditEvents    AuditEvent[]
 
@@ -223,6 +263,69 @@ model PersonOrganizationRelation {
 
   @@index([personId, isCurrent, createdAt, id])
   @@index([organizationId, isCurrent, createdAt, id])
+}
+
+model ContactMethod {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type ContactType
+  value String @db.VarChar(2048)
+  normalizedValue String? @db.VarChar(254)
+  label String? @db.VarChar(150)
+  condition ContactCondition @default(USABLE)
+  version Int @default(1)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+  people PersonContact[]
+  organizations OrganizationContact[]
+  changes DirectoryChange[]
+  auditEvents AuditEvent[]
+
+  // Unicidad exclusiva de EMAIL mediante índice parcial SQL versionado.
+  @@index([type, createdAt, id])
+}
+
+model PersonContact {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  personId String @db.Uuid
+  contactMethodId String @db.Uuid
+  sourceDescription String? @db.VarChar(1000)
+  sourceUrl String? @db.VarChar(2048)
+  notes String? @db.VarChar(5000)
+  isActive Boolean @default(true)
+  version Int @default(1)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+  lastVerifiedAt DateTime? @db.Timestamptz(3)
+  person Person @relation(fields: [personId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  contactMethod ContactMethod @relation(fields: [contactMethodId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  changes DirectoryChange[]
+  auditEvents AuditEvent[]
+
+  @@unique([personId, contactMethodId])
+  @@index([personId, isActive, createdAt, id])
+  @@index([contactMethodId, createdAt, id])
+}
+
+model OrganizationContact {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String @db.Uuid
+  contactMethodId String @db.Uuid
+  sourceDescription String? @db.VarChar(1000)
+  sourceUrl String? @db.VarChar(2048)
+  notes String? @db.VarChar(5000)
+  isActive Boolean @default(true)
+  version Int @default(1)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+  lastVerifiedAt DateTime? @db.Timestamptz(3)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  contactMethod ContactMethod @relation(fields: [contactMethodId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  changes DirectoryChange[]
+  auditEvents AuditEvent[]
+
+  @@unique([organizationId, contactMethodId])
+  @@index([organizationId, isActive, createdAt, id])
+  @@index([contactMethodId, createdAt, id])
 }
 
 model FirstAccessToken {

@@ -12,9 +12,9 @@ export function QueryState({ pending, error, retry }: { pending: boolean; error:
 }
 export function Pagination({ page, total, pageSize = 25, onPage }: { page: number; total: number; pageSize?: number; onPage: (page: number) => void }) {
   return <nav aria-label="Paginación" className="flex flex-wrap items-center gap-3">
-    <button className={buttonClass} disabled={page <= 1} onClick={() => onPage(page - 1)}>Anterior</button>
+    <button type="button" className={buttonClass} disabled={page <= 1} onClick={() => onPage(page - 1)}>Anterior</button>
     <span>Página {page} de {Math.max(1, Math.ceil(total / pageSize))} · {total} registros</span>
-    <button className={buttonClass} disabled={page * pageSize >= total} onClick={() => onPage(page + 1)}>Siguiente</button>
+    <button type="button" className={buttonClass} disabled={page * pageSize >= total} onClick={() => onPage(page + 1)}>Siguiente</button>
   </nav>;
 }
 export function MutationError({ error, reload }: { error: Error | null; reload?: () => unknown }) {

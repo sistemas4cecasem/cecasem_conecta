@@ -12,6 +12,7 @@ import { OrganizationDetailPage } from '../../features/directory/organization-de
 import { CategoriesPage } from '../../features/directory/categories-page';
 import { PeoplePage, PersonCreationPage } from '../../features/directory/people-page';
 import { PersonDetailPage } from '../../features/directory/person-detail-page';
+import { ContactDetailPage } from '../../features/directory/contact-detail-page';
 
 export function AppRoutes() {
   return (
@@ -32,6 +33,7 @@ export function AppRoutes() {
         <Route path="people" element={<PeoplePage />} />
         <Route path="people/new" element={<PersonCreationPage />} />
         <Route path="people/:id" element={<PersonDetailPage />} />
+        <Route path="contact-methods/:id" element={<ContactDetailPage />} />
       </Route>
     </Routes>
   );

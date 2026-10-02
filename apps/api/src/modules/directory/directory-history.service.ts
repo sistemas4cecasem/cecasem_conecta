@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { Prisma } from '../../generated/prisma/client';
 export type HistoryValue = string | boolean | string[] | null;
 export interface FieldChange { field: string; previousValue: HistoryValue; newValue: HistoryValue }
-export type DirectoryTarget = { organizationId: string } | { categoryId: string } | { personId: string } | { personRelationId: string };
+export type DirectoryTarget = { organizationId: string } | { categoryId: string } | { personId: string } | { personRelationId: string } | { contactMethodId: string } | { personContactId: string } | { organizationContactId: string };
 @Injectable()
 export class DirectoryHistoryService {
   async record(target: DirectoryTarget, actorUserId: string,

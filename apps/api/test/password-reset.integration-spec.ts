@@ -111,8 +111,8 @@ describe('Password reset PostgreSQL and HTTP E2E', () => {
     expect(+row.expiresAt - +row.createdAt).toBe(14400000); expect(JSON.stringify(row)).not.toContain(body.token);
     const event = (await prisma.auditEvent.findMany({where:{targetUserId:user.id}}))[0];
     expect(event).toMatchObject({action:AuditAction.PASSWORD_RESET_ISSUED,actorUserId:actor.id,passwordResetTokenId:row.id});
-    expect(Object.keys(event).sort()).toEqual(['action','actorUserId','categoryId','createdAt','emailAccountId','id','newRole','operationId','organizationId','passwordResetTokenId','personId','personRelationId','previousRole','targetUserId']);
-    expect(event).toMatchObject({ previousRole: null, newRole: null, emailAccountId: null, organizationId: null, categoryId: null, operationId: null, personId: null, personRelationId: null });
+    expect(Object.keys(event).sort()).toEqual(['action','actorUserId','categoryId','contactMethodId','createdAt','emailAccountId','id','newRole','operationId','organizationContactId','organizationId','passwordResetTokenId','personContactId','personId','personRelationId','previousRole','targetUserId']);
+    expect(event).toMatchObject({ previousRole: null, newRole: null, emailAccountId: null, organizationId: null, categoryId: null, operationId: null, personId: null, personRelationId: null, contactMethodId: null, personContactId: null, organizationContactId: null });
     expect(JSON.stringify(event)).not.toContain(body.token); expect(JSON.stringify(event)).not.toContain(row.tokenHash);
     await request(app.getHttpServer()).get('/api/v1/auth/password-reset-tokens').set('Cookie',actorCookie).expect(404);
   });

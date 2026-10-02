@@ -8,6 +8,7 @@ import { dateLabel } from './date-label';
 import { PersonForm } from './person-form';
 import { PersonRelations } from './person-relations';
 import { OrganizationHistory } from './organization-history';
+import { ContactSection } from './contact-section';
 export function PersonDetailPage() {
   const {id=''}=useParams();const identity=useSession().data;const detail=usePerson(identity,id);const mutation=useDirectoryMutation(identity);
   const [editing,setEditing]=useState<Person|null>(null);
@@ -24,6 +25,7 @@ export function PersonDetailPage() {
     <MutationError error={mutation.error} reload={async()=>{await detail.refetch();mutation.reset();}}/>
     <dl className="grid gap-3 sm:grid-cols-2">{[['Nombres',row.givenNames??'Sin dato'],['Apellidos',row.familyNames??'Sin dato'],['Creación',dateLabel(row.createdAt)],['Modificación',dateLabel(row.updatedAt)],['Última verificación',dateLabel(row.lastVerifiedAt)]].map(([label,value])=><div key={label}><dt className="font-semibold">{label}</dt><dd>{value}</dd></div>)}</dl>
     <PersonRelations key={id} identity={identity} personId={id}/>
+    <ContactSection key={'contacts-'+id} identity={identity} actorPath={'people/'+id}/>
     {identity.permissions.includes('directory.history.read')&&<OrganizationHistory key={'history-'+id} identity={identity} path={'people/'+id+'/history'}/>}
   </section>;
 }

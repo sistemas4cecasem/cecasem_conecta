@@ -1,5 +1,5 @@
 export class ApiError extends Error {
-  constructor(message: string, public readonly status: number | null, public readonly code?: string) {
+  constructor(message: string, public readonly status: number | null, public readonly code?: string, public readonly details?: { contactMethodId: string }) {
     super(message);
     this.name = 'ApiError';
   }
@@ -43,7 +43,7 @@ export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'cr
     if (response.status === 401 && (!/^\/?auth(?:\/|$)/.test(path) || /^auth\/(first-access-tokens|password-reset-tokens)$/.test(path))) {
       window.dispatchEvent(new Event('cecasem:unauthorized'));
     }
-    if (response.status === 409 && /^(users(?:\/|$)|email-accounts(?:\/|$)|organizations(?:\/|$)|categories(?:\/|$)|people(?:\/|$)|person-organization-relations(?:\/|$))/.test(path)) {
+    if (response.status === 409 && /^(users(?:\/|$)|email-accounts(?:\/|$)|organizations(?:\/|$)|categories(?:\/|$)|people(?:\/|$)|person-organization-relations(?:\/|$)|contact-methods(?:\/|$)|person-contacts(?:\/|$)|organization-contacts(?:\/|$))/.test(path)) {
       const conflicts: Record<string, string> = {
         VERSION_CONFLICT: 'La ficha cambió desde que la abriste. Recarga y revisa tus cambios.',
         INVALID_HIERARCHY: 'La relación matriz/sede produciría un ciclo. Elige otra matriz.',
@@ -52,11 +52,22 @@ export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'cr
         LAST_ADMINISTRATOR: 'Debe permanecer al menos un Administrador activo.',
         EMAIL_EXISTS: 'El correo ya está registrado.', ACCOUNT_EXISTS: 'El buzón ya está registrado.',
         ACCOUNT_INACTIVE: 'El buzón está inactivo.', USERNAME_EXHAUSTED: 'No se pudo generar un nombre de usuario disponible.',
+        CONTACT_EMAIL_EXISTS: 'Este correo ya está registrado. Revisa su ficha y confirma si deseas asociarlo.',
+        CONTACT_VALUE_EXISTS: 'Este correo pertenece a otro medio. Puedes sustituir explícitamente la asociación conservando el antecedente.',
+        SHARED_CONTACT_CONFIRMATION_REQUIRED: 'Confirma la corrección global después de revisar las asociaciones afectadas.',
+        CONTACT_UNUSABLE: 'El medio está marcado como no utilizable. Un Administrador puede cambiar su condición.',
+        INVALID_CONTACT_REPLACEMENT: 'Selecciona otro medio activo y confirma la sustitución.',
       };
       try {
         const payload: unknown = await response.json();
         if (typeof payload === 'object' && payload !== null && 'code' in payload && typeof payload.code === 'string' &&
-          Object.hasOwn(conflicts, payload.code)) throw new ApiError(conflicts[payload.code] ?? httpErrorMessage(409), 409, payload.code);
+          Object.hasOwn(conflicts, payload.code)) {
+          let details: { contactMethodId: string } | undefined;
+          if ('details' in payload && typeof payload.details === 'object' && payload.details !== null &&
+            'contactMethodId' in payload.details && typeof payload.details.contactMethodId === 'string' &&
+            /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(payload.details.contactMethodId)) details = { contactMethodId: payload.details.contactMethodId };
+          throw new ApiError(conflicts[payload.code] ?? httpErrorMessage(409), 409, payload.code, details);
+        }
       } catch (failure) { if (failure instanceof ApiError) throw failure; }
     }
     if (response.status === 400 && (path === 'auth/first-access' || path === 'auth/password-reset')) {

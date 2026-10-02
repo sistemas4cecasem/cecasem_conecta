@@ -12,13 +12,16 @@ const sourceUrl = new URL(process.env.DATABASE_URL || '');
 assert(['localhost', '127.0.0.1'].includes(sourceUrl.hostname) && sourceUrl.pathname.endsWith('_test'), 'Requiere DATABASE_URL loopback terminada en _test.');
 const migrations = path.join(root, 'apps/api/prisma/migrations');
 const phase21 = process.argv.includes('--phase=2.1');
+const phase22 = process.argv.includes('--phase=2.2');
+assert(!(phase21 && phase22), 'Seleccionar una sola fase histórica.');
 const baseline = [
   '20261001205420_identity_users_roles', '20261001213022_passwords_sessions', '20261001230230_first_access',
   '20261002022103_password_reset_audit', '20261002110000_administration_audit_actions', '20261002110001_minimal_administration',
   ...(!phase21 ? ['20261002164854_organization_directory','20261002170000_directory_constraints'] : []),
+  ...(!phase21 && !phase22 ? ['20261002201000_people_relations','20261002201100_people_constraints'] : []),
 ];
 const migrationNames = fs.readdirSync(migrations).filter(name => fs.statSync(path.join(migrations,name)).isDirectory()).sort();
-const targetCount = phase21 ? 8 : migrationNames.length;
+const targetCount = phase21 ? 8 : phase22 ? 10 : migrationNames.length;
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'cecasem-directory-migrations-'));
 const suffix = randomBytes(6).toString('hex');
 const databases = ['cecasem_clean_' + suffix + '_test', 'cecasem_upgrade_' + suffix + '_test'];
@@ -30,10 +33,10 @@ function config(file, migrationsPath) {
   fs.writeFileSync(configPath, 'export default ' + JSON.stringify({ schema: path.join(root, 'apps/api/prisma/schema.prisma'), migrations: { path: migrationsPath } }).replace(/}$/, ', datasource: { url: process.env.DATABASE_URL } };'));
   return configPath;
 }
-const targetPath = phase21 ? path.join(temporary,'target') : migrations;
-if (phase21) {
+const targetPath = phase21 || phase22 ? path.join(temporary,'target') : migrations;
+if (phase21 || phase22) {
   fs.mkdirSync(targetPath);
-  for (const migration of migrationNames.slice(0,8)) fs.cpSync(path.join(migrations,migration),path.join(targetPath,migration),{recursive:true});
+  for (const migration of migrationNames.slice(0,targetCount)) fs.cpSync(path.join(migrations,migration),path.join(targetPath,migration),{recursive:true});
   fs.copyFileSync(path.join(migrations,'migration_lock.toml'),path.join(targetPath,'migration_lock.toml'));
 }
 const fullConfig = config('full.config.ts', targetPath);
@@ -49,6 +52,7 @@ function deploy(database, configPath) {
 }
 const tables = ['User', 'EmailAccount', 'UserEmailAccount', 'UserSession', 'FirstAccessToken', 'PasswordResetToken', 'AuditEvent',
   ...(!phase21 ? ['Organization','Category','OrganizationCategory','DirectoryChange'] : [])];
+if (!phase21 && !phase22) tables.push('Person','PersonOrganizationRelation');
 async function snapshot(client) {
   const result = {};
   for (const table of tables) result[table] = (await client.query('SELECT * FROM "' + table + '" ORDER BY ' + (table === 'UserEmailAccount' ? '"userId","emailAccountId"' : table === 'OrganizationCategory' ? '"organizationId","categoryId"' : 'id'))).rows;
@@ -77,6 +81,17 @@ async function representative(client) {
     await client.query('INSERT INTO "OrganizationCategory" ("organizationId","categoryId") VALUES ($1,$2)',[child,category]);
     await client.query('INSERT INTO "DirectoryChange" ("organizationId","actorUserId","operationId",field,"previousValue","newValue") VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb)',[child,actor,operation,'country','null','"Bolivia"']);
     await client.query('INSERT INTO "AuditEvent" (action,"actorUserId","organizationId","operationId") VALUES ($1,$2,$3,$4)',['ORGANIZATION_UPDATED',actor,child,operation]);
+    if (!phase22) {
+      const independent=randomUUID(),person=randomUUID(),past=randomUUID(),current=randomUUID(),personOperation=randomUUID(),relationOperation=randomUUID();
+      await client.query('INSERT INTO "Person" (id,"displayName") VALUES ($1,$2)',[independent,'Independiente QA']);
+      await client.query('INSERT INTO "Person" (id,"displayName","givenNames",version) VALUES ($1,$2,$3,2)',[person,'Persona QA','QA']);
+      await client.query('INSERT INTO "PersonOrganizationRelation" (id,"personId","organizationId","positionTitle","isCurrent","startDate","endDate") VALUES ($1,$2,$3,$4,false,$5,$6)',[past,person,child,'Coordinadora','2024-01-01','2025-01-01']);
+      await client.query('INSERT INTO "PersonOrganizationRelation" (id,"personId","organizationId","positionTitle",version,"sourceDescription") VALUES ($1,$2,$3,$4,2,$5)',[current,person,child,'Directora','Documento QA']);
+      await client.query('INSERT INTO "DirectoryChange" ("personId","actorUserId","operationId",field,"previousValue","newValue") VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb)',[person,actor,personOperation,'givenNames','null','"QA"']);
+      await client.query('INSERT INTO "DirectoryChange" ("personRelationId","actorUserId","operationId",field,"previousValue","newValue") VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb)',[current,actor,relationOperation,'positionTitle','"Coordinadora"','"Directora"']);
+      await client.query('INSERT INTO "AuditEvent" (action,"actorUserId","personId","operationId") VALUES ($1,$2,$3,$4)',['PERSON_UPDATED',actor,person,personOperation]);
+      await client.query('INSERT INTO "AuditEvent" (action,"actorUserId","personRelationId","operationId") VALUES ($1,$2,$3,$4)',['PERSON_RELATION_UPDATED',actor,current,relationOperation]);
+    }
   }
 }
 async function verify(client) {
@@ -84,8 +99,12 @@ async function verify(client) {
   const checks = (await client.query("SELECT conname FROM pg_constraint WHERE conname IN ('Organization_parent_check','DirectoryChange_target_check','AuditEvent_action_fields_check')")).rows;
   assert.equal(checks.length, 3);
   if (!phase21) {
-    assert.equal(Number((await client.query('SELECT count(*) AS count FROM "Person"')).rows[0].count),0);
+    if (phase22) assert.equal(Number((await client.query('SELECT count(*) AS count FROM "Person"')).rows[0].count),0);
     assert.equal((await client.query("SELECT conname FROM pg_constraint WHERE conname='PersonRelation_dates_check'")).rows.length,1);
+  }
+  if (!phase21 && !phase22) {
+    assert.equal(Number((await client.query('SELECT count(*) AS count FROM "ContactMethod"')).rows[0].count),0);
+    assert.equal((await client.query("SELECT indexname FROM pg_indexes WHERE indexname='ContactMethod_email_unique' AND indexdef LIKE '%UNIQUE%' AND indexdef LIKE '%WHERE%'" )).rows.length,1);
   }
 }
 (async () => {

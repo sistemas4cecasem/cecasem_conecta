@@ -8,6 +8,7 @@ import { dateLabel } from './date-label';
 import { OrganizationForm } from './organization-form';
 import { OrganizationHistory } from './organization-history';
 import { PersonRelations } from './person-relations';
+import { ContactSection } from './contact-section';
 export function OrganizationDetailPage() {
   const { id = '' } = useParams(); const session = useSession(); const identity = session.data;
   const detail = useOrganization(identity, id); const mutation = useDirectoryMutation(identity);
@@ -49,6 +50,7 @@ export function OrganizationDetailPage() {
       {children.data && <Pagination page={page} total={children.data.total} onPage={setPage} />}
     </section>
     <PersonRelations key={'people-'+id} identity={identity} organizationId={id}/>
+    <ContactSection key={'contacts-'+id} identity={identity} actorPath={'organizations/'+id}/>
     {identity.permissions.includes('directory.history.read') && <OrganizationHistory key={id} identity={identity} path={'organizations/' + id + '/history'} />}
   </section>;
 }

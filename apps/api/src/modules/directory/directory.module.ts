@@ -8,6 +8,10 @@ import { DirectoryHistoryService } from './directory-history.service';
 import { OrganizationsController, CategoriesController } from './directory.controller';
 import { PeopleService } from './people.service';
 import { PeopleController, PersonRelationsController, OrganizationPeopleController } from './people.controller';
+import { ContactsService } from './contacts.service';
+import { ContactMethodsController, PersonContactsController, OrganizationContactsController, PersonContactsActionsController, OrganizationContactsActionsController } from './contacts.controller';
 @Module({ imports: [DatabaseModule, AuthModule, UsersModule, AuditModule],
-  controllers: [OrganizationsController, CategoriesController, PeopleController, PersonRelationsController, OrganizationPeopleController], providers: [DirectoryService, DirectoryHistoryService, PeopleService] })
+  controllers: [OrganizationsController, CategoriesController, PeopleController, PersonRelationsController, OrganizationPeopleController,
+    ContactMethodsController, PersonContactsController, OrganizationContactsController, PersonContactsActionsController, OrganizationContactsActionsController],
+  providers: [DirectoryService, DirectoryHistoryService, PeopleService, ContactsService] })
 export class DirectoryModule {}

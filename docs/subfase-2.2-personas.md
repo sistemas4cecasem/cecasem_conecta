@@ -118,7 +118,7 @@ No se editan migraciones anteriores. `migrate deploy`, nunca `db push`.
 Se amplió el validador de migraciones existente, sin infraestructura duplicada:
 
 ```text
-node infra/development/validate-directory-migrations.cjs
+node infra/development/validate-directory-migrations.cjs --phase=2.2
 ```
 
 Con DATABASE_URL local aislada terminada en _test, crea dos bases propias para
