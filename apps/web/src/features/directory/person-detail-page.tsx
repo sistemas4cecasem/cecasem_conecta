@@ -1,3 +1,4 @@
+import { VerificationPanel } from './verification-panel';
 import { useState } from 'react';
 import { Link,useParams } from 'react-router';
 import { useSession } from '../auth/session';
@@ -24,6 +25,7 @@ export function PersonDetailPage() {
       {identity.permissions.includes('directory.status.update')&&<button className={buttonClass} disabled={mutation.isPending} onClick={()=>{void mutation.mutateAsync({path:'people/'+id+'/status',method:'PATCH',body:{isActive:!row.isActive,expectedVersion:row.version}}).catch(()=>undefined);}}>{row.isActive?'Desactivar persona':'Reactivar persona'}</button>}</div>
     <MutationError error={mutation.error} reload={async()=>{await detail.refetch();mutation.reset();}}/>
     <dl className="grid gap-3 sm:grid-cols-2">{[['Nombres',row.givenNames??'Sin dato'],['Apellidos',row.familyNames??'Sin dato'],['Creación',dateLabel(row.createdAt)],['Modificación',dateLabel(row.updatedAt)],['Última verificación',dateLabel(row.lastVerifiedAt)]].map(([label,value])=><div key={label}><dt className="font-semibold">{label}</dt><dd>{value}</dd></div>)}</dl>
+    <VerificationPanel identity={identity} path={'people/'+id} label={'persona '+row.displayName}/>
     <PersonRelations key={id} identity={identity} personId={id}/>
     <ContactSection key={'contacts-'+id} identity={identity} actorPath={'people/'+id}/>
     {identity.permissions.includes('directory.history.read')&&<DirectoryHistory key={'history-'+id} identity={identity} path={'people/'+id+'/history'}/>}

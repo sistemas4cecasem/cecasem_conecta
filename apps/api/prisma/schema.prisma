@@ -16,6 +16,7 @@ enum UserRole {
 }
 
 enum AuditAction {
+  VERIFICATION_SETTINGS_CHANGED
   PASSWORD_RESET_ISSUED
   PASSWORD_RESET_REGENERATED
   PASSWORD_RESET_COMPLETED
@@ -73,6 +74,7 @@ model User {
   issuedFirstAccessTokens FirstAccessToken[] @relation("FirstAccessIssuer")
   passwordResetTokens PasswordResetToken[] @relation("PasswordResetRecipient")
   issuedPasswordResetTokens PasswordResetToken[] @relation("PasswordResetIssuer")
+  verifications Verification[]
   performedAuditEvents AuditEvent[] @relation("AuditActor")
   receivedAuditEvents AuditEvent[] @relation("AuditTarget")
   directoryChanges DirectoryChange[]
@@ -96,6 +98,10 @@ model PasswordResetToken {
 }
 
 model AuditEvent {
+  previousPersonalVerificationMonths Int?
+  newPersonalVerificationMonths Int?
+  previousInstitutionalVerificationMonths Int?
+  newInstitutionalVerificationMonths Int?
   id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   action               AuditAction
   actorUserId          String?   @db.Uuid
@@ -161,6 +167,7 @@ model Organization {
 
   @@index([parentId, name, id])
   @@index([isActive, name, id])
+  verifications Verification[]
 }
 
 model Category {
@@ -240,6 +247,7 @@ model Person {
   auditEvents    AuditEvent[]
 
   @@index([isActive, displayName, id])
+  verifications Verification[]
 }
 
 model PersonOrganizationRelation {
@@ -248,6 +256,7 @@ model PersonOrganizationRelation {
   organizationId    String @db.Uuid
   positionTitle     String? @db.VarChar(250)
   area              String? @db.VarChar(250)
+  lastVerifiedAt    DateTime? @db.Timestamptz(3)
   isCurrent         Boolean @default(true)
   startDate         DateTime? @db.Date
   endDate           DateTime? @db.Date
@@ -264,9 +273,11 @@ model PersonOrganizationRelation {
 
   @@index([personId, isCurrent, createdAt, id])
   @@index([organizationId, isCurrent, createdAt, id])
+  verifications Verification[]
 }
 
 model ContactMethod {
+  valueVersion Int @default(1)
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   type ContactType
   value String @db.VarChar(2048)
@@ -305,6 +316,7 @@ model PersonContact {
   @@unique([personId, contactMethodId])
   @@index([personId, isActive, createdAt, id])
   @@index([contactMethodId, createdAt, id])
+  verifications Verification[]
 }
 
 model OrganizationContact {
@@ -327,6 +339,7 @@ model OrganizationContact {
   @@unique([organizationId, contactMethodId])
   @@index([organizationId, isActive, createdAt, id])
   @@index([contactMethodId, createdAt, id])
+  verifications Verification[]
 }
 
 model FirstAccessToken {
@@ -380,4 +393,39 @@ model UserEmailAccount {
 
   @@id([userId, emailAccountId])
   @@index([emailAccountId])
+}
+
+model VerificationSettings {
+  id Int @id @default(1)
+  personalVerificationMonths Int @default(6)
+  institutionalVerificationMonths Int @default(12)
+  version Int @default(1)
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+}
+
+model Verification {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String? @db.Uuid
+  personId String? @db.Uuid
+  personRelationId String? @db.Uuid
+  personContactId String? @db.Uuid
+  organizationContactId String? @db.Uuid
+  actorUserId String @db.Uuid
+  verifiedAt DateTime @default(now()) @db.Timestamptz(3)
+  objectVersion Int
+  contactValueVersion Int?
+  sourceDescription String? @db.VarChar(1000)
+  sourceUrl String? @db.VarChar(2048)
+  actor User @relation(fields:[actorUserId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  organization Organization? @relation(fields:[organizationId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  person Person? @relation(fields:[personId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  relation PersonOrganizationRelation? @relation(fields:[personRelationId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  personContact PersonContact? @relation(fields:[personContactId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  organizationContact OrganizationContact? @relation(fields:[organizationContactId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  @@index([organizationId,verifiedAt,id])
+  @@index([personId,verifiedAt,id])
+  @@index([personRelationId,verifiedAt,id])
+  @@index([personContactId,verifiedAt,id])
+  @@index([organizationContactId,verifiedAt,id])
+  @@index([actorUserId])
 }

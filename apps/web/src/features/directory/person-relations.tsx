@@ -1,3 +1,4 @@
+import { VerificationPanel } from './verification-panel';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { useForm } from 'react-hook-form';
@@ -40,6 +41,7 @@ function RelationCard({identity,row,fromOrganization}:{identity:AuthIdentity;row
       {reloadFailed&&<p role="alert">No se pudo recargar el episodio. La finalización no se ha confirmado.</p>}
       <div className="flex flex-wrap gap-3"><button className={buttonClass} disabled={mutation.isPending}>Confirmar finalización</button><button type="button" className={buttonClass} disabled={mutation.isPending} onClick={()=>setEnding(null)}>Cancelar finalización</button></div>
     </form>}
+    <VerificationPanel identity={identity} path={'person-organization-relations/'+row.id} label={'vínculo de '+row.person.displayName+' con '+row.organization.name}/>
     {history&&<DirectoryHistory identity={identity} path={'person-organization-relations/'+row.id+'/history'}/>}
   </li>;
 }

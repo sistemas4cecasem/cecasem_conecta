@@ -1,3 +1,4 @@
+import { VerificationSettingsPage } from '../../features/settings/verification-settings-page';
 import { Route, Routes } from 'react-router';
 import { HomePage } from '../../features/home/home-page';
 import { UnauthenticatedLayout } from '../layout/unauthenticated-layout';
@@ -25,6 +26,7 @@ export function AppRoutes() {
       </Route>
       <Route element={<AuthenticatedLayout />}>
         <Route index element={<HomePage />} />
+        <Route path="settings/verification" element={<VerificationSettingsPage />} />
         <Route path="users" element={<UsersPage />} />
         <Route path="organizations" element={<OrganizationsPage />} />
         <Route path="organizations/new" element={<OrganizationCreationPage />} />

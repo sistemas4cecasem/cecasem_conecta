@@ -1,4 +1,6 @@
 export const PERMISSIONS = {
+  DIRECTORY_VERIFY: 'directory.verify',
+  SETTINGS_VERIFICATION_UPDATE: 'settings.verification.update',
   DIRECTORY_READ: 'directory.read',
   DIRECTORY_WRITE: 'directory.write',
   DIRECTORY_HISTORY_READ: 'directory.history.read',

@@ -28,6 +28,7 @@ describe('Directorio operativo', () => {
     fetchMock.mockReset();
     fetchMock.mockImplementation((url, options) => {
       const path = url.replace('/api/v1/', ''); const method = options?.method ?? 'GET';
+      if (path.endsWith('/verification')) return Promise.resolve(Response.json({objectType:'person',classification:'personal',intervalMonths:6,verificationStatus:'NEVER_VERIFIED',lastVerifiedAt:null,lastVerifiedBy:null,nextReviewAt:null,changedSinceVerification:false,timeReviewDue:false,version:1,contactValueVersion:null}));
       if (path === 'auth/me') return Promise.resolve(Response.json(loggedOut ? {} : current, { status: loggedOut ? 401 : 200 }));
       if (path === 'auth/logout') { loggedOut = true; return Promise.resolve(new Response(null, { status: 204 })); }
       if (path.startsWith('categories?')) return Promise.resolve(Response.json(page(withCategories ? [catA, catB] : [])));

@@ -43,6 +43,9 @@ export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'cr
     if (response.status === 401 && (!/^\/?auth(?:\/|$)/.test(path) || /^auth\/(first-access-tokens|password-reset-tokens)$/.test(path))) {
       window.dispatchEvent(new Event('cecasem:unauthorized'));
     }
+    if (response.status === 409 && path === 'settings/verification') {
+      throw new ApiError('Los intervalos cambiaron. Recarga y revisa tu propuesta.', 409, 'VERSION_CONFLICT');
+    }
     if (response.status === 409 && /^(users(?:\/|$)|email-accounts(?:\/|$)|organizations(?:\/|$)|categories(?:\/|$)|people(?:\/|$)|person-organization-relations(?:\/|$)|contact-methods(?:\/|$)|person-contacts(?:\/|$)|organization-contacts(?:\/|$))/.test(path)) {
       const conflicts: Record<string, string> = {
         VERSION_CONFLICT: 'La ficha cambió desde que la abriste. Recarga y revisa tus cambios.',

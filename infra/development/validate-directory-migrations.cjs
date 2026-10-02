@@ -14,17 +14,19 @@ const migrations = path.join(root, 'apps/api/prisma/migrations');
 const phase21 = process.argv.includes('--phase=2.1');
 const phase22 = process.argv.includes('--phase=2.2');
 const phase23 = process.argv.includes('--phase=2.3');
-const phase24 = !phase21 && !phase22 && !phase23;
-assert([phase21,phase22,phase23].filter(Boolean).length <= 1, 'Seleccionar una sola fase histórica.');
+const phase24 = process.argv.includes('--phase=2.4');
+const phase25 = !phase21 && !phase22 && !phase23 && !phase24;
+assert([phase21,phase22,phase23,phase24].filter(Boolean).length <= 1, 'Seleccionar una sola fase histórica.');
 const baseline = [
   '20261001205420_identity_users_roles', '20261001213022_passwords_sessions', '20261001230230_first_access',
   '20261002022103_password_reset_audit', '20261002110000_administration_audit_actions', '20261002110001_minimal_administration',
   ...(!phase21 ? ['20261002164854_organization_directory','20261002170000_directory_constraints'] : []),
   ...(!phase21 && !phase22 ? ['20261002201000_people_relations','20261002201100_people_constraints'] : []),
-  ...(phase24 ? ['20261002211000_contact_methods','20261002211100_contact_constraints'] : []),
+  ...(phase24 || phase25 ? ['20261002211000_contact_methods','20261002211100_contact_constraints'] : []),
+  ...(phase25 ? ['20261002230000_history_reference_snapshots'] : []),
 ];
 const migrationNames = fs.readdirSync(migrations).filter(name => fs.statSync(path.join(migrations,name)).isDirectory()).sort();
-const targetCount = phase21 ? 8 : phase22 ? 10 : phase23 ? 12 : migrationNames.length;
+const targetCount = phase21 ? 8 : phase22 ? 10 : phase23 ? 12 : phase24 ? 13 : migrationNames.length;
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'cecasem-directory-migrations-'));
 const suffix = randomBytes(6).toString('hex');
 const databases = ['cecasem_clean_' + suffix + '_test', 'cecasem_upgrade_' + suffix + '_test'];
@@ -36,8 +38,8 @@ function config(file, migrationsPath) {
   fs.writeFileSync(configPath, 'export default ' + JSON.stringify({ schema: path.join(root, 'apps/api/prisma/schema.prisma'), migrations: { path: migrationsPath } }).replace(/}$/, ', datasource: { url: process.env.DATABASE_URL } };'));
   return configPath;
 }
-const targetPath = phase21 || phase22 || phase23 ? path.join(temporary,'target') : migrations;
-if (phase21 || phase22 || phase23) {
+const targetPath = !phase25 ? path.join(temporary,'target') : migrations;
+if (!phase25) {
   fs.mkdirSync(targetPath);
   for (const migration of migrationNames.slice(0,targetCount)) fs.cpSync(path.join(migrations,migration),path.join(targetPath,migration),{recursive:true});
   fs.copyFileSync(path.join(migrations,'migration_lock.toml'),path.join(targetPath,'migration_lock.toml'));
@@ -56,7 +58,7 @@ function deploy(database, configPath) {
 const tables = ['User', 'EmailAccount', 'UserEmailAccount', 'UserSession', 'FirstAccessToken', 'PasswordResetToken', 'AuditEvent',
   ...(!phase21 ? ['Organization','Category','OrganizationCategory','DirectoryChange'] : [])];
 if (!phase21 && !phase22) tables.push('Person','PersonOrganizationRelation');
-if (phase24) tables.push('ContactMethod','PersonContact','OrganizationContact');
+if (phase24 || phase25) tables.push('ContactMethod','PersonContact','OrganizationContact');
 async function snapshot(client) {
   const result = {};
   for (const table of tables) result[table] = (await client.query('SELECT * FROM "' + table + '" ORDER BY ' + (table === 'UserEmailAccount' ? '"userId","emailAccountId"' : table === 'OrganizationCategory' ? '"organizationId","categoryId"' : 'id'))).rows;
@@ -95,13 +97,17 @@ async function representative(client) {
       await client.query('INSERT INTO "DirectoryChange" ("personRelationId","actorUserId","operationId",field,"previousValue","newValue") VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb)',[current,actor,relationOperation,'positionTitle','"Coordinadora"','"Directora"']);
       await client.query('INSERT INTO "AuditEvent" (action,"actorUserId","personId","operationId") VALUES ($1,$2,$3,$4)',['PERSON_UPDATED',actor,person,personOperation]);
       await client.query('INSERT INTO "AuditEvent" (action,"actorUserId","personRelationId","operationId") VALUES ($1,$2,$3,$4)',['PERSON_RELATION_UPDATED',actor,current,relationOperation]);
-      if (phase24) {
+      if (phase24 || phase25) {
         const contact=randomUUID(),personContact=randomUUID(),organizationContact=randomUUID(),contactOperation=randomUUID();
         await client.query('INSERT INTO "ContactMethod" (id,type,value,"normalizedValue",condition,version) VALUES ($1,$2,$3,$3,$4,3)',[contact,'EMAIL','fixture@example.test','UNUSABLE']);
         await client.query('INSERT INTO "PersonContact" (id,"personId","contactMethodId","isActive",version,"sourceDescription") VALUES ($1,$2,$3,false,2,$4)',[personContact,person,contact,'Fuente personal']);
         await client.query('INSERT INTO "OrganizationContact" (id,"organizationId","contactMethodId","sourceDescription") VALUES ($1,$2,$3,$4)',[organizationContact,child,contact,'Fuente institucional']);
         await client.query('INSERT INTO "DirectoryChange" ("personContactId","actorUserId","operationId",field,"previousValue","newValue") VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb)',[personContact,actor,contactOperation,'isActive','true','false']);
         await client.query('INSERT INTO "AuditEvent" (action,"actorUserId","personContactId","operationId") VALUES ($1,$2,$3,$4)',['CONTACT_ASSOCIATION_ENDED',actor,personContact,contactOperation]);
+        if (phase25) {
+          const frozen = { previous: [], next: [], related: [{ id: person, kind: 'person', label: 'Persona histórica QA' }, { id: contact, kind: 'contactMethod', label: 'fixture@example.test' }], replacement: null };
+          await client.query('UPDATE "DirectoryChange" SET "referenceSnapshot"=$1::jsonb WHERE "operationId"=$2', [JSON.stringify(frozen), contactOperation]);
+        }
       }
 
     }
@@ -116,8 +122,18 @@ async function verify(client,withFixtures=false) {
     assert.equal((await client.query("SELECT conname FROM pg_constraint WHERE conname='PersonRelation_dates_check'")).rows.length,1);
   }
   if (!phase21 && !phase22) {
-    assert.equal(Number((await client.query('SELECT count(*) AS count FROM "ContactMethod"')).rows[0].count),phase24 && withFixtures ? 1 : 0);
+    assert.equal(Number((await client.query('SELECT count(*) AS count FROM "ContactMethod"')).rows[0].count),(phase24 || phase25) && withFixtures ? 1 : 0);
     assert.equal((await client.query("SELECT indexname FROM pg_indexes WHERE indexname='ContactMethod_email_unique' AND indexdef LIKE '%UNIQUE%' AND indexdef LIKE '%WHERE%'" )).rows.length,1);
+  }
+  if (phase25) {
+    assert.deepEqual((await client.query('SELECT id,"personalVerificationMonths","institutionalVerificationMonths",version FROM "VerificationSettings"')).rows, [{id:1,personalVerificationMonths:6,institutionalVerificationMonths:12,version:1}]);
+    assert.equal(Number((await client.query('SELECT count(*) AS count FROM "Verification"')).rows[0].count), 0);
+    assert.equal((await client.query('SELECT id FROM "ContactMethod" WHERE "valueVersion"<>1')).rows.length, 0);
+    assert.equal((await client.query('SELECT id FROM "PersonOrganizationRelation" WHERE "lastVerifiedAt" IS NOT NULL')).rows.length, 0);
+    for (const name of ['Verification_target_check','Verification_versions_check','VerificationSettings_singleton_check','ContactMethod_value_version_check']) {
+      assert.equal((await client.query('SELECT conname FROM pg_constraint WHERE conname=$1', [name])).rows.length, 1, name);
+    }
+    assert.equal((await client.query("SELECT conname FROM pg_constraint WHERE conrelid='\"Verification\"'::regclass AND contype='f'")).rows.length, 6);
   }
 }
 (async () => {

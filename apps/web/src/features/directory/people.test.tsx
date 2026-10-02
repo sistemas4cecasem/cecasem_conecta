@@ -20,6 +20,7 @@ describe('Personas y episodios institucionales en UI',()=>{
     client=createQueryClient();actor={...identity};row={...base};relations=[];state='ok';total=1;conflicting=false;loggedOut=false;fetchMock.mockReset();
     fetchMock.mockImplementation((url,options)=>{
       const path=url.replace('/api/v1/',''),method=options?.method??'GET';
+      if (path.endsWith('/verification')) return Promise.resolve(Response.json({objectType:'person',classification:'personal',intervalMonths:6,verificationStatus:'NEVER_VERIFIED',lastVerifiedAt:null,lastVerifiedBy:null,nextReviewAt:null,changedSinceVerification:false,timeReviewDue:false,version:1,contactValueVersion:null}));
       if(path==='auth/me')return Promise.resolve(Response.json(loggedOut?{}:actor,{status:loggedOut?401:200}));
       if(path==='auth/logout'){loggedOut=true;return Promise.resolve(new Response(null,{status:204}));}
       if(path.includes('/history'))return Promise.resolve(Response.json({...page([{operationId:'operation-test',createdAt:stamp,objectType:'PERSON',actor:{id:actor.id,givenNames:actor.givenNames,familyNames:actor.familyNames,isActive:true},contextRecorded:true,relatedReferences:[],replacement:null,changes:[{field:path.startsWith('people')?'displayName':'positionTitle',label:'Dato de ficha',previousValue:'Anterior',newValue:'Corregido',previousReferences:[],newReferences:[],added:[],removed:[]}]}]),references:{}}));

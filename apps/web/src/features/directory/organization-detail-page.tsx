@@ -1,3 +1,4 @@
+import { VerificationPanel } from './verification-panel';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useSession } from '../auth/session';
@@ -49,6 +50,7 @@ export function OrganizationDetailPage() {
       <ul>{children.data?.items.map(child => <li key={child.id}><Link className="inline-flex min-h-11 items-center underline" to={'/organizations/' + child.id}>{child.name}</Link>{!child.isActive && ' (inactiva)'}</li>)}</ul>
       {children.data && <Pagination page={page} total={children.data.total} onPage={setPage} />}
     </section>
+    <VerificationPanel identity={identity} path={'organizations/'+id} label={'organización '+row.name}/>
     <PersonRelations key={'people-'+id} identity={identity} organizationId={id}/>
     <ContactSection key={'contacts-'+id} identity={identity} actorPath={'organizations/'+id}/>
     {identity.permissions.includes('directory.history.read') && <DirectoryHistory key={id} identity={identity} path={'organizations/' + id + '/history'} />}

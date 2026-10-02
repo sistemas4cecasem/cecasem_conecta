@@ -1,3 +1,4 @@
+import { VerificationPanel } from './verification-panel';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { useForm } from 'react-hook-form';
@@ -29,7 +30,7 @@ export function ContactAssociationCard({identity,row,readOnly=false,replacement}
   return <li className="min-w-0 space-y-3 rounded border p-3 break-words"><Link className="inline-flex min-h-11 underline" to={'personId' in row?'/people/'+row.personId:'/organizations/'+row.organizationId}>{actorName}</Link>
     <p>{contactLabels[row.contactMethod.type]}: <Link className="underline" to={'/contact-methods/'+row.contactMethodId}>{row.contactMethod.value}</Link></p>
     <p>Asociación {row.isActive?'activa':'inactiva / antecedente'} · Medio: {conditionLabels[row.contactMethod.condition]}</p>
-    <p>{row.contactMethod.associationCount>1?'Medio compartido entre '+row.contactMethod.associationCount+' asociaciones.':'Medio con una asociación.'} · Sin verificación registrada.</p>
+    <p>{row.contactMethod.associationCount>1?'Medio compartido entre '+row.contactMethod.associationCount+' asociaciones.':'Medio con una asociación.'}</p>
     {!('person' in row?row.person.isActive:row.organization.isActive)&&<p>Ficha del actor inactiva; asociación conservada.</p>}
     {row.sourceDescription&&<p>Fuente: {row.sourceDescription}</p>}{row.sourceUrl&&<p>URL de fuente: {row.sourceUrl}</p>}{row.notes&&<p>Observaciones: {row.notes}</p>}
     {editing?<ContactContextForm identity={identity} initial={editing} saved={()=>setEditing(null)} cancel={()=>setEditing(null)}/>:!readOnly&&<div className="flex flex-wrap gap-3">
@@ -45,6 +46,7 @@ export function ContactAssociationCard({identity,row,readOnly=false,replacement}
     <MutationError error={mutation.error} reload={async()=>{try{const fresh=contactAssociationSchema.parse(await apiRequest(associationPath(row)));if(ending){setEnding(fresh);setConfirmed(false);}mutation.reset();setReloadFailed(false);}catch{setReloadFailed(true);}}}/>
     {reloadFailed&&<p role="alert">No se pudo recargar la asociación. Los datos se conservan.</p>}
     {replacing&&replacement&&<ContactReplacementForm identity={identity} row={row} target={replacement} done={()=>setReplacing(false)} cancel={()=>setReplacing(false)}/>}
+    <VerificationPanel identity={identity} path={associationPath(row)} label={'contacto de '+('person' in row?row.person.displayName:row.organization.name)+': '+row.contactMethod.value} contact readOnly={readOnly}/>
     {history&&<DirectoryHistory identity={identity} path={associationPath(row)+'/history'}/>}</li>;
 }
 function MethodActorAssociations({identity,methodId,kind,readOnly,replacement}:{identity:AuthIdentity;methodId:string;kind:'people'|'organizations';readOnly:boolean;replacement?:ContactMethod}) {

@@ -16,7 +16,7 @@ import type { PeopleQueryDto, PersonEditDto, PersonInputDto, RelationCreateDto, 
 const personSelect = { id:true, displayName:true, givenNames:true, familyNames:true, isActive:true, version:true,
   createdAt:true, updatedAt:true, lastVerifiedAt:true, _count:{select:{relations:{where:{isCurrent:true}}}} } satisfies Prisma.PersonSelect;
 const relationSelect = { id:true, personId:true, organizationId:true, positionTitle:true, area:true, isCurrent:true, startDate:true, endDate:true,
-  sourceDescription:true, sourceUrl:true, notes:true, version:true, createdAt:true, updatedAt:true,
+  sourceDescription:true, sourceUrl:true, notes:true, version:true, createdAt:true, updatedAt:true, lastVerifiedAt:true,
   person:{select:{id:true,displayName:true,isActive:true}}, organization:{select:{id:true,name:true,isActive:true}} } satisfies Prisma.PersonOrganizationRelationSelect;
 type PersonRow = Prisma.PersonGetPayload<{select:typeof personSelect}>;
 type RelationRow = Prisma.PersonOrganizationRelationGetPayload<{select:typeof relationSelect}>;

@@ -109,7 +109,7 @@ Ejecutados y aprobados: `yarn lint`, `yarn typecheck`, `yarn test`, `yarn build`
 migrate status. Integración y validadores usan DATABASE_URL local terminada en
 `_test`, nunca resetean la base de la aplicación.
 
-`node infra/development/validate-directory-migrations.cjs` valida limpia con 13
+`node infra/development/validate-directory-migrations.cjs --phase=2.4` valida limpia con 13
 migraciones y upgrade 12→13 con 16 tablas preservadas, incluidos contactos,
 sesiones, auditoría e historial previo; comprueba que los snapshots legacy
 continúan NULL. También pasan los modos históricos `--phase=2.1` (6→8, 7 tablas),

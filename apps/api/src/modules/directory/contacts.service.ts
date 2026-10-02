@@ -125,7 +125,7 @@ export class ContactsService {
         const existing=await tx.contactMethod.findFirst({where:{type:ContactType.EMAIL,normalizedValue:fields.normalizedValue,id:{not:id}},select:{id:true}});
         if(existing)throw new DirectoryError('CONTACT_VALUE_EXISTS',{contactMethodId:existing.id});
       }
-      await tx.contactMethod.update({where:{id},data:{...fields,version:{increment:1}}});
+      await tx.contactMethod.update({where:{id},data:{...fields,version:{increment:1},...(current.value!==fields.value?{valueVersion:{increment:1}}:{})}});
       await this.record({contactMethodId:id},actorId,changes,AuditAction.CONTACT_METHOD_UPDATED,tx);
       return methodContract(await this.method(id,tx));
     });}catch(error) {
