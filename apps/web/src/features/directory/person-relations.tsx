@@ -8,7 +8,7 @@ import { relationSchema,relationEndFormSchema,type PersonRelation } from './cont
 import { useDirectoryMutation,usePersonRelations } from './queries';
 import { Field,inputClass,buttonClass,MutationError,Pagination,QueryState } from './directory-ui';
 import { RelationForm } from './relation-form';
-import { OrganizationHistory } from './organization-history';
+import { DirectoryHistory } from './directory-history';
 
 function RelationCard({identity,row,fromOrganization}:{identity:AuthIdentity;row:PersonRelation;fromOrganization:boolean}) {
   const [editing,setEditing]=useState<PersonRelation|null>(null),[ending,setEnding]=useState<PersonRelation|null>(null),[history,setHistory]=useState(false);
@@ -40,7 +40,7 @@ function RelationCard({identity,row,fromOrganization}:{identity:AuthIdentity;row
       {reloadFailed&&<p role="alert">No se pudo recargar el episodio. La finalización no se ha confirmado.</p>}
       <div className="flex flex-wrap gap-3"><button className={buttonClass} disabled={mutation.isPending}>Confirmar finalización</button><button type="button" className={buttonClass} disabled={mutation.isPending} onClick={()=>setEnding(null)}>Cancelar finalización</button></div>
     </form>}
-    {history&&<OrganizationHistory identity={identity} path={'person-organization-relations/'+row.id+'/history'}/>}
+    {history&&<DirectoryHistory identity={identity} path={'person-organization-relations/'+row.id+'/history'}/>}
   </li>;
 }
 export function PersonRelations({identity,personId,organizationId}:{identity:AuthIdentity;personId?:string;organizationId?:string}) {

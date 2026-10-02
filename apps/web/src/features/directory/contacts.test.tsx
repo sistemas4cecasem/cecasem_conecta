@@ -30,7 +30,7 @@ describe('Medios canónicos y asociaciones en interfaz',()=>{
       if(route==='auth/logout'){loggedOut=true;return Promise.resolve(new Response(null,{status:204}));}
       if(route==='people/person')return Promise.resolve(Response.json(person));
       if(route==='organizations/org-a')return Promise.resolve(Response.json(organization));
-      if(route.includes('/history'))return Promise.resolve(Response.json({...page([{id:'change',operationId:'operation',field:'notes',previousValue:'Anterior',newValue:'Corregido',createdAt:stamp,actor:{id:'qa',givenNames:'QA',familyNames:'Contactos'}}]),references:{}}));
+      if(route.includes('/history'))return Promise.resolve(Response.json({...page([{operationId:'operation-test',createdAt:stamp,objectType:'PERSON',actor:{id:identity.id,givenNames:identity.givenNames,familyNames:identity.familyNames,isActive:true},contextRecorded:true,relatedReferences:[],replacement:null,changes:[{field:'notes',label:'Observaciones',previousValue:'Anterior',newValue:'Corregido',previousReferences:[],newReferences:[],added:[],removed:[]}]}]),references:{}}));
       if(route.includes('/relations')||route.includes('/children')||route==='organizations/org-a/people')return Promise.resolve(Response.json(page([])));
       if(route==='contact-methods/email'){
         if(lookupMode==='error')return Promise.resolve(new Response(null,{status:500}));

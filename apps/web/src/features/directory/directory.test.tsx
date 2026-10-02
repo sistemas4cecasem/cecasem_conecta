@@ -33,8 +33,7 @@ describe('Directorio operativo', () => {
       if (path.startsWith('categories?')) return Promise.resolve(Response.json(page(withCategories ? [catA, catB] : [])));
       if (path === 'categories' && method === 'POST') return Promise.resolve(Response.json({ ...catA, ...(JSON.parse(String(options?.body)) as object) }, { status: 201 }));
       if (path.includes('/history')) return Promise.resolve(Response.json({
-        ...page(showHistory ? [{ id: 'change', operationId: 'operation-qa', field: 'categoryIds', previousValue: [], newValue: [catA.id, catB.id], createdAt: stamp,
-          actor: { id: identity.id, givenNames: identity.givenNames, familyNames: identity.familyNames } }] : []),
+        ...page(showHistory ? [{operationId:'operation-qa',createdAt:stamp,objectType:'ORGANIZATION',actor:{id:identity.id,givenNames:identity.givenNames,familyNames:identity.familyNames,isActive:true},contextRecorded:true,relatedReferences:[],replacement:null,changes:[{field:'categoryIds',label:'Categorías',previousValue:[],newValue:[catA.id,catB.id],previousReferences:[],newReferences:[{id:catA.id,kind:'category',label:catA.name},{id:catB.id,kind:'category',label:catB.name}],added:[{id:catA.id,kind:'category',label:catA.name},{id:catB.id,kind:'category',label:catB.name}],removed:[]}]}] : []),
         references: { [catA.id]: catA.name, [catB.id]: catB.name },
       }));
       if (path.includes('/children')) return Promise.resolve(Response.json(page([])));

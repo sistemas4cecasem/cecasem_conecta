@@ -133,7 +133,7 @@ Las diez migraciones previas permanecen intactas. Aplicación mediante migrate
 deploy, sin db push ni reset. El validador existente se amplió:
 
 ```text
-node infra/development/validate-directory-migrations.cjs
+node infra/development/validate-directory-migrations.cjs --phase=2.3
 ```
 
 Requiere DATABASE_URL local terminada en _test. Instalación limpia 0→12: OK.

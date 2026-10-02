@@ -82,9 +82,9 @@ describe('Medios de contacto PostgreSQL y HTTP',()=>{
   it('historial de creación/contexto/fin tiene FK, autor, operación y auditoría tipada',async()=>{
     const actor=await fixture(),p=await person(actor.id),m=await method(actor.id);const created=await contacts.associate({personId:p.id},m.id,{expectedMethodVersion:1,sourceDescription:'Sitio oficial'},actor.id);
     await contacts.editContext('person',created.association.id,{expectedVersion:1,sourceDescription:'Documento',notes:'Corrección'},actor.id);
-    const changes=await contacts.associationHistory('person',created.association.id,{page:1,pageSize:25});expect(changes.items.some(item=>item.field==='associationCreated'&&item.previousValue===null&&item.newValue===m.id)).toBe(true);
-    const change=changes.items.find(item=>item.field==='sourceDescription'&&item.previousValue==='Sitio oficial')!;expect(change).toMatchObject({newValue:'Documento',actor:{id:actor.id}});
-    expect(await prisma.auditEvent.findFirst({where:{operationId:change.operationId}})).toMatchObject({action:AuditAction.CONTACT_ASSOCIATION_UPDATED,personContactId:created.association.id,actorUserId:actor.id});
+    const changes=await contacts.associationHistory('person',created.association.id,{page:1,pageSize:25});expect(changes.items.some(op=>op.changes.some(item=>item.field==='associationCreated'&&item.previousValue===null&&item.newValue===m.id))).toBe(true);
+    const operation=changes.items.find(op=>op.changes.some(item=>item.field==='sourceDescription'&&item.previousValue==='Sitio oficial'))!;expect(operation).toMatchObject({actor:{id:actor.id}});expect(operation.changes).toContainEqual(expect.objectContaining({field:'sourceDescription',newValue:'Documento'}));
+    expect(await prisma.auditEvent.findFirst({where:{operationId:operation.operationId}})).toMatchObject({action:AuditAction.CONTACT_ASSOCIATION_UPDATED,personContactId:created.association.id,actorUserId:actor.id});
   });
   it.each(['create-history','create-audit','context-history','context-audit','correction-history','correction-audit','replace-history','replace-audit'])('rollback completo %s',async kind=>{
     const actor=await fixture(),p=await person(actor.id),m=await method(actor.id),target=await method(actor.id);const association=await contacts.associate({personId:p.id},m.id,{expectedMethodVersion:1},actor.id);

@@ -19,7 +19,7 @@ describe('Corrección global y asociación explícita',()=>{
       personContact:{findUnique:jest.fn().mockImplementation(()=>Promise.resolve(existing?row():null))},
     };
     service=new ContactsService({...tx,$transaction:(work:(client:typeof tx)=>unknown)=>work(tx)} as unknown as PrismaService,
-      {findIdentityById:jest.fn().mockResolvedValue({isActive:true,role:UserRole.RESEARCH})} as unknown as UsersService,{record},
+      {findIdentityById:jest.fn().mockResolvedValue({isActive:true,role:UserRole.RESEARCH})} as unknown as UsersService,{record} as unknown as DirectoryHistoryService,
       {recordDirectory:jest.fn()} as unknown as AuditService,{} as DirectoryService);
   });
   it('asociación repetida inactiva conserva contexto, versión y estado sin historial',async()=>{

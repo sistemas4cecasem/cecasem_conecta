@@ -5,7 +5,7 @@ import { AuditService } from '../audit/audit.service';
 import { UsersService } from '../users/users.service';
 import { hasPermission } from '../auth/authorization/role-permissions';
 import { PERMISSIONS, type Permission } from '../auth/authorization/permission';
-import { DirectoryHistoryService, type FieldChange } from './directory-history.service';
+import { DirectoryHistoryService, type FieldChange, type DirectoryTarget } from './directory-history.service';
 import { DirectoryError } from './directory.errors';
 import { assertAcyclic, assertVersion, categoryName, institutionalText, website } from './directory.rules';
 import type { CategoryInputDto, CategoryEditDto, DirectoryQueryDto, DirectoryStatusDto, OrganizationInputDto, OrganizationEditDto, PageQueryDto } from './directory.dto';
@@ -88,6 +88,10 @@ export class DirectoryService {
       await this.validateCategories(categoryIds, [], tx);
       const row = await tx.organization.create({ data: { ...normalized,
         categories: { create: categoryIds.map(categoryId => ({ categoryId })) } }, select: organizationSelect });
+      const initialRelations: FieldChange[] = [];
+      if (normalized.parentId) initialRelations.push({ field: 'parentId', previousValue: null, newValue: normalized.parentId });
+      if (categoryIds.length) initialRelations.push({ field: 'categoryIds', previousValue: [], newValue: [...categoryIds].sort() });
+      if (initialRelations.length) await this.history.record({ organizationId: row.id }, actorId, initialRelations, tx);
       return organizationContract(row);
     }, { timeout: 10000 });
   }
@@ -138,28 +142,8 @@ export class DirectoryService {
     await this.organization(id);
     return this.listHistory({ organizationId: id }, query);
   }
-  async listHistory(where: Prisma.DirectoryChangeWhereInput, query: PageQueryDto) {
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.directoryChange.findMany({ where, select: { id: true, operationId: true, field: true, previousValue: true, newValue: true, createdAt: true,
-        actor: { select: { id: true, givenNames: true, familyNames: true } } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], ...paging(query) }),
-      this.prisma.directoryChange.count({ where }),
-    ], { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
-    const organizationIds = new Set<string>(); const categoryIds = new Set<string>();
-    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    for (const entry of items) {
-      for (const value of [entry.previousValue, entry.newValue]) {
-        if (entry.field === 'parentId' && typeof value === 'string' && uuid.test(value)) organizationIds.add(value);
-        if (entry.field === 'categoryIds' && Array.isArray(value)) {
-          for (const id of value) if (typeof id === 'string' && uuid.test(id)) categoryIds.add(id);
-        }
-      }
-    }
-    const [organizations, categories] = await Promise.all([
-      this.prisma.organization.findMany({ where: { id: { in: [...organizationIds] } }, select: { id: true, name: true } }),
-      this.prisma.category.findMany({ where: { id: { in: [...categoryIds] } }, select: { id: true, name: true } }),
-    ]);
-    const references = Object.fromEntries([...organizations, ...categories].map(reference => [reference.id, reference.name]));
-    return { items, total, page: query.page, pageSize: query.pageSize, references };
+  async listHistory(target: DirectoryTarget, query: PageQueryDto) {
+    return this.history.list(target, query);
   }
   async listCategories(query: DirectoryQueryDto) {
     const where: Prisma.CategoryWhereInput = { ...(query.status === 'all' ? {} : { isActive: query.status === 'active' }),

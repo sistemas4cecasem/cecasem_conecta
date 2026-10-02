@@ -6,7 +6,7 @@ import { useDirectoryMutation, useOrganization, useOrganizations } from './queri
 import { buttonClass, MutationError, Pagination, QueryState } from './directory-ui';
 import { dateLabel } from './date-label';
 import { OrganizationForm } from './organization-form';
-import { OrganizationHistory } from './organization-history';
+import { DirectoryHistory } from './directory-history';
 import { PersonRelations } from './person-relations';
 import { ContactSection } from './contact-section';
 export function OrganizationDetailPage() {
@@ -51,6 +51,6 @@ export function OrganizationDetailPage() {
     </section>
     <PersonRelations key={'people-'+id} identity={identity} organizationId={id}/>
     <ContactSection key={'contacts-'+id} identity={identity} actorPath={'organizations/'+id}/>
-    {identity.permissions.includes('directory.history.read') && <OrganizationHistory key={id} identity={identity} path={'organizations/' + id + '/history'} />}
+    {identity.permissions.includes('directory.history.read') && <DirectoryHistory key={id} identity={identity} path={'organizations/' + id + '/history'} />}
   </section>;
 }

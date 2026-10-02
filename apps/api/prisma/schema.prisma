@@ -201,6 +201,7 @@ model DirectoryChange {
   field          String @db.VarChar(32)
   previousValue  Json
   newValue       Json
+  referenceSnapshot Json?
   actorUserId    String @db.Uuid
   createdAt      DateTime @default(now()) @db.Timestamptz(3)
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)

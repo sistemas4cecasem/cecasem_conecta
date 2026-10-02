@@ -4,15 +4,20 @@ export const organizationSchema = z.object({ id: z.string(), name: z.string(), c
   description: z.string().nullable(), officialWebsite: z.string().nullable(), isActive: z.boolean(), version: z.number().int().positive(),
   parentId: z.string().nullable(), parent: z.object({ id: z.string(), name: z.string(), isActive: z.boolean() }).nullable(),
   categories: z.array(categorySchema), createdAt: z.string(), updatedAt: z.string(), lastVerifiedAt: z.string().nullable() });
-export const historySchema = z.object({ id: z.string(), operationId: z.string(), field: z.string(),
-  previousValue: z.union([z.string(), z.boolean(), z.array(z.string()), z.null()]),
-  newValue: z.union([z.string(), z.boolean(), z.array(z.string()), z.null()]), createdAt: z.string(),
-  actor: z.object({ id: z.string(), givenNames: z.string(), familyNames: z.string() }) });
+export const historyReferenceSchema = z.object({id:z.string(),kind:z.enum(['organization','category','person','contactMethod']),label:z.string().nullable()});
+const historyValueSchema=z.union([z.string(),z.boolean(),z.array(z.string()),z.null()]);
+export const historyChangeSchema=z.object({field:z.string(),label:z.string(),previousValue:historyValueSchema,newValue:historyValueSchema,
+  previousReferences:z.array(historyReferenceSchema),newReferences:z.array(historyReferenceSchema),added:z.array(historyReferenceSchema),removed:z.array(historyReferenceSchema)});
+export const historySchema=z.object({operationId:z.string(),createdAt:z.string(),objectType:z.enum(['ORGANIZATION','CATEGORY','PERSON','PERSON_ORGANIZATION_RELATION','CONTACT_METHOD','PERSON_CONTACT','ORGANIZATION_CONTACT']),
+  actor:z.object({id:z.string(),givenNames:z.string(),familyNames:z.string(),isActive:z.boolean()}),contextRecorded:z.boolean(),relatedReferences:z.array(historyReferenceSchema),
+  replacement:z.object({previous:historyReferenceSchema,next:historyReferenceSchema}).nullable(),changes:z.array(historyChangeSchema)});
 export const pageSchema = <T extends z.ZodType>(item: T) => z.object({ items: z.array(item), total: z.number().int().nonnegative(), page: z.number().int().positive(), pageSize: z.number().int().positive() });
-export const historyPageSchema = pageSchema(historySchema).extend({ references: z.record(z.string(), z.string()).default({}) });
+export const historyPageSchema = pageSchema(historySchema);
 export type Organization = z.infer<typeof organizationSchema>;
 export type Category = z.infer<typeof categorySchema>;
-export type HistoryEntry = z.infer<typeof historySchema>;
+export type HistoryOperation = z.infer<typeof historySchema>;
+export type HistoryChange = z.infer<typeof historyChangeSchema>;
+export type HistoryReference = z.infer<typeof historyReferenceSchema>;
 const text = (max: number) => z.string().trim().transform(value => value.replace(/\s+/gu, ' ')).pipe(z.string().max(max, `El máximo es ${max} caracteres.`));
 export const organizationFormSchema = z.object({
   name: text(250).pipe(z.string().min(1, 'El nombre es obligatorio.')), country: text(150), alias: text(150), description: text(5000),

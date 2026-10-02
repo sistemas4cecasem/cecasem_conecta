@@ -6,7 +6,7 @@ import { UsersService } from '../users/users.service';
 import { PERMISSIONS, type Permission } from '../auth/authorization/permission';
 import { hasPermission } from '../auth/authorization/role-permissions';
 import { AuditService } from '../audit/audit.service';
-import { DirectoryHistoryService, type DirectoryTarget, type FieldChange } from './directory-history.service';
+import { DirectoryHistoryService, type DirectoryTarget, type FieldChange, type HistoryRecordOptions } from './directory-history.service';
 import { DirectoryService } from './directory.service';
 import { DirectoryError } from './directory.errors';
 import { assertVersion } from './directory.rules';
@@ -91,7 +91,7 @@ export class ContactsService {
       return this.associateInTransaction(actor,methodId,context,actorId,tx,input.expectedMethodVersion);
     });
   }
-  private async associateInTransaction(actor:ContactActor,methodId:string,context:ReturnType<typeof contactContext>,actorId:string,tx:Prisma.TransactionClient,expectedMethodVersion?:number) {
+  private async associateInTransaction(actor:ContactActor,methodId:string,context:ReturnType<typeof contactContext>,actorId:string,tx:Prisma.TransactionClient,expectedMethodVersion?:number,historyOptions?:HistoryRecordOptions) {
     await this.lockMethod(methodId,tx);const method=await this.method(methodId,tx);
     const existing='personId' in actor?await tx.personContact.findUnique({where:{personId_contactMethodId:{personId:actor.personId,contactMethodId:methodId}},select:personSelect}):
       await tx.organizationContact.findUnique({where:{organizationId_contactMethodId:{organizationId:actor.organizationId,contactMethodId:methodId}},select:organizationSelect});
@@ -103,13 +103,13 @@ export class ContactsService {
       await tx.organizationContact.create({data:{...actor,contactMethodId:methodId,...context},select:organizationSelect});
     const changes:FieldChange[]=[{field:'associationCreated',previousValue:null,newValue:methodId}];
     for(const field of ['sourceDescription','sourceUrl','notes'] as const)if(context[field]!==null)changes.push({field,previousValue:null,newValue:context[field]});
-    await this.record(targetOf(kindOf(actor),row.id),actorId,changes,AuditAction.CONTACT_ASSOCIATION_CREATED,tx);
+    await this.record(targetOf(kindOf(actor),row.id),actorId,changes,AuditAction.CONTACT_ASSOCIATION_CREATED,tx,historyOptions);
     // Cambia la versión que protege una corrección global si aparecen nuevos actores afectados.
     await tx.contactMethod.update({where:{id:methodId},data:{version:{increment:1}}});
     return {outcome:'created' as const,association:associationContract(await this.association(kindOf(actor),row.id,tx))};
   }
-  private async record(target:DirectoryTarget,actorId:string,changes:FieldChange[],action:Parameters<AuditService['recordDirectory']>[0],tx:Prisma.TransactionClient) {
-    const operationId=await this.history.record(target,actorId,changes,tx);await this.audit.recordDirectory(action,target,actorId,operationId,tx);
+  private async record(target:DirectoryTarget,actorId:string,changes:FieldChange[],action:Parameters<AuditService['recordDirectory']>[0],tx:Prisma.TransactionClient,historyOptions?:HistoryRecordOptions) {
+    const operationId=await this.history.record(target,actorId,changes,tx,historyOptions);await this.audit.recordDirectory(action,target,actorId,operationId,tx);
   }
   async correct(id:string,input:ContactCorrectionDto,actorId:string) {
     let normalized:string|null=null;
@@ -181,8 +181,8 @@ export class ContactsService {
       return associationContract(await this.association(kind,id,tx));
     });
   }
-  private async setAssociationState(kind:AssociationKind,id:string,current:AssociationRow,isActive:boolean,actorId:string,action:Parameters<AuditService['recordDirectory']>[0],tx:Prisma.TransactionClient) {
-    if(current.isActive!==isActive) {await this.updateAssociation(kind,id,{isActive,version:{increment:1}},tx);await this.record(targetOf(kind,id),actorId,[{field:'isActive',previousValue:current.isActive,newValue:isActive}],action,tx);}
+  private async setAssociationState(kind:AssociationKind,id:string,current:AssociationRow,isActive:boolean,actorId:string,action:Parameters<AuditService['recordDirectory']>[0],tx:Prisma.TransactionClient,historyOptions?:HistoryRecordOptions) {
+    if(current.isActive!==isActive) {await this.updateAssociation(kind,id,{isActive,version:{increment:1}},tx);await this.record(targetOf(kind,id),actorId,[{field:'isActive',previousValue:current.isActive,newValue:isActive}],action,tx,historyOptions);}
     return associationContract(await this.association(kind,id,tx));
   }
   async end(kind:AssociationKind,id:string,input:ContactEndDto,actorId:string) {
@@ -199,9 +199,11 @@ export class ContactsService {
       for(const methodId of [initial.contactMethodId,input.contactMethodId].sort())await this.lockMethod(methodId,tx);
       const current=await this.lockedAssociation(kind,id,tx);assertVersion(current.version,input.expectedVersion);
       const target=await this.method(input.contactMethodId,tx);if(target.condition===ContactCondition.UNUSABLE)throw new DirectoryError('CONTACT_UNUSABLE');
-      const result=await this.associateInTransaction(actorOf(current),target.id,context,actorId,tx,input.expectedMethodVersion);
+      const historyOptions:HistoryRecordOptions={operationId:randomUUID(),replacement:{
+        previous:{id:current.contactMethodId,kind:'contactMethod',label:current.contactMethod.value},next:{id:target.id,kind:'contactMethod',label:target.value}}};
+      const result=await this.associateInTransaction(actorOf(current),target.id,context,actorId,tx,input.expectedMethodVersion,historyOptions);
       if(!result.association.isActive)throw new DirectoryError('INVALID_CONTACT_REPLACEMENT');
-      const previous=await this.setAssociationState(kind,id,current,false,actorId,AuditAction.CONTACT_ASSOCIATION_ENDED,tx);
+      const previous=await this.setAssociationState(kind,id,current,false,actorId,AuditAction.CONTACT_ASSOCIATION_ENDED,tx,historyOptions);
       return {...result,previous};
     });
   }

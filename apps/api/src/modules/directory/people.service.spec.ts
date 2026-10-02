@@ -25,13 +25,13 @@ describe('Episodios institucionales en aplicación',()=>{
     };
     const prisma={...tx,$transaction:(work:(value:typeof tx)=>unknown)=>work(tx)} as unknown as PrismaService;
     service=new PeopleService(prisma,{findIdentityById:jest.fn().mockResolvedValue({isActive:true,role:UserRole.RESEARCH})} as unknown as UsersService,
-      {record},{recordDirectory:jest.fn()} as unknown as AuditService,{} as DirectoryService);
+      {record} as unknown as DirectoryHistoryService,{recordDirectory:jest.fn()} as unknown as AuditService,{} as DirectoryService);
   });
   it('independiente puede adquirir dos organizaciones simultáneas sin sustituir ninguna',async()=>{
     expect((await service.get(personId)).currentRelationsCount).toBe(0);
     await service.createRelation(personId,{organizationId:orgA,isCurrent:true,positionTitle:'Consultora'},actorId);
     await service.createRelation(personId,{organizationId:orgB,isCurrent:true,positionTitle:'Directora'},actorId);
-    expect(episodes.size).toBe(2);expect((await service.get(personId)).currentRelationsCount).toBe(2);expect(record).not.toHaveBeenCalled();
+    expect(episodes.size).toBe(2);expect((await service.get(personId)).currentRelationsCount).toBe(2);expect(record).toHaveBeenCalledTimes(2);
   });
   it('fin y regreso a misma organización son episodios distintos; no inventa fecha',async()=>{
     const first=await service.createRelation(personId,{organizationId:orgA,isCurrent:true,positionTitle:'Coordinadora'},actorId);
@@ -43,11 +43,11 @@ describe('Episodios institucionales en aplicación',()=>{
     const row=await service.createRelation(personId,{organizationId:orgA,isCurrent:true,positionTitle:'Coordinador'},actorId);
     const corrected=await service.editRelation(row.id,{expectedVersion:1,isCurrent:true,positionTitle:'Coordinadora'},actorId);
     expect(corrected).toMatchObject({id:row.id,positionTitle:'Coordinadora',version:2});expect(episodes.size).toBe(1);
-    expect(record.mock.calls[0]?.[2]).toContainEqual({field:'positionTitle',previousValue:'Coordinador',newValue:'Coordinadora'});
+    expect(record.mock.calls.at(-1)?.[2]).toContainEqual({field:'positionTitle',previousValue:'Coordinador',newValue:'Coordinadora'});
   });
   it('una versión anterior no puede reabrir ni corregir después de finalizar',async()=>{
     const row=await service.createRelation(personId,{organizationId:orgA,isCurrent:true},actorId);await service.endRelation(row.id,{expectedVersion:1},actorId);
     await expect(service.editRelation(row.id,{expectedVersion:1,isCurrent:true},actorId)).rejects.toMatchObject({code:'VERSION_CONFLICT'});
-    expect(episodes.get(row.id)?.isCurrent).toBe(false);expect(record).toHaveBeenCalledTimes(1);
+    expect(episodes.get(row.id)?.isCurrent).toBe(false);expect(record).toHaveBeenCalledTimes(2);
   });
 });

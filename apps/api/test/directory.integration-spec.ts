@@ -128,7 +128,7 @@ describe('Directorio PostgreSQL y HTTP', () => {
     const actor = await fixture(); const row = await organization(actor.id); const a = await category(actor.id); const b = await category(actor.id);
     await directory.editOrganization(row.id, { name: row.name, categoryIds: [a.id, b.id], expectedVersion: 1 }, actor.id);
     const recorded = await directory.organizationHistory(row.id, { page: 1, pageSize: 25 });
-    expect(recorded.references).toMatchObject({ [a.id]: a.name, [b.id]: b.name });
+    expect(recorded.items[0].changes[0].newReferences).toEqual(expect.arrayContaining([{id:a.id,kind:"category",label:a.name},{id:b.id,kind:"category",label:b.name}]));
     await expect(prisma.organizationCategory.create({ data: { organizationId: row.id, categoryId: a.id } })).rejects.toThrow();
     await expect(prisma.organizationCategory.create({ data: { organizationId: row.id, categoryId: randomUUID() } })).rejects.toThrow();
     await expect(prisma.organization.delete({ where: { id: row.id } })).rejects.toThrow();

@@ -83,18 +83,18 @@ describe('Personas PostgreSQL y HTTP',()=>{
     expect(await people.get(row.id)).toMatchObject({createdAt:row.createdAt,lastVerifiedAt:null,version:2});
     const episode=await people.createRelation(row.id,{organizationId:organization.id,isCurrent:true,positionTitle:'Coordinador'},actor.id);
     await people.editRelation(episode.id,{positionTitle:'Coordinadora',area:'Cooperación',isCurrent:true,startDate:'2024-02-29',sourceDescription:'Documento público',sourceUrl:'https://example.test/fuente',notes:'Corrección',expectedVersion:1},actor.id);
-    const changes=await people.relationHistory(episode.id,{page:1,pageSize:25});expect(changes.total).toBe(6);
-    expect(new Set(changes.items.map(change=>change.operationId)).size).toBe(1);
-    expect(changes.items.find(change=>change.field==='positionTitle')).toMatchObject({previousValue:'Coordinador',newValue:'Coordinadora',actor:{id:actor.id}});
+    const changes=await people.relationHistory(episode.id,{page:1,pageSize:25});expect(changes.total).toBe(2);expect(changes.items[0].changes).toHaveLength(6);
+    expect(new Set(changes.items.map(change=>change.operationId)).size).toBe(2);
+    expect(changes.items[0].actor).toMatchObject({id:actor.id});expect(changes.items[0].changes.find(change=>change.field==='positionTitle')).toMatchObject({previousValue:'Coordinador',newValue:'Coordinadora'});
     expect(await prisma.auditEvent.findFirst({where:{personRelationId:episode.id}})).toMatchObject({action:AuditAction.PERSON_RELATION_UPDATED,operationId:changes.items[0].operationId,actorUserId:actor.id,targetUserId:null});
     expect((await people.getRelation(episode.id)).createdAt).toEqual(episode.createdAt);
   });
   it.each(['person-history','person-audit','relation-history','relation-audit'])('rollback completo ante fallo %s',async kind=>{
     const actor=await fixture(),row=await person(actor.id),organization=await org(actor.id),episode=await people.createRelation(row.id,{organizationId:organization.id,isCurrent:true},actor.id);
-    const personBefore=await people.get(row.id);
+    const personBefore=await people.get(row.id);const historyBefore=await prisma.directoryChange.count();
     if(kind.endsWith('history'))jest.spyOn(history,'record').mockRejectedValueOnce(new Error('fixture'));else jest.spyOn(audit,'recordDirectory').mockRejectedValueOnce(new Error('fixture'));
     await expect(kind.startsWith('person-')?people.edit(row.id,{displayName:'No confirma',expectedVersion:1},actor.id):people.editRelation(episode.id,{positionTitle:'No confirma',isCurrent:true,expectedVersion:1},actor.id)).rejects.toThrow();
-    expect(await people.get(row.id)).toEqual(personBefore);expect(await people.getRelation(episode.id)).toEqual(episode);expect(await prisma.directoryChange.count()).toBe(0);expect(await prisma.auditEvent.count()).toBe(0);
+    expect(await people.get(row.id)).toEqual(personBefore);expect(await people.getRelation(episode.id)).toEqual(episode);expect(await prisma.directoryChange.count()).toBe(historyBefore);expect(await prisma.auditEvent.count()).toBe(0);
   });
   it('finalización repetida con versión vigente es no-op; versión vieja y fecha anterior producen 409/400',async()=>{
     const actor=await fixture(),auth=await cookie(actor),row=await person(actor.id),organization=await org(actor.id),episode=await people.createRelation(row.id,{organizationId:organization.id,isCurrent:true,startDate:'2024-01-01'},actor.id);

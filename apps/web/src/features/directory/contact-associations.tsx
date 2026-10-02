@@ -10,7 +10,7 @@ import { contactAssociationSchema,contactMethodSchema,contactReplacementSchema,c
 import { ContactContextFields,ContactContextForm } from './contact-context-form';
 import { contextValues,associationPath } from './contact-context';
 import { buttonClass,MutationError,Pagination,QueryState } from './directory-ui';
-import { OrganizationHistory } from './organization-history';
+import { DirectoryHistory } from './directory-history';
 export function ContactReplacementForm({identity,row,target,done,cancel}:{identity:AuthIdentity;row:ContactAssociation;target:ContactMethod;done:()=>void;cancel:()=>void}) {
   const form=useForm({resolver:zodResolver(contactReplacementSchema),defaultValues:{...contextValues(row),confirmed:false}});const mutation=useDirectoryMutation(identity);
   const [version,setVersion]=useState(row.version),[targetSnapshot,setTargetSnapshot]=useState(target),[reloadFailed,setReloadFailed]=useState(false);
@@ -45,7 +45,7 @@ export function ContactAssociationCard({identity,row,readOnly=false,replacement}
     <MutationError error={mutation.error} reload={async()=>{try{const fresh=contactAssociationSchema.parse(await apiRequest(associationPath(row)));if(ending){setEnding(fresh);setConfirmed(false);}mutation.reset();setReloadFailed(false);}catch{setReloadFailed(true);}}}/>
     {reloadFailed&&<p role="alert">No se pudo recargar la asociación. Los datos se conservan.</p>}
     {replacing&&replacement&&<ContactReplacementForm identity={identity} row={row} target={replacement} done={()=>setReplacing(false)} cancel={()=>setReplacing(false)}/>}
-    {history&&<OrganizationHistory identity={identity} path={associationPath(row)+'/history'}/>}</li>;
+    {history&&<DirectoryHistory identity={identity} path={associationPath(row)+'/history'}/>}</li>;
 }
 function MethodActorAssociations({identity,methodId,kind,readOnly,replacement}:{identity:AuthIdentity;methodId:string;kind:'people'|'organizations';readOnly:boolean;replacement?:ContactMethod}) {
   const [page,setPage]=useState(1);const query=useContactAssociations(identity,`contact-methods/${methodId}/${kind}?page=${page}`);

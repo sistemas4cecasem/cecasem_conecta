@@ -22,7 +22,7 @@ describe('Personas y episodios institucionales en UI',()=>{
       const path=url.replace('/api/v1/',''),method=options?.method??'GET';
       if(path==='auth/me')return Promise.resolve(Response.json(loggedOut?{}:actor,{status:loggedOut?401:200}));
       if(path==='auth/logout'){loggedOut=true;return Promise.resolve(new Response(null,{status:204}));}
-      if(path.includes('/history'))return Promise.resolve(Response.json({...page([{id:'change',operationId:'operation-test',field:path.startsWith('people')?'displayName':'positionTitle',previousValue:'Anterior',newValue:'Corregido',createdAt:stamp,actor:{id:actor.id,givenNames:'QA',familyNames:'Personas'}}]),references:{}}));
+      if(path.includes('/history'))return Promise.resolve(Response.json({...page([{operationId:'operation-test',createdAt:stamp,objectType:'PERSON',actor:{id:actor.id,givenNames:actor.givenNames,familyNames:actor.familyNames,isActive:true},contextRecorded:true,relatedReferences:[],replacement:null,changes:[{field:path.startsWith('people')?'displayName':'positionTitle',label:'Dato de ficha',previousValue:'Anterior',newValue:'Corregido',previousReferences:[],newReferences:[],added:[],removed:[]}]}]),references:{}}));
       if(path.startsWith('people?')){
         if(state==='pending')return new Promise<Response>(()=>undefined);
         if(state==='error')return Promise.resolve(new Response(null,{status:500}));

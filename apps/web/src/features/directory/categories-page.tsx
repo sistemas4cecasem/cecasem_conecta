@@ -7,7 +7,7 @@ import { useSession } from '../auth/session';
 import { categoryFormSchema, categorySchema, type Category } from './contracts';
 import { useCategories, useDirectoryMutation } from './queries';
 import { buttonClass, Field, inputClass, MutationError, Pagination, QueryState } from './directory-ui';
-import { OrganizationHistory } from './organization-history';
+import { DirectoryHistory } from './directory-history';
 import type { AuthIdentity } from '../auth/session';
 
 function CategoryEditor({ identity, initial, done, reload }: { identity: AuthIdentity; initial?: Category; done: () => void; reload?: () => Promise<void> }) {
@@ -36,7 +36,7 @@ function CategoryCard({ identity, row }: { identity: AuthIdentity; row: Category
       {identity.permissions.includes('directory.history.read') && <button className={buttonClass} onClick={() => setHistory(!history)}>Historial de {row.name}</button>}
     </div>}
     <MutationError error={mutation.error} reload={reload} />
-    {history && <OrganizationHistory identity={identity} path={'categories/' + row.id + '/history'} />}
+    {history && <DirectoryHistory identity={identity} path={'categories/' + row.id + '/history'} />}
   </li>;
 }
 export function CategoriesPage() {

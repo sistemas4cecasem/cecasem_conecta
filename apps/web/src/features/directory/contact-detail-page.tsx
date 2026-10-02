@@ -8,7 +8,7 @@ import { useDirectoryMutation } from './queries';
 import { useContactMethod } from './contacts.queries';
 import { contactCorrectionSchema,contactMethodSchema,contactLabels,conditionLabels,type ContactCorrectionValues,type ContactMethod } from './contacts.contracts';
 import { ContactMethodAssociations } from './contact-associations';
-import { OrganizationHistory } from './organization-history';
+import { DirectoryHistory } from './directory-history';
 import { Field,inputClass,buttonClass,MutationError,QueryState } from './directory-ui';
 function correctionValues(row:ContactMethod):ContactCorrectionValues {return {type:row.type,value:row.value,label:row.label??'',confirmShared:false};}
 function ContactCorrectionForm({identity,initial,saved,cancel,onExisting}:{identity:AuthIdentity;initial:ContactMethod;saved:()=>void;cancel:()=>void;onExisting:(id:string)=>void}) {
@@ -42,5 +42,5 @@ export function ContactDetailPage() {
       <Link className="inline-flex min-h-11 underline" to={'/contact-methods/'+replacementId}>Ver ficha del correo existente</Link><ContactMethodAssociations identity={identity} methodId={replacementId} readOnly/>
       <button className={buttonClass} onClick={()=>setReplacementId(undefined)}>Cancelar reutilización para corrección</button></section>}</>}
     <h2 className="text-xl font-semibold">Asociaciones del medio</h2><ContactMethodAssociations key={id} identity={identity} methodId={id} replacement={replacement.data}/>
-    {identity.permissions.includes('directory.history.read')&&<OrganizationHistory key={'history-'+id} identity={identity} path={'contact-methods/'+id+'/history'}/>}</section>;
+    {identity.permissions.includes('directory.history.read')&&<DirectoryHistory key={'history-'+id} identity={identity} path={'contact-methods/'+id+'/history'}/>}</section>;
 }

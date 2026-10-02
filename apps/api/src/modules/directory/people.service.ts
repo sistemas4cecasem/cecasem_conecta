@@ -98,7 +98,13 @@ export class PeopleService {
     return this.prisma.$transaction(async tx=>{
       await this.authorize(actorId,PERMISSIONS.DIRECTORY_WRITE,tx);await this.person(personId,tx);
       if(!await tx.organization.findUnique({where:{id:input.organizationId},select:{id:true}})) throw new DirectoryError('ORGANIZATION_NOT_FOUND');
-      return relationContract(await tx.personOrganizationRelation.create({data:{...fields,personId,organizationId:input.organizationId},select:relationSelect}));
+      const row=await tx.personOrganizationRelation.create({data:{...fields,personId,organizationId:input.organizationId},select:relationSelect});
+      const changes:FieldChange[]=[{field:'relationCreated',previousValue:null,newValue:input.organizationId}];
+      for(const field of ['positionTitle','area','startDate','endDate','sourceDescription','sourceUrl','notes'] as const) {
+        const value=historyValue(row[field]);if(value!==null)changes.push({field,previousValue:null,newValue:value});
+      }
+      await this.history.record({personRelationId:row.id},actorId,changes,tx);
+      return relationContract(row);
     });
   }
   async editRelation(id:string,input:RelationEditDto,actorId:string) {
