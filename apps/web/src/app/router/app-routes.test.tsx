@@ -16,7 +16,7 @@ function renderApplication(path: string) {
 describe('Aplicación base', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(Response.json({
-      id: 'fixture', givenNames: 'Ana', familyNames: 'Prueba', username: 'ana.prueba', email: 'fixture@example.test', role: 'RESEARCH',
+      id: 'fixture', givenNames: 'Ana', familyNames: 'Prueba', username: 'ana.prueba', email: 'fixture@example.test', role: 'RESEARCH', permissions: [],
     }))));
   });
   it('muestra la pantalla inicial después de comprobar la sesión', async () => {

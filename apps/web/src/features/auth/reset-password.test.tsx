@@ -10,7 +10,7 @@ import { createQueryClient } from '../../lib/query/query-client';
 describe('Restablecimiento público', () => {
   let client = createQueryClient();
   let authenticated = false;
-  const identity = { id: 'fixture', givenNames: 'Ana', familyNames: 'Prueba', username: 'ana.prueba', email: 'fixture@example.test', role: 'ADMINISTRATOR' };
+  const identity = { id: 'fixture', givenNames: 'Ana', familyNames: 'Prueba', username: 'ana.prueba', email: 'fixture@example.test', role: 'ADMINISTRATOR', permissions: ['auth.first_access.issue', 'auth.password_reset.issue'] };
   const token = crypto.randomUUID().replaceAll('-', '') + '12345678901';
   const password = crypto.randomUUID();
   const fetchMock = vi.fn();

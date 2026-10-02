@@ -17,7 +17,7 @@ describe('First access credential policy', () => {
     const locked = jest.fn();
     const service = new FirstAccessService({ withLockedCredentials: locked } as unknown as UsersService,
       {} as FirstAccessTokensService, {} as PasswordService, {} as SessionsService, {} as ConfigService<AppEnvironment, true>);
-    await expect(service.issue('fixture', { id: 'actor', givenNames: 'Ana', familyNames: 'Prueba', username: 'ana', email: 'fixture@example.test', role }))
+    await expect(service.issue('fixture', { id: 'actor', givenNames: 'Ana', familyNames: 'Prueba', username: 'ana', email: 'fixture@example.test', role, permissions: [] }))
       .rejects.toBeInstanceOf(FirstAccessEmissionError);
     expect(locked).not.toHaveBeenCalled();
   });

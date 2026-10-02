@@ -17,7 +17,7 @@ describe('Password reset rules', () => {
     const locked = jest.fn();
     const service = new PasswordResetService({ withLockedCredentials: locked } as unknown as UsersService,
       {} as PasswordResetTokensService, {} as PasswordService, {} as SessionsService, {} as AuditService, {} as ConfigService<AppEnvironment, true>);
-    await expect(service.issue('fixture', { id: 'actor', givenNames: 'Ana', familyNames: 'Prueba', username: 'ana', email: 'fixture@example.test', role }))
+    await expect(service.issue('fixture', { id: 'actor', givenNames: 'Ana', familyNames: 'Prueba', username: 'ana', email: 'fixture@example.test', role, permissions: [] }))
       .rejects.toBeInstanceOf(PasswordResetEmissionError);
     expect(locked).not.toHaveBeenCalled();
   });

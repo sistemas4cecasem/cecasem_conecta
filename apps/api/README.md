@@ -441,8 +441,41 @@ No se guardan secretos, metadata genérica, IP, User-Agent o before/after.
 
 Restricción operativa: si el único Administrador pierde todo acceso, 1.4 no
 introduce mecanismo de emergencia. No hay contraseña maestra, seed ni bypass.
-La autorización general y pantalla administrativa pertenecen a 1.5/1.6.
+La autorización general se implementa en 1.5; la pantalla administrativa pertenece a 1.6.
 
 Pruebas: password-reset.spec.ts, password-reset.integration-spec.ts y frontend.
 Integración sobre base _test con fixtures aleatorios; limpieza exclusiva de sus
 UUID, audit events y referencias, sin reset ni eliminación de volúmenes.
+
+## RBAC — Subfase 1.5
+
+`auth/authorization` contiene el catálogo tipado y el único mapa backend de roles.
+Las capabilities actuales son `auth.first_access.issue` y `auth.password_reset.issue`.
+Administrador posee ambas, explícitamente; Directorio, Búsqueda y Planificación
+poseen listas vacías. No hay wildcard, bypass, persistencia de permisos ni nueva migración.
+
+`@RequirePermissions(...)` exige al menos una capability válida, declara metadata
+de método y aplica `SessionGuard` seguido de `PermissionsGuard`. Los requisitos
+son ALL. El primero conserva autenticación; el segundo resuelve permisos desde
+el rol de la identidad vigente y devuelve 403 si faltan. Metadata ausente, vacía
+o inválida, o ejecución sin identidad previa, constituye un error de configuración
+que falla con 500 uniforme, sin permitir la operación ni exponer detalles.
+
+Las emisiones `POST /api/v1/auth/first-access-tokens` y
+`POST /api/v1/auth/password-reset-tokens` utilizan sus respectivas capabilities.
+Los servicios conservan la relectura del emisor activo dentro de la operación
+transaccional y consultan el mismo mapa. Una llamada directa con rol desactualizado
+no evita esta defensa. Los rechazos no crean tokens ni eventos de auditoría.
+
+Login y `GET /api/v1/auth/me` devuelven `role` y `permissions` junto con la identidad
+pública. Las listas se calculan desde el rol actual, con orden estable y copia
+independiente. No se guardan en sesiones ni cookies. La misma cookie refleja
+cambios de rol en solicitudes posteriores. `me` requiere sesión, sin capability;
+login, logout, consumos públicos y health mantienen sus contratos.
+
+La cobertura incluye catálogo, ALL con subconjuntos, decorator, guards, inventario
+de las dos rutas administrativas, errores HTTP de configuración y PostgreSQL real.
+`authorization.integration-spec.ts` comprueba los cuatro roles, 401/403, identidad
+login/me, cambios de rol con la misma cookie, revalidación interna y ausencia de
+efectos por rechazos. Se ejecuta con el comando existente `test:integration` sobre
+una base `_test` y limpia exclusivamente sus fixtures.

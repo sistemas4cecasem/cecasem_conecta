@@ -185,3 +185,21 @@ de validación conocidos de estos dos endpoints; no reenvía cuerpos arbitrarios
 No se añade botón administrativo, listado de usuarios/resets, correo ni cambio
 personal de contraseña. Emitir/regenerar conserva contraseña y sesiones actuales;
 consumir revoca todas las sesiones del destinatario y sustituye la contraseña.
+
+## Capabilities y navegación — 1.5
+
+El contrato Zod de identidad exige `permissions: string[]`, admite la lista vacía
+y strings desconocidas para permitir la evolución del catálogo backend. El frontend
+no replica el mapa institucional de roles. `features/auth/permissions.ts` consulta
+únicamente las capabilities recibidas; el rol visible es información de identidad.
+
+La configuración de navegación admite `requiredPermission` por item y filtra
+usando la identidad actual de TanStack Query. El único item de producción es
+Inicio (`/`), común a todos los usuarios autenticados, sin capability requerida.
+Cerrar sesión sigue disponible para los cuatro roles. No se crean rutas ficticias
+ni pantallas de administración. Los destinos restringidos de los tests son fixtures.
+
+`me` mantiene `staleTime: 0`: al refrescar la consulta, la interfaz actualiza rol y
+permissions sin relogin. Un 403 no cierra sesión ni borra la identidad; el backend
+permanece autoritativo. Las pruebas verifican contrato, filtrado por capabilities,
+navegación común, actualización de rol y conservación de sesión ante 403.

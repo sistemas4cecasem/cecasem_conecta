@@ -15,6 +15,8 @@ import { InvalidNewPasswordError } from './password.service';
 import { PasswordResetService } from './password-reset.service';
 import { ConsumePasswordResetDto, IssuedPasswordResetDto, IssuePasswordResetDto } from './password-reset.dto';
 import { InvalidPasswordResetError, PasswordResetEmissionError, PasswordResetSessionConflictError, ReusedPasswordError } from './password-reset.errors';
+import { PERMISSIONS } from './authorization/permission';
+import { RequirePermissions } from './authorization/require-permissions.decorator';
 
 function requireJson(request: Request): void {
   if (!request.is('application/json')) throw new UnsupportedMediaTypeException('Se requiere application/json.');
@@ -28,7 +30,7 @@ export class AuthController {
     private readonly passwordReset: PasswordResetService) {}
 
   @Post('password-reset-tokens')
-  @UseGuards(SessionGuard)
+  @RequirePermissions(PERMISSIONS.PASSWORD_RESET_ISSUE)
   @Header('Cache-Control', 'no-store')
   @ApiCookieAuth('cecasem_session')
   @ApiCreatedResponse({ type: IssuedPasswordResetDto })
@@ -65,7 +67,7 @@ export class AuthController {
   }
 
   @Post('first-access-tokens')
-  @UseGuards(SessionGuard)
+  @RequirePermissions(PERMISSIONS.FIRST_ACCESS_ISSUE)
   @Header('Cache-Control', 'no-store')
   @ApiCookieAuth('cecasem_session')
   @ApiCreatedResponse({ type: IssuedFirstAccessDto })

@@ -95,7 +95,7 @@ describe('Authentication integration and HTTP E2E with PostgreSQL', () => {
   it('logs in with normalized email, stores only tokenHash and issues scoped HttpOnly cookie', async () => {
     const user = await fixture();
     const response = await login(` ${user.email.toUpperCase()} `).expect(200).expect('Cache-Control', 'no-store');
-    expect(Object.keys(response.body as object).sort()).toEqual(['email', 'familyNames', 'givenNames', 'id', 'role', 'username']);
+    expect(Object.keys(response.body as object).sort()).toEqual(['email', 'familyNames', 'givenNames', 'id', 'permissions', 'role', 'username']);
     const cookie = cookieHeader(response);
     expect(cookie).toContain('HttpOnly'); expect(cookie).toContain('SameSite=Lax');
     expect(cookie).toContain('Path=/api/v1'); expect(cookie).toContain('Max-Age=28800');

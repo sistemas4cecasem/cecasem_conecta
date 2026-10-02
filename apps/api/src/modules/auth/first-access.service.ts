@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppEnvironment } from '../../config/environment';
-import { UserRole } from '../../generated/prisma/client';
+import { PERMISSIONS } from './authorization/permission';
+import { hasPermission } from './authorization/role-permissions';
 import { UsersService } from '../users/users.service';
 import { AuthenticatedUserDto } from './auth.dto';
 import { FirstAccessEmissionError, FirstAccessSessionConflictError, InvalidFirstAccessError } from './first-access.errors';
@@ -17,11 +18,10 @@ export class FirstAccessService {
     private readonly config: ConfigService<AppEnvironment, true>) {}
 
   async issue(userId: string, actor: AuthenticatedUserDto): Promise<{ token: string; expiresAt: Date }> {
-    // Comprobación localizada hasta integrar la autorización general en 1.5.
-    if (actor.role !== UserRole.ADMINISTRATOR) throw new FirstAccessEmissionError('FORBIDDEN');
+    if (!hasPermission(actor.role, PERMISSIONS.FIRST_ACCESS_ISSUE)) throw new FirstAccessEmissionError('FORBIDDEN');
     return this.users.withLockedCredentials(userId, async (user, tx) => {
       const issuer = await this.users.findIdentityById(actor.id, tx);
-      if (!issuer?.isActive || issuer.role !== UserRole.ADMINISTRATOR) throw new FirstAccessEmissionError('FORBIDDEN');
+      if (!issuer?.isActive || !hasPermission(issuer.role, PERMISSIONS.FIRST_ACCESS_ISSUE)) throw new FirstAccessEmissionError('FORBIDDEN');
       if (!user) throw new FirstAccessEmissionError('NOT_FOUND');
       if (!user.isActive) throw new FirstAccessEmissionError('INACTIVE');
       if (user.passwordHash !== null) throw new FirstAccessEmissionError('PASSWORD_EXISTS');

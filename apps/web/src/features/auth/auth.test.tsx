@@ -1,5 +1,5 @@
 import { QueryClientProvider, useQueryClient } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -12,7 +12,7 @@ import { ApiError, apiRequest } from '../../lib/api/client';
 describe('Autenticación completa en interfaz', () => {
   let client = createQueryClient();
   let authenticated = false;
-  const identity = { id: 'fixture', givenNames: 'Ana', familyNames: 'Prueba', username: 'ana.prueba', email: 'fixture@example.test', role: 'RESEARCH' };
+  const identity = { id: 'fixture', givenNames: 'Ana', familyNames: 'Prueba', username: 'ana.prueba', email: 'fixture@example.test', role: 'RESEARCH', permissions: [] };
   const password = crypto.randomUUID();
   let loginResult: () => Promise<Response>;
   let logoutResult: () => Promise<Response>;
@@ -128,5 +128,42 @@ describe('Autenticación completa en interfaz', () => {
     expect(client.getQueryData(AUTH_QUERY_KEY)).toBeNull();
     expect(client.getQueryData(['private'])).toBeUndefined();
     expect(await screen.findByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
+  });
+  it.each(['ADMINISTRATOR', 'BOARD', 'RESEARCH', 'PLANNING'])('conserva Inicio y logout para %s', async role => {
+    fetchMock.mockResolvedValueOnce(Response.json({ ...identity, role,
+      permissions: role === 'ADMINISTRATOR' ? ['auth.first_access.issue', 'auth.password_reset.issue'] : [] }));
+    renderApp('/');
+    const navigation = await screen.findByRole('navigation', { name: 'Navegación principal' });
+    expect(within(navigation).getAllByRole('link')).toHaveLength(1);
+    expect(within(navigation).getByRole('link', { name: 'Inicio' })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible();
+  });
+  it('actualiza rol y capabilities al refrescar me sin volver a iniciar sesión', async () => {
+    let role = 'ADMINISTRATOR';
+    fetchMock.mockImplementation(() => Promise.resolve(Response.json({ ...identity, role,
+      permissions: role === 'ADMINISTRATOR' ? ['auth.first_access.issue', 'auth.password_reset.issue'] : [] })));
+    renderApp('/');
+    expect(await screen.findByText('Administrador')).toBeVisible();
+    role = 'BOARD'; await client.invalidateQueries({ queryKey: AUTH_QUERY_KEY });
+    expect(await screen.findByText('Directorio')).toBeVisible();
+    expect(client.getQueryData(AUTH_QUERY_KEY)).toMatchObject({ role: 'BOARD', permissions: [] });
+    role = 'ADMINISTRATOR'; await client.invalidateQueries({ queryKey: AUTH_QUERY_KEY });
+    expect(await screen.findByText('Administrador')).toBeVisible();
+    expect(client.getQueryData(AUTH_QUERY_KEY)).toMatchObject({ permissions: ['auth.first_access.issue', 'auth.password_reset.issue'] });
+    expect(fetchMock.mock.calls.every(([url]: string[]) => url?.endsWith('/auth/me'))).toBe(true);
+  });
+  it('un 403 conserva la identidad y la sesión autenticada', async () => {
+    function CacheProbe() { client = useQueryClient(); return null; }
+    authenticated = true;
+    render(<AppProviders><MemoryRouter><CacheProbe /><AppRoutes /></MemoryRouter></AppProviders>);
+    await screen.findByRole('heading', { name: 'CECASEM Conecta' });
+    client.setQueryData(['private'], { private: true });
+    fetchMock.mockResolvedValueOnce(Response.json({ message: 'No tiene los permisos necesarios.' }, { status: 403 }));
+    await expect(apiRequest('auth/first-access-tokens', { method: 'POST' })).rejects.toMatchObject({ status: 403 });
+    expect(client.getQueryData(AUTH_QUERY_KEY)).toEqual(identity);
+    expect(client.getQueryData(['private'])).toEqual({ private: true });
+    expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Iniciar sesión' })).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([url]: string[]) => url?.endsWith('/auth/logout'))).toBe(false);
   });
 });

@@ -24,6 +24,6 @@ describe('Authentication boundaries', () => {
     });
 
   it('returns only the allowlisted public identity even when persistence contains credentials', () => {
-    expect(Object.keys(publicIdentity(credential)).sort()).toEqual(['email', 'familyNames', 'givenNames', 'id', 'role', 'username']);
+    expect(Object.keys(publicIdentity(credential)).sort()).toEqual(['email', 'familyNames', 'givenNames', 'id', 'permissions', 'role', 'username']);
   });
 });

@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppEnvironment } from '../../config/environment';
-import { AuditAction, UserRole } from '../../generated/prisma/client';
+import { AuditAction } from '../../generated/prisma/client';
+import { PERMISSIONS } from './authorization/permission';
+import { hasPermission } from './authorization/role-permissions';
 import { UsersService } from '../users/users.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthenticatedUserDto } from './auth.dto';
@@ -18,10 +20,10 @@ export class PasswordResetService {
     private readonly audit: AuditService, private readonly config: ConfigService<AppEnvironment, true>) {}
 
   async issue(userId: string, actor: AuthenticatedUserDto): Promise<{ token: string; expiresAt: Date }> {
-    if (actor.role !== UserRole.ADMINISTRATOR) throw new PasswordResetEmissionError('FORBIDDEN');
+    if (!hasPermission(actor.role, PERMISSIONS.PASSWORD_RESET_ISSUE)) throw new PasswordResetEmissionError('FORBIDDEN');
     return this.users.withLockedCredentials(userId, async (user, tx) => {
       const issuer = await this.users.findIdentityById(actor.id, tx);
-      if (!issuer?.isActive || issuer.role !== UserRole.ADMINISTRATOR) throw new PasswordResetEmissionError('FORBIDDEN');
+      if (!issuer?.isActive || !hasPermission(issuer.role, PERMISSIONS.PASSWORD_RESET_ISSUE)) throw new PasswordResetEmissionError('FORBIDDEN');
       if (!user) throw new PasswordResetEmissionError('NOT_FOUND');
       if (!user.isActive) throw new PasswordResetEmissionError('INACTIVE');
       if (user.passwordHash === null) throw new PasswordResetEmissionError('FIRST_ACCESS_REQUIRED');

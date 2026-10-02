@@ -4,6 +4,8 @@ import { ApiProperty } from '@nestjs/swagger';
 import { UserRole } from '../../generated/prisma/client';
 import { UserIdentity } from '../users/user-projections';
 import { validLoginPassword } from './password.service';
+import { PERMISSIONS, type Permission } from './authorization/permission';
+import { getRolePermissions } from './authorization/role-permissions';
 
 export class LoginDto {
   @ApiProperty({ format: 'email', maxLength: 254 })
@@ -26,9 +28,10 @@ export class AuthenticatedUserDto {
   @ApiProperty() username!: string;
   @ApiProperty({ format: 'email' }) email!: string;
   @ApiProperty({ enum: UserRole }) role!: UserRole;
+  @ApiProperty({ enum: Object.values(PERMISSIONS), isArray: true }) permissions!: Permission[];
 }
 
 export function publicIdentity(user: UserIdentity): AuthenticatedUserDto {
   return { id: user.id, givenNames: user.givenNames, familyNames: user.familyNames,
-    username: user.username, email: user.email, role: user.role };
+    username: user.username, email: user.email, role: user.role, permissions: [...getRolePermissions(user.role)] };
 }
