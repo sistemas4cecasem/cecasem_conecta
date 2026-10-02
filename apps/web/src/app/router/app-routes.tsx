@@ -6,6 +6,7 @@ import { AuthenticatedLayout } from '../layout/authenticated-layout';
 import { LoginPage } from '../../features/auth/login-page';
 import { FirstAccessPage } from '../../features/auth/first-access-page';
 import { ResetPasswordPage } from '../../features/auth/reset-password-page';
+import { UsersPage } from '../../features/users/users-page';
 
 export function AppRoutes() {
   return (
@@ -18,6 +19,7 @@ export function AppRoutes() {
       </Route>
       <Route element={<AuthenticatedLayout />}>
         <Route index element={<HomePage />} />
+        <Route path="users" element={<UsersPage />} />
       </Route>
     </Routes>
   );

@@ -13,6 +13,7 @@ import { PermissionsGuard } from './permissions.guard';
 import { RequirePermissions } from './require-permissions.decorator';
 
 const both = [PERMISSIONS.FIRST_ACCESS_ISSUE, PERMISSIONS.PASSWORD_RESET_ISSUE];
+const allPermissions = Object.values(PERMISSIONS);
 const reflector = new Reflector();
 
 // Se inspecciona metadata del método original, sin invocarlo ni hacer bind.
@@ -24,18 +25,18 @@ function methodHandler(prototype: object, method: string): ReturnType<ExecutionC
 
 describe('RBAC explícito y sin bypass', () => {
   it.each([
-    [UserRole.ADMINISTRATOR, both], [UserRole.BOARD, []], [UserRole.RESEARCH, []], [UserRole.PLANNING, []],
+    [UserRole.ADMINISTRATOR, allPermissions], [UserRole.BOARD, [PERMISSIONS.USERS_READ]], [UserRole.RESEARCH, []], [UserRole.PLANNING, []],
   ])('%s conserva su lista explícita', (role, expected) => {
     expect(getRolePermissions(role)).toEqual(expected);
-    expect(hasPermission(role, PERMISSIONS.FIRST_ACCESS_ISSUE)).toBe(expected.length > 0);
-    expect(hasAllPermissions(getRolePermissions(role), both)).toBe(expected.length > 0);
+    expect(hasPermission(role, PERMISSIONS.FIRST_ACCESS_ISSUE)).toBe(role === UserRole.ADMINISTRATOR);
+    expect(hasAllPermissions(getRolePermissions(role), both)).toBe(role === UserRole.ADMINISTRATOR);
   });
   it.each(['UNKNOWN', '__proto__', 'constructor'])('el rol desconocido %s no concede acceso', role => {
     expect(getRolePermissions(role)).toEqual([]);
     expect(hasPermission(role, PERMISSIONS.FIRST_ACCESS_ISSUE)).toBe(false);
   });
   it('no concede capabilities desconocidas ni utiliza ANY o listas vacías', () => {
-    expect(Object.values(PERMISSIONS)).toEqual(both);
+    expect(Object.values(PERMISSIONS)).toEqual([...both, 'users.read', 'users.deactivated.read', 'users.create', 'users.role.update', 'users.status.update', 'users.mailboxes.manage']);
     const granted = getRolePermissions(UserRole.ADMINISTRATOR);
     expect(hasAllPermissions(granted, [both[0], 'unassigned'])).toBe(false);
     expect(hasPermission(UserRole.ADMINISTRATOR, '*')).toBe(false);
@@ -48,9 +49,9 @@ describe('RBAC explícito y sin bypass', () => {
     const user = { id: 'fixture', givenNames: 'Ana', familyNames: 'Prueba', username: 'ana.prueba',
       email: 'fixture@example.test', role: UserRole.ADMINISTRATOR } as UserIdentity;
     const identity = publicIdentity(user);
-    expect(identity.permissions).toEqual(both);
+    expect(identity.permissions).toEqual(allPermissions);
     identity.permissions.length = 0;
-    expect(publicIdentity(user).permissions).toEqual(both);
+    expect(publicIdentity(user).permissions).toEqual(allPermissions);
     expect(Object.isFrozen(getRolePermissions(user.role))).toBe(true);
   });
 });

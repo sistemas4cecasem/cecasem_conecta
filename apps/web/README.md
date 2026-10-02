@@ -203,3 +203,11 @@ ni pantallas de administración. Los destinos restringidos de los tests son fixt
 permissions sin relogin. Un 403 no cierra sesión ni borra la identidad; el backend
 permanece autoritativo. Las pruebas verifican contrato, filtrado por capabilities,
 navegación común, actualización de rol y conservación de sesión ante 403.
+
+## Administración mínima — Subfase 1.6
+
+`features/users` implementa `/users`: consulta activa para Directorio y acciones
+individualmente autorizadas para Administrador. Formularios, buzones, credenciales
+efímeras y limpieza de caché ante cambios propios se describen en
+[Administración mínima](../../docs/subfase-1.6-administracion.md).
+No se agregan dependencias ni se replica el mapa de roles backend.

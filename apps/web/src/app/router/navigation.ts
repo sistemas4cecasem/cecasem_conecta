@@ -8,6 +8,7 @@ export interface NavigationItem {
 
 export const AUTHENTICATED_NAVIGATION: readonly NavigationItem[] = [
   { label: 'Inicio', to: '/' },
+  { label: 'Usuarios', to: '/users', requiredPermission: 'users.read' },
 ];
 
 export function visibleNavigationItems(items: readonly NavigationItem[], permissions: readonly string[]): NavigationItem[] {

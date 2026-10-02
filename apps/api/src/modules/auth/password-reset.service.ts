@@ -34,7 +34,7 @@ export class PasswordResetService {
       await this.audit.recordPasswordReset(revoked.length ? AuditAction.PASSWORD_RESET_REGENERATED : AuditAction.PASSWORD_RESET_ISSUED,
         actor.id, userId, row.id, tx, createdAt);
       return { token, expiresAt };
-    });
+    }, { actorId: actor.id });
   }
 
   async consume(token: string, password: string, browserToken?: string): Promise<void> {

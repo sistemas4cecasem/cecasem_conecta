@@ -64,6 +64,7 @@ describe('First access PostgreSQL and HTTP E2E', () => {
     if (!prisma) return;
     await prisma.$transaction([
       prisma.firstAccessToken.deleteMany({ where: { OR: [{ userId: { in: ids } }, { createdByUserId: { in: ids } }] } }),
+      prisma.auditEvent.deleteMany({ where: { OR: [{ targetUserId: { in: ids } }, { actorUserId: { in: ids } }] } }),
       prisma.userSession.deleteMany({ where: { userId: { in: ids } } }),
       prisma.user.deleteMany({ where: { id: { in: ids } } }),
     ]); ids.length = 0;
@@ -133,7 +134,7 @@ describe('First access PostgreSQL and HTTP E2E', () => {
   });
   it('rejects missing, inactive and already established recipients with administrative errors', async () => {
     await issue(randomUUID()).expect(404);
-    const inactive = await fixture(); await access.deactivate(inactive.id); await issue(inactive.id).expect(409);
+    const inactive = await fixture(); await access.deactivate(inactive.id, actor.id); await issue(inactive.id).expect(409);
     const established = await fixture(UserRole.RESEARCH, true); await issue(established.id).expect(409);
   });
   it('revokes old pending credentials including expired ones on regeneration', async () => {
@@ -160,7 +161,7 @@ describe('First access PostgreSQL and HTTP E2E', () => {
     if (state === 'expired') await prisma.firstAccessToken.updateMany({ where: { userId: user.id }, data: { createdAt: new Date(Date.now() - 2000), expiresAt: new Date(Date.now() - 1000) } });
     if (state === 'used') await firstAccess.consume(emitted.token, password);
     if (state === 'revoked') await users.withLockedCredentials(user.id, (_user, tx) => tokens.revokePendingForUser(user.id, tx));
-    if (state === 'inactive') await access.deactivate(user.id);
+    if (state === 'inactive') await access.deactivate(user.id, actor.id);
     if (state === 'established') await prisma.user.update({ where: { id: user.id }, data: { passwordHash: configuredHash } });
     const response = await consume(state === 'unknown' ? createOpaqueToken() : state === 'malformed' ? 'bad' : emitted.token).expect(400).expect('Cache-Control', 'no-store');
     expect(response.body).toMatchObject({ message: INVALID_FIRST_ACCESS_MESSAGE }); expect(response.text).not.toContain(user.email);
@@ -204,7 +205,7 @@ describe('First access PostgreSQL and HTTP E2E', () => {
     expect((await users.findCredentialsByEmail(user.email))!.passwordHash).toBeNull();
   });
   it('revokes pending tokens on deactivation and never revives them on reactivation', async () => {
-    const user = await fixture(); const emitted = await firstAccess.issue(user.id, actor); await access.deactivate(user.id);
+    const user = await fixture(); const emitted = await firstAccess.issue(user.id, actor); await access.deactivate(user.id, actor.id);
     expect((await tokens.findByToken(emitted.token))!.revokedAt).not.toBeNull();
     await prisma.user.update({ where: { id: user.id }, data: { isActive: true, deactivatedAt: null } });
     await consume(emitted.token).expect(400); const next = await firstAccess.issue(user.id, actor); await consume(next.token).expect(204);
@@ -268,14 +269,14 @@ describe('First access PostgreSQL and HTTP E2E', () => {
   });
   it.each([true, false])('serializes consumption versus deactivation, consumptionFirst=%s', async (consumptionFirst) => {
     const user = await fixture(); const emitted = await firstAccess.issue(user.id, actor);
-    const consumption = () => firstAccess.consume(emitted.token, password); const deactivate = () => access.deactivate(user.id);
+    const consumption = () => firstAccess.consume(emitted.token, password); const deactivate = () => access.deactivate(user.id, actor.id);
     const results = await race(consumptionFirst ? consumption : deactivate, consumptionFirst ? deactivate : consumption);
     expect(results.map((result) => result.status)).toEqual(consumptionFirst ? ['fulfilled', 'fulfilled'] : ['fulfilled', 'rejected']);
     const credentials = (await users.findCredentialsByEmail(user.email))!; expect(credentials.isActive).toBe(false);
     expect(credentials.passwordHash === null).toBe(!consumptionFirst);
   });
   it.each([true, false])('serializes emission versus deactivation, emissionFirst=%s', async (emissionFirst) => {
-    const user = await fixture(); const emission = () => firstAccess.issue(user.id, actor); const deactivate = () => access.deactivate(user.id);
+    const user = await fixture(); const emission = () => firstAccess.issue(user.id, actor); const deactivate = () => access.deactivate(user.id, actor.id);
     const results = await race(emissionFirst ? emission : deactivate, emissionFirst ? deactivate : emission);
     expect(results.map((result) => result.status)).toEqual(emissionFirst ? ['fulfilled', 'fulfilled'] : ['fulfilled', 'rejected']);
     expect(await prisma.firstAccessToken.count({ where: { userId: user.id, usedAt: null, revokedAt: null } })).toBe(0);

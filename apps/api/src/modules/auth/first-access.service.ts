@@ -31,7 +31,7 @@ export class FirstAccessService {
       const expiresAt = new Date(createdAt.getTime() + this.config.get('FIRST_ACCESS_TOKEN_TTL_SECONDS', { infer: true }) * 1000);
       await tx.firstAccessToken.create({ data: { userId, createdByUserId: actor.id, tokenHash: hashOpaqueToken(token)!, createdAt, expiresAt } });
       return { token, expiresAt };
-    });
+    }, { actorId: actor.id });
   }
 
   async consume(token: string, password: string, browserToken?: string): Promise<void> {

@@ -8,15 +8,18 @@ const items: readonly NavigationItem[] = [
   { label: 'Reinicio de prueba', to: '/fixture-reset', requiredPermission: 'auth.password_reset.issue' },
 ];
 const roleCases: [string, string[], number][] = [
-  ['ADMINISTRATOR', ['auth.first_access.issue', 'auth.password_reset.issue'], 3],
-  ['BOARD', [], 1], ['RESEARCH', [], 1], ['PLANNING', [], 1],
+  ['ADMINISTRATOR', ['auth.first_access.issue', 'auth.password_reset.issue', 'users.read'], 3],
+  ['BOARD', ['users.read'], 1], ['RESEARCH', [], 1], ['PLANNING', [], 1],
 ];
 
 describe('Filtrado de navegación por capabilities recibidas', () => {
   it.each(roleCases)('%s muestra solo items permitidos y conserva Inicio', (_role, permissions, count) => {
     expect(visibleNavigationItems(items, permissions)).toHaveLength(count);
     expect(visibleNavigationItems(items, permissions)[0]).toEqual(items[0]);
-    expect(visibleNavigationItems(AUTHENTICATED_NAVIGATION, permissions)).toEqual([{ label: 'Inicio', to: '/' }]);
+    expect(visibleNavigationItems(AUTHENTICATED_NAVIGATION, permissions)).toEqual([
+      { label: 'Inicio', to: '/' },
+      ...(permissions.includes('users.read') ? [{ label: 'Usuarios', to: '/users', requiredPermission: 'users.read' }] : []),
+    ]);
   });
   it('filtra un subconjunto sin inferir permisos adicionales desde el rol', () => {
     expect(visibleNavigationItems(items, ['auth.first_access.issue']).map(item => item.to)).toEqual(['/', '/fixture-issue']);

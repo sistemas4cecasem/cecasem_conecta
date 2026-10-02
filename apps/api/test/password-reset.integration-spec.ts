@@ -111,7 +111,8 @@ describe('Password reset PostgreSQL and HTTP E2E', () => {
     expect(+row.expiresAt - +row.createdAt).toBe(14400000); expect(JSON.stringify(row)).not.toContain(body.token);
     const event = (await prisma.auditEvent.findMany({where:{targetUserId:user.id}}))[0];
     expect(event).toMatchObject({action:AuditAction.PASSWORD_RESET_ISSUED,actorUserId:actor.id,passwordResetTokenId:row.id});
-    expect(Object.keys(event).sort()).toEqual(['action','actorUserId','createdAt','id','passwordResetTokenId','targetUserId']);
+    expect(Object.keys(event).sort()).toEqual(['action','actorUserId','createdAt','emailAccountId','id','newRole','passwordResetTokenId','previousRole','targetUserId']);
+    expect(event).toMatchObject({ previousRole: null, newRole: null, emailAccountId: null });
     expect(JSON.stringify(event)).not.toContain(body.token); expect(JSON.stringify(event)).not.toContain(row.tokenHash);
     await request(app.getHttpServer()).get('/api/v1/auth/password-reset-tokens').set('Cookie',actorCookie).expect(404);
   });
@@ -132,7 +133,7 @@ describe('Password reset PostgreSQL and HTTP E2E', () => {
   });
   it('rejects missing, inactive and first-access recipients and stale issuer identity', async () => {
     await issue(randomUUID()).expect(404);
-    const inactive = await fixture(); await access.deactivate(inactive.id); await issue(inactive.id).expect(409);
+    const inactive = await fixture(); await access.deactivate(inactive.id, actor.id); await issue(inactive.id).expect(409);
     const firstAccess = await fixture(UserRole.RESEARCH,false); await issue(firstAccess.id).expect(409);
     await prisma.user.update({where:{id:actor.id},data:{role:UserRole.BOARD}});
     await expect(resets.issue(firstAccess.id,actor)).rejects.toBeInstanceOf(PasswordResetEmissionError);
@@ -179,7 +180,7 @@ describe('Password reset PostgreSQL and HTTP E2E', () => {
     if(state==='expired')await prisma.passwordResetToken.updateMany({where:{userId:user.id},data:{createdAt:new Date(Date.now()-2000),expiresAt:new Date(Date.now()-1000)}});
     if(state==='used')await resets.consume(emitted.token,newPassword);
     if(state==='revoked')await resets.issue(user.id,actor);
-    if(state==='inactive')await access.deactivate(user.id);
+    if(state==='inactive')await access.deactivate(user.id, actor.id);
     if(state==='first-access')await prisma.user.update({where:{id:user.id},data:{passwordHash:null}});
     const response=await consume(state==='unknown'?createOpaqueToken():state==='malformed'?'bad':emitted.token).expect(400).expect('Cache-Control','no-store');
     expect(response.body).toMatchObject({message:INVALID_PASSWORD_RESET_MESSAGE});expect(response.text).not.toContain(user.email);
@@ -212,10 +213,10 @@ describe('Password reset PostgreSQL and HTTP E2E', () => {
     }
     await consume(emitted.token,`cecasem_session=${state==='malformed'?'bad':browserToken}`).expect(204);
   });
-  it.each([null,'actor'])('audits deactivation with trusted actor %s and never revives old reset', async context => {
-    const user=await fixture();const emitted=await resets.issue(user.id,actor);await access.deactivate(user.id,context?actor.id:null);
+  it('audits deactivation with trusted actor and never revives old reset', async () => {
+    const user=await fixture();const emitted=await resets.issue(user.id,actor);await access.deactivate(user.id,actor.id);
     const row=(await tokens.findByToken(emitted.token))!;expect(row.revokedAt).not.toBeNull();
-    expect(await prisma.auditEvent.findFirst({where:{passwordResetTokenId:row.id,action:AuditAction.PASSWORD_RESET_REVOKED}})).toMatchObject({actorUserId:context?actor.id:null,targetUserId:user.id});
+    expect(await prisma.auditEvent.findFirst({where:{passwordResetTokenId:row.id,action:AuditAction.PASSWORD_RESET_REVOKED}})).toMatchObject({actorUserId:actor.id,targetUserId:user.id});
     await prisma.user.update({where:{id:user.id},data:{isActive:true,deactivatedAt:null}});await consume(emitted.token).expect(400);
     await consume((await resets.issue(user.id,actor)).token).expect(204);
   });
@@ -230,7 +231,7 @@ describe('Password reset PostgreSQL and HTTP E2E', () => {
     const priorEvents=await prisma.auditEvent.count({where:{targetUserId:user.id}});
     jest.spyOn(audit,'recordPasswordReset').mockRejectedValueOnce(new Error('fixture failure'));
     if(operation==='consume')await consume(old!.token).expect(500);
-    else if(operation==='deactivate')await expect(access.deactivate(user.id)).rejects.toThrow('fixture failure');
+    else if(operation==='deactivate')await expect(access.deactivate(user.id, actor.id)).rejects.toThrow('fixture failure');
     else await issue(user.id).expect(500);
     const current=(await users.findCredentialsById(user.id))!;expect(current.passwordHash).toBe(configuredHash);expect(current.isActive).toBe(true);
     expect(await prisma.auditEvent.count({where:{targetUserId:user.id}})).toBe(priorEvents);
@@ -291,12 +292,12 @@ describe('Password reset PostgreSQL and HTTP E2E', () => {
   });
   it.each([true,false])('serializes consumption versus deactivation, consumptionFirst=%s', async consumptionFirst => {
     const user=await fixture();const emitted=await resets.issue(user.id,actor);
-    const consumption=()=>resets.consume(emitted.token,newPassword);const deactivation=()=>access.deactivate(user.id);
+    const consumption=()=>resets.consume(emitted.token,newPassword);const deactivation=()=>access.deactivate(user.id, actor.id);
     expect((await race(consumptionFirst?consumption:deactivation,consumptionFirst?deactivation:consumption)).map(value=>value.status)).toEqual(consumptionFirst?['fulfilled','fulfilled']:['fulfilled','rejected']);
     expect((await users.findCredentialsById(user.id))!.isActive).toBe(false);
   });
   it.each([true,false])('serializes issuance versus deactivation, issuanceFirst=%s', async issuanceFirst => {
-    const user=await fixture();const emission=()=>resets.issue(user.id,actor);const deactivation=()=>access.deactivate(user.id);
+    const user=await fixture();const emission=()=>resets.issue(user.id,actor);const deactivation=()=>access.deactivate(user.id, actor.id);
     expect((await race(issuanceFirst?emission:deactivation,issuanceFirst?deactivation:emission)).map(value=>value.status)).toEqual(issuanceFirst?['fulfilled','fulfilled']:['fulfilled','rejected']);
     expect(await prisma.passwordResetToken.count({where:{userId:user.id,usedAt:null,revokedAt:null}})).toBe(0);
   });

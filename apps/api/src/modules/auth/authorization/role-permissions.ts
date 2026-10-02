@@ -2,8 +2,10 @@ import { UserRole } from '../../../generated/prisma/client';
 import { isPermission, PERMISSIONS, type Permission } from './permission';
 
 const ROLE_PERMISSIONS: Readonly<Record<UserRole, readonly Permission[]>> = Object.freeze({
-  [UserRole.ADMINISTRATOR]: Object.freeze([PERMISSIONS.FIRST_ACCESS_ISSUE, PERMISSIONS.PASSWORD_RESET_ISSUE]),
-  [UserRole.BOARD]: Object.freeze([]),
+  [UserRole.ADMINISTRATOR]: Object.freeze([PERMISSIONS.FIRST_ACCESS_ISSUE, PERMISSIONS.PASSWORD_RESET_ISSUE,
+    PERMISSIONS.USERS_READ, PERMISSIONS.USERS_DEACTIVATED_READ, PERMISSIONS.USERS_CREATE,
+    PERMISSIONS.USERS_ROLE_UPDATE, PERMISSIONS.USERS_STATUS_UPDATE, PERMISSIONS.USERS_MAILBOXES_MANAGE]),
+  [UserRole.BOARD]: Object.freeze([PERMISSIONS.USERS_READ]),
   [UserRole.RESEARCH]: Object.freeze([]),
   [UserRole.PLANNING]: Object.freeze([]),
 });

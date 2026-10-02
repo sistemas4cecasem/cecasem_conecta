@@ -1,10 +1,11 @@
 import { Navigate, NavLink, Outlet, useNavigate } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ApiError, apiRequest } from '../../lib/api/client';
 import { AUTH_QUERY_KEY, useSession } from '../../features/auth/session';
 import { ApplicationFrame } from './application-frame';
 import { AUTHENTICATED_NAVIGATION, visibleNavigationItems } from '../router/navigation';
+import { clearForbiddenAdministration } from '../../features/users/administration-cache';
 
 const ROLE_LABELS = { ADMINISTRATOR: 'Administrador', BOARD: 'Directorio', RESEARCH: 'Búsqueda', PLANNING: 'Planificación' };
 
@@ -14,6 +15,9 @@ export function AuthenticatedLayout() {
   const navigate = useNavigate();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (session.data !== undefined) void clearForbiddenAdministration(client, session.data);
+  }, [client, session.data]);
 
   async function logout() {
     setPending(true); setError(null);

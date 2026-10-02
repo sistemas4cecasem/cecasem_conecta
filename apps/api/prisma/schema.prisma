@@ -20,6 +20,11 @@ enum AuditAction {
   PASSWORD_RESET_REGENERATED
   PASSWORD_RESET_COMPLETED
   PASSWORD_RESET_REVOKED
+  USER_ROLE_CHANGED
+  USER_DEACTIVATED
+  USER_REACTIVATED
+  MAILBOX_ASSIGNED
+  MAILBOX_REMOVED
 }
 
 model User {
@@ -67,27 +72,32 @@ model AuditEvent {
   actorUserId          String?   @db.Uuid
   targetUserId         String    @db.Uuid
   passwordResetTokenId String?   @db.Uuid
+  previousRole         UserRole?
+  newRole              UserRole?
+  emailAccountId       String?   @db.Uuid
   createdAt            DateTime  @default(now()) @db.Timestamptz(3)
   actor                User?     @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   target               User      @relation("AuditTarget", fields: [targetUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   passwordResetToken   PasswordResetToken? @relation(fields: [passwordResetTokenId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  emailAccount         EmailAccount? @relation(fields: [emailAccountId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([targetUserId, createdAt])
   @@index([actorUserId])
   @@index([passwordResetTokenId])
+  @@index([emailAccountId])
 }
 
 model FirstAccessToken {
   id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId          String    @db.Uuid
-  createdByUserId String    @db.Uuid
+  createdByUserId String?   @db.Uuid
   tokenHash       String    @unique @db.VarChar(64)
   createdAt       DateTime  @default(now()) @db.Timestamptz(3)
   expiresAt       DateTime  @db.Timestamptz(3)
   usedAt          DateTime? @db.Timestamptz(3)
   revokedAt       DateTime? @db.Timestamptz(3)
   user            User      @relation("FirstAccessRecipient", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  createdBy       User      @relation("FirstAccessIssuer", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy       User?     @relation("FirstAccessIssuer", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([userId])
   @@index([createdByUserId])
@@ -115,12 +125,14 @@ model EmailAccount {
   createdAt   DateTime           @default(now()) @db.Timestamptz(3)
   updatedAt   DateTime           @default(now()) @updatedAt @db.Timestamptz(3)
   users       UserEmailAccount[]
+  auditEvents AuditEvent[]
 }
 
 model UserEmailAccount {
   userId         String       @db.Uuid
   emailAccountId String       @db.Uuid
   createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+  removedAt      DateTime?    @db.Timestamptz(3)
   user           User         @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   emailAccount   EmailAccount @relation(fields: [emailAccountId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 

@@ -14,6 +14,7 @@ import { UsersService } from '../src/modules/users/users.service';
 import type { UserIdentity } from '../src/modules/users/user-projections';
 import { publicIdentity } from '../src/modules/auth/auth.dto';
 import { PERMISSIONS } from '../src/modules/auth/authorization/permission';
+import { getRolePermissions } from '../src/modules/auth/authorization/role-permissions';
 import { FirstAccessService } from '../src/modules/auth/first-access.service';
 import { PasswordResetService } from '../src/modules/auth/password-reset.service';
 import { PasswordService } from '../src/modules/auth/password.service';
@@ -21,7 +22,7 @@ import { createOpaqueToken } from '../src/modules/auth/opaque-token';
 
 const databaseUrl = validateDatabaseUrl(process.env.DATABASE_URL);
 if (!new URL(databaseUrl).pathname.endsWith('_test')) throw new Error('RBAC requiere una base dedicada terminada en _test.');
-const both = [PERMISSIONS.FIRST_ACCESS_ISSUE, PERMISSIONS.PASSWORD_RESET_ISSUE];
+
 
 describe('RBAC PostgreSQL y HTTP con rol vigente', () => {
   let app: INestApplication<Server>;
@@ -80,11 +81,11 @@ describe('RBAC PostgreSQL y HTTP con rol vigente', () => {
     '%s devuelve login/me coherentes y aplica ambas capabilities sin efectos por 403', async role => {
       const actor = await fixture(role); const pending = await fixture(UserRole.RESEARCH, false);
       const configured = await fixture(UserRole.RESEARCH); const { response, cookie } = await login(actor);
-      const expected = role === UserRole.ADMINISTRATOR ? both : [];
+      const expected = [...getRolePermissions(role)];
       expect(response.body).toEqual({ ...publicIdentity(actor), permissions: expected });
       expect(Object.keys(response.body as object).sort()).toEqual(['email','familyNames','givenNames','id','permissions','role','username']);
       expect((await me(cookie).expect(200)).body).toEqual(response.body);
-      const before = await state(); const status = expected.length ? 201 : 403;
+      const before = await state(); const status = role === UserRole.ADMINISTRATOR ? 201 : 403;
       const first = await issue('first-access-tokens', pending.id, cookie).expect(status);
       const reset = await issue('password-reset-tokens', configured.id, cookie).expect(status);
       expect(first.headers['set-cookie']).toBeUndefined(); expect(reset.headers['set-cookie']).toBeUndefined();
@@ -102,13 +103,13 @@ describe('RBAC PostgreSQL y HTTP con rol vigente', () => {
     const configured = await fixture(UserRole.RESEARCH); const { cookie } = await login(actor);
     const originalSessions = await prisma.userSession.findMany({ where: { userId: actor.id } });
     await prisma.user.update({ where: { id: actor.id }, data: { role: UserRole.BOARD } });
-    expect((await me(cookie).expect(200)).body).toMatchObject({ role: UserRole.BOARD, permissions: [] });
+    expect((await me(cookie).expect(200)).body).toMatchObject({ role: UserRole.BOARD, permissions: [PERMISSIONS.USERS_READ] });
     const before = await state();
     await issue('first-access-tokens', pending.id, cookie).expect(403);
     await issue('password-reset-tokens', configured.id, cookie).expect(403);
     expect(await state()).toEqual(before);
     await prisma.user.update({ where: { id: actor.id }, data: { role: UserRole.ADMINISTRATOR } });
-    expect((await me(cookie).expect(200)).body).toMatchObject({ role: UserRole.ADMINISTRATOR, permissions: both });
+    expect((await me(cookie).expect(200)).body).toMatchObject({ role: UserRole.ADMINISTRATOR, permissions: [...getRolePermissions(UserRole.ADMINISTRATOR)] });
     await issue('first-access-tokens', pending.id, cookie).expect(201);
     await issue('password-reset-tokens', configured.id, cookie).expect(201);
     expect(await prisma.userSession.findMany({ where: { userId: actor.id } })).toEqual(originalSessions);
@@ -146,7 +147,7 @@ describe('RBAC PostgreSQL y HTTP con rol vigente', () => {
     expect(await prisma.firstAccessToken.count({ where: { userId: target.id } })).toBe(0);
     expect(await prisma.passwordResetToken.count({ where: { userId: target.id } })).toBe(0);
     expect(await prisma.auditEvent.count({ where: { targetUserId: target.id } })).toBe(0);
-    expect((await me(cookie).expect(200)).body).toMatchObject({ role: UserRole.BOARD, permissions: [] });
+    expect((await me(cookie).expect(200)).body).toMatchObject({ role: UserRole.BOARD, permissions: [PERMISSIONS.USERS_READ] });
   });
   it.each(['absent', 'malformed', 'unknown', 'expired', 'revoked', 'inactive'])('sesión %s mantiene 401 antes de RBAC', async kind => {
     const actor = await fixture(UserRole.ADMINISTRATOR); const { cookie } = await login(actor);

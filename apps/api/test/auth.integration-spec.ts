@@ -30,6 +30,7 @@ describe('Authentication integration and HTTP E2E with PostgreSQL', () => {
   let auth: AuthService;
   let sessions: SessionsService;
   let access: UserAccessService;
+  let actorId: string;
   let sql: Pool;
   let configuredHash: string;
   const password = randomBytes(24).toString('base64url');
@@ -47,9 +48,14 @@ describe('Authentication integration and HTTP E2E with PostgreSQL', () => {
     sql = new Pool({ connectionString: databaseUrl, connectionTimeoutMillis: 5000 });
     configuredHash = await passwords.hashNew(password);
   });
+  beforeEach(async () => {
+    const actor = await users.createIdentity({ givenNames: "Admin", familyNames: "Fixture", email: `${randomUUID()}@example.test`, role: UserRole.ADMINISTRATOR });
+    actorId = actor.id; ids.push(actorId);
+  });
   afterEach(async () => {
     if (!prisma) return;
     await prisma.$transaction([
+      prisma.auditEvent.deleteMany({ where: { OR: [{ targetUserId: { in: ids } }, { actorUserId: { in: ids } }] } }),
       prisma.userSession.deleteMany({ where: { userId: { in: ids } } }),
       prisma.user.deleteMany({ where: { id: { in: ids } } }),
     ]);
@@ -112,7 +118,7 @@ describe('Authentication integration and HTTP E2E with PostgreSQL', () => {
   });
   it.each(['missing', 'null', 'incorrect', 'inactive'])('returns the same generic 401 for %s', async (kind) => {
     const user = await fixture(kind !== 'null');
-    if (kind === 'inactive') await access.deactivate(user.id);
+    if (kind === 'inactive') await access.deactivate(user.id, actorId);
     const response = await login(kind === 'missing' ? `${randomUUID()}@example.test` : user.email,
       kind === 'incorrect' ? randomBytes(24).toString('base64url') : password).expect(401).expect('Cache-Control', 'no-store');
     expect((response.body as { message: string }).message).toBe('Credenciales no válidas.');
@@ -202,9 +208,9 @@ describe('Authentication integration and HTTP E2E with PostgreSQL', () => {
   });
   it('atomically revokes all sessions on deactivation and reactivation cannot revive them', async () => {
     const user = await fixture(); const first = await login(user.email).expect(200); const second = await login(user.email).expect(200);
-    await access.deactivate(user.id);
+    await access.deactivate(user.id, actorId);
     expect(await prisma.userSession.count({ where: { userId: user.id, revokedAt: null } })).toBe(0);
-    await access.deactivate(user.id);
+    await access.deactivate(user.id, actorId);
     await prisma.user.update({ where: { id: user.id }, data: { isActive: true, deactivatedAt: null } });
     for (const response of [first, second]) await request(app.getHttpServer()).get('/api/v1/auth/me').set('Cookie', cookieOf(response)).expect(401);
     await login(user.email).expect(200);
@@ -220,12 +226,12 @@ describe('Authentication integration and HTTP E2E with PostgreSQL', () => {
     });
     const attempt = auth.login(user.email, password);
     const assertion = expect(attempt).rejects.toBeInstanceOf(InvalidCredentialsError);
-    await start; await access.deactivate(user.id); resume(); await assertion;
+    await start; await access.deactivate(user.id, actorId); resume(); await assertion;
     expect(await prisma.userSession.count({ where: { userId: user.id } })).toBe(0);
   });
   it('serializes a concurrent successful login and deactivation without usable sessions', async () => {
     const user = await fixture();
-    await Promise.allSettled([auth.login(user.email, password), access.deactivate(user.id)]);
+    await Promise.allSettled([auth.login(user.email, password), access.deactivate(user.id, actorId)]);
     expect((await users.findIdentityById(user.id))?.isActive).toBe(false);
     expect(await prisma.userSession.count({ where: { userId: user.id, revokedAt: null } })).toBe(0);
   });

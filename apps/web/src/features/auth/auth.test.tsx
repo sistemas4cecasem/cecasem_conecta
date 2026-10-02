@@ -131,10 +131,10 @@ describe('Autenticación completa en interfaz', () => {
   });
   it.each(['ADMINISTRATOR', 'BOARD', 'RESEARCH', 'PLANNING'])('conserva Inicio y logout para %s', async role => {
     fetchMock.mockResolvedValueOnce(Response.json({ ...identity, role,
-      permissions: role === 'ADMINISTRATOR' ? ['auth.first_access.issue', 'auth.password_reset.issue'] : [] }));
+      permissions: role === 'ADMINISTRATOR' ? ['auth.first_access.issue', 'auth.password_reset.issue', 'users.read'] : role === 'BOARD' ? ['users.read'] : [] }));
     renderApp('/');
     const navigation = await screen.findByRole('navigation', { name: 'Navegación principal' });
-    expect(within(navigation).getAllByRole('link')).toHaveLength(1);
+    expect(within(navigation).getAllByRole('link')).toHaveLength(role === 'ADMINISTRATOR' || role === 'BOARD' ? 2 : 1);
     expect(within(navigation).getByRole('link', { name: 'Inicio' })).toHaveAttribute('href', '/');
     expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible();
   });

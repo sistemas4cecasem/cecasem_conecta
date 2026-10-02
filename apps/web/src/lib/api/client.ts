@@ -1,5 +1,5 @@
 export class ApiError extends Error {
-  constructor(message: string, public readonly status: number | null) {
+  constructor(message: string, public readonly status: number | null, public readonly code?: string) {
     super(message);
     this.name = 'ApiError';
   }
@@ -40,8 +40,20 @@ export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'cr
   }
 
   if (!response.ok) {
-    if (response.status === 401 && !/^\/?auth(?:\/|$)/.test(path)) {
+    if (response.status === 401 && (!/^\/?auth(?:\/|$)/.test(path) || /^auth\/(first-access-tokens|password-reset-tokens)$/.test(path))) {
       window.dispatchEvent(new Event('cecasem:unauthorized'));
+    }
+    if (response.status === 409 && /^(users(?:\/|$)|email-accounts(?:\/|$))/.test(path)) {
+      const conflicts: Record<string, string> = {
+        LAST_ADMINISTRATOR: 'Debe permanecer al menos un Administrador activo.',
+        EMAIL_EXISTS: 'El correo ya está registrado.', ACCOUNT_EXISTS: 'El buzón ya está registrado.',
+        ACCOUNT_INACTIVE: 'El buzón está inactivo.', USERNAME_EXHAUSTED: 'No se pudo generar un nombre de usuario disponible.',
+      };
+      try {
+        const payload: unknown = await response.json();
+        if (typeof payload === 'object' && payload !== null && 'code' in payload && typeof payload.code === 'string' &&
+          Object.hasOwn(conflicts, payload.code)) throw new ApiError(conflicts[payload.code] ?? httpErrorMessage(409), 409, payload.code);
+      } catch (failure) { if (failure instanceof ApiError) throw failure; }
     }
     if (response.status === 400 && (path === 'auth/first-access' || path === 'auth/password-reset')) {
       // Únicamente mensajes públicos conocidos; no reenviar cuerpos arbitrarios.

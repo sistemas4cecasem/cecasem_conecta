@@ -479,3 +479,11 @@ de las dos rutas administrativas, errores HTTP de configuración y PostgreSQL re
 login/me, cambios de rol con la misma cookie, revalidación interna y ausencia de
 efectos por rechazos. Se ejecuta con el comando existente `test:integration` sobre
 una base `_test` y limpia exclusivamente sus fixtures.
+
+## Administración mínima — Subfase 1.6
+
+La evolución del catálogo a ocho capabilities, los endpoints `/users` y
+`/email-accounts`, la auditoría transaccional y el aprovisionamiento inicial offline
+se documentan en [Administración mínima](../../docs/subfase-1.6-administracion.md).
+`UsersAdministrationModule` compone Users, Auth y Audit sin dependencias circulares.
+El comando `bootstrap:admin` no acepta contraseña ni existe como endpoint HTTP.
