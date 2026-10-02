@@ -43,7 +43,7 @@ export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'cr
     if (response.status === 401 && (!/^\/?auth(?:\/|$)/.test(path) || /^auth\/(first-access-tokens|password-reset-tokens)$/.test(path))) {
       window.dispatchEvent(new Event('cecasem:unauthorized'));
     }
-    if (response.status === 409 && /^(users(?:\/|$)|email-accounts(?:\/|$)|organizations(?:\/|$)|categories(?:\/|$))/.test(path)) {
+    if (response.status === 409 && /^(users(?:\/|$)|email-accounts(?:\/|$)|organizations(?:\/|$)|categories(?:\/|$)|people(?:\/|$)|person-organization-relations(?:\/|$))/.test(path)) {
       const conflicts: Record<string, string> = {
         VERSION_CONFLICT: 'La ficha cambió desde que la abriste. Recarga y revisa tus cambios.',
         INVALID_HIERARCHY: 'La relación matriz/sede produciría un ciclo. Elige otra matriz.',

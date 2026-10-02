@@ -3,9 +3,10 @@ import { randomUUID } from 'node:crypto';
 import { Prisma } from '../../generated/prisma/client';
 export type HistoryValue = string | boolean | string[] | null;
 export interface FieldChange { field: string; previousValue: HistoryValue; newValue: HistoryValue }
+export type DirectoryTarget = { organizationId: string } | { categoryId: string } | { personId: string } | { personRelationId: string };
 @Injectable()
 export class DirectoryHistoryService {
-  async record(target: { organizationId: string } | { categoryId: string }, actorUserId: string,
+  async record(target: DirectoryTarget, actorUserId: string,
     changes: FieldChange[], tx: Prisma.TransactionClient): Promise<string> {
     const operationId = randomUUID();
     await tx.directoryChange.createMany({ data: changes.map(change => ({ ...target, actorUserId, operationId,

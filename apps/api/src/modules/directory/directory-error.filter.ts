@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { DirectoryError } from './directory.errors';
 const messages = {
   FORBIDDEN: 'No tiene los permisos necesarios.', INVALID_DIRECTORY: 'Revise los datos de la ficha.',
+  PERSON_NOT_FOUND: 'No se encontró la persona.', PERSON_RELATION_NOT_FOUND: 'No se encontró el vínculo institucional.',
   ORGANIZATION_NOT_FOUND: 'No se encontró la organización.', CATEGORY_NOT_FOUND: 'No se encontró la categoría.',
   CATEGORY_EXISTS: 'Ya existe una categoría con ese nombre.', CATEGORY_INACTIVE: 'No puede asignar una categoría inactiva.',
   INVALID_HIERARCHY: 'La relación matriz/sede produciría un ciclo.',

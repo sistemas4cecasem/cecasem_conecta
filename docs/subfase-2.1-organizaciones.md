@@ -126,7 +126,7 @@ Para comprobar limpia y upgrade, proporcionar DATABASE_URL de PostgreSQL local
 aislado terminado en _test y ejecutar:
 
 ```text
-node infra/development/validate-directory-migrations.cjs
+node infra/development/validate-directory-migrations.cjs --phase=2.1
 ```
 
 El script crea dos bases temporales exclusivas, comprueba ocho migraciones

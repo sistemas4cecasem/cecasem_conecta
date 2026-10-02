@@ -7,6 +7,7 @@ import { buttonClass, MutationError, Pagination, QueryState } from './directory-
 import { dateLabel } from './date-label';
 import { OrganizationForm } from './organization-form';
 import { OrganizationHistory } from './organization-history';
+import { PersonRelations } from './person-relations';
 export function OrganizationDetailPage() {
   const { id = '' } = useParams(); const session = useSession(); const identity = session.data;
   const detail = useOrganization(identity, id); const mutation = useDirectoryMutation(identity);
@@ -47,6 +48,7 @@ export function OrganizationDetailPage() {
       <ul>{children.data?.items.map(child => <li key={child.id}><Link className="inline-flex min-h-11 items-center underline" to={'/organizations/' + child.id}>{child.name}</Link>{!child.isActive && ' (inactiva)'}</li>)}</ul>
       {children.data && <Pagination page={page} total={children.data.total} onPage={setPage} />}
     </section>
+    <PersonRelations key={'people-'+id} identity={identity} organizationId={id}/>
     {identity.permissions.includes('directory.history.read') && <OrganizationHistory key={id} identity={identity} path={'organizations/' + id + '/history'} />}
   </section>;
 }

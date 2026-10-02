@@ -12,7 +12,7 @@ export function OrganizationsPage() {
   if (!identity?.permissions.includes('directory.read')) return <p role="alert">No tienes permiso para consultar el directorio.</p>;
   return <section className="space-y-4"><h1 className="text-2xl font-semibold">Directorio · Organizaciones</h1>
     <div className="flex flex-wrap gap-4">{identity.permissions.includes('directory.write') && <Link className={buttonClass} to="/organizations/new">Crear organización</Link>}
-      <Link className={buttonClass} to="/organizations/categories">Categorías</Link></div>
+      <Link className={buttonClass} to="/organizations/categories">Categorías</Link><Link className={buttonClass} to="/people">Personas externas</Link></div>
     <div className="grid gap-4 sm:grid-cols-2"><Field label="Filtrar organizaciones por nombre"><input className={inputClass} value={name} onChange={e => { setName(e.target.value); setPage(1); }} /></Field>
       <Field label="Estado"><select className={inputClass} value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}>
         <option value="active">Activas</option><option value="inactive">Inactivas</option><option value="all">Todas</option></select></Field></div>

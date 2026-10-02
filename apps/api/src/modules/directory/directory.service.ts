@@ -138,7 +138,7 @@ export class DirectoryService {
     await this.organization(id);
     return this.listHistory({ organizationId: id }, query);
   }
-  private async listHistory(where: Prisma.DirectoryChangeWhereInput, query: PageQueryDto) {
+  async listHistory(where: Prisma.DirectoryChangeWhereInput, query: PageQueryDto) {
     const [items, total] = await this.prisma.$transaction([
       this.prisma.directoryChange.findMany({ where, select: { id: true, operationId: true, field: true, previousValue: true, newValue: true, createdAt: true,
         actor: { select: { id: true, givenNames: true, familyNames: true } } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], ...paging(query) }),

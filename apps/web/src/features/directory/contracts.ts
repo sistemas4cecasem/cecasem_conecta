@@ -23,3 +23,22 @@ export const organizationFormSchema = z.object({
 });
 export type OrganizationFormValues = z.infer<typeof organizationFormSchema>;
 export const categoryFormSchema = z.object({ name: text(150).pipe(z.string().min(1, 'El nombre es obligatorio.')) });
+
+export const personSchema = z.object({ id:z.string(),displayName:z.string(),givenNames:z.string().nullable(),familyNames:z.string().nullable(),
+  isActive:z.boolean(),version:z.number().int().positive(),createdAt:z.string(),updatedAt:z.string(),lastVerifiedAt:z.string().nullable(),currentRelationsCount:z.number().int().nonnegative() });
+export const relationSchema = z.object({ id:z.string(),personId:z.string(),organizationId:z.string(),positionTitle:z.string().nullable(),area:z.string().nullable(),
+  isCurrent:z.boolean(),startDate:z.string().nullable(),endDate:z.string().nullable(),sourceDescription:z.string().nullable(),sourceUrl:z.string().nullable(),notes:z.string().nullable(),
+  version:z.number().int().positive(),createdAt:z.string(),updatedAt:z.string(),person:z.object({id:z.string(),displayName:z.string(),isActive:z.boolean()}),
+  organization:z.object({id:z.string(),name:z.string(),isActive:z.boolean()}) });
+export type Person = z.infer<typeof personSchema>;
+export type PersonRelation = z.infer<typeof relationSchema>;
+export const personFormSchema = z.object({ displayName:text(250).pipe(z.string().min(1,'El nombre de presentación es obligatorio.')),givenNames:text(150),familyNames:text(150) });
+export type PersonFormValues = z.infer<typeof personFormSchema>;
+const calendarDate = z.string().refine(value => !value || (/^\d{4}-\d{2}-\d{2}$/.test(value) && value >= '0001-01-01' &&
+  Number.isFinite(+new Date(value+'T00:00:00Z')) && new Date(value+'T00:00:00Z').toISOString().slice(0,10)===value),'Introduce una fecha completa válida o déjala vacía.');
+export const relationFormSchema = z.object({organizationId:z.string().min(1,'Selecciona una organización.'),positionTitle:text(250),area:text(250),isCurrent:z.boolean(),
+  startDate:calendarDate,endDate:calendarDate,sourceDescription:text(1000),sourceUrl:organizationFormSchema.shape.officialWebsite,notes:text(5000)})
+  .refine(value=>!value.startDate || !value.endDate || value.startDate<=value.endDate,{message:'El fin no puede ser anterior al inicio.',path:['endDate']})
+  .refine(value=>!value.isCurrent || !value.endDate,{message:'Un vínculo vigente no tiene fecha final.',path:['endDate']});
+export type RelationFormValues = z.infer<typeof relationFormSchema>;
+export const relationEndFormSchema = z.object({endDate:calendarDate,confirmed:z.boolean().refine(value=>value,'Confirma la finalización para continuar.')});

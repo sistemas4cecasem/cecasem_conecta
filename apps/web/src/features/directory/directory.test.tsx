@@ -38,6 +38,7 @@ describe('Directorio operativo', () => {
         references: { [catA.id]: catA.name, [catB.id]: catB.name },
       }));
       if (path.includes('/children')) return Promise.resolve(Response.json(page([])));
+      if (path.includes('/people?')) return Promise.resolve(Response.json(page([])));
       if (path === 'organizations' && method === 'POST') {
         const input = JSON.parse(String(options?.body)) as { name: string };
         row = { ...base, ...input }; return Promise.resolve(Response.json(row, { status: 201 }));

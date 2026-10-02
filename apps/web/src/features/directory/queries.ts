@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { apiRequest } from '../../lib/api/client';
 import type { AuthIdentity } from '../auth/session';
-import { categorySchema, historyPageSchema, organizationSchema, pageSchema } from './contracts';
+import { categorySchema, historyPageSchema, organizationSchema, pageSchema, personSchema, relationSchema } from './contracts';
 
 // Cada query tiene la identidad y el tipo del contrato en su clave.
 export function useOrganizations(identity: AuthIdentity | null | undefined, path: string) {
@@ -19,6 +19,18 @@ export function useCategories(identity: AuthIdentity | null | undefined, path: s
 export function useHistory(identity: AuthIdentity | null | undefined, path: string) {
   return useQuery({ queryKey: ['directory', identity?.id, 'history', path], enabled: !!identity?.permissions.includes('directory.history.read'),
     queryFn: async ({ signal }) => historyPageSchema.parse(await apiRequest(path, { signal })), retry: false });
+}
+export function usePeople(identity:AuthIdentity|null|undefined,path:string) {
+  return useQuery({queryKey:['directory',identity?.id,'people',path],enabled:!!identity?.permissions.includes('directory.read'),
+    queryFn:async({signal})=>pageSchema(personSchema).parse(await apiRequest(path,{signal})),retry:false});
+}
+export function usePerson(identity:AuthIdentity|null|undefined,id:string) {
+  return useQuery({queryKey:['directory',identity?.id,'person',id],enabled:!!identity?.permissions.includes('directory.read'),
+    queryFn:async({signal})=>personSchema.parse(await apiRequest('people/'+id,{signal})),retry:false});
+}
+export function usePersonRelations(identity:AuthIdentity|null|undefined,path:string) {
+  return useQuery({queryKey:['directory',identity?.id,'relations',path],enabled:!!identity?.permissions.includes('directory.read'),
+    queryFn:async({signal})=>pageSchema(relationSchema).parse(await apiRequest(path,{signal})),retry:false});
 }
 export function useDirectoryMutation(identity: AuthIdentity | null | undefined) {
   const client = useQueryClient();

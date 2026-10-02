@@ -29,6 +29,10 @@ enum AuditAction {
   ORGANIZATION_STATUS_CHANGED
   CATEGORY_UPDATED
   CATEGORY_STATUS_CHANGED
+  PERSON_UPDATED
+  PERSON_STATUS_CHANGED
+  PERSON_RELATION_UPDATED
+  PERSON_RELATION_ENDED
 }
 
 model User {
@@ -83,6 +87,8 @@ model AuditEvent {
   organizationId       String?   @db.Uuid
   categoryId           String?   @db.Uuid
   operationId          String?   @db.Uuid
+  personId             String?   @db.Uuid
+  personRelationId     String?   @db.Uuid
   createdAt            DateTime  @default(now()) @db.Timestamptz(3)
   actor                User?     @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   target               User?     @relation("AuditTarget", fields: [targetUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
@@ -90,6 +96,8 @@ model AuditEvent {
   emailAccount         EmailAccount? @relation(fields: [emailAccountId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   organization         Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   category             Category? @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  person               Person? @relation(fields: [personId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  personRelation       PersonOrganizationRelation? @relation(fields: [personRelationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([targetUserId, createdAt])
   @@index([actorUserId])
@@ -97,6 +105,8 @@ model AuditEvent {
   @@index([emailAccountId])
   @@index([organizationId, createdAt])
   @@index([categoryId, createdAt])
+  @@index([personId, createdAt])
+  @@index([personRelationId, createdAt])
 }
 
 model Organization {
@@ -117,6 +127,7 @@ model Organization {
   categories      OrganizationCategory[]
   changes         DirectoryChange[]
   auditEvents     AuditEvent[]
+  personRelations PersonOrganizationRelation[]
 
   @@index([parentId, name, id])
   @@index([isActive, name, id])
@@ -151,6 +162,8 @@ model DirectoryChange {
   id             String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   organizationId String? @db.Uuid
   categoryId     String? @db.Uuid
+  personId       String? @db.Uuid
+  personRelationId String? @db.Uuid
   operationId    String @db.Uuid
   field          String @db.VarChar(32)
   previousValue  Json
@@ -159,12 +172,57 @@ model DirectoryChange {
   createdAt      DateTime @default(now()) @db.Timestamptz(3)
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   category       Category? @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  person         Person? @relation(fields: [personId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  personRelation PersonOrganizationRelation? @relation(fields: [personRelationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   actor          User @relation(fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([organizationId, createdAt, id])
   @@index([categoryId, createdAt, id])
+  @@index([personId, createdAt, id])
+  @@index([personRelationId, createdAt, id])
   @@index([actorUserId])
   @@unique([operationId, field])
+}
+
+model Person {
+  id             String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  displayName    String @db.VarChar(250)
+  givenNames     String? @db.VarChar(150)
+  familyNames    String? @db.VarChar(150)
+  isActive       Boolean @default(true)
+  version        Int @default(1)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+  lastVerifiedAt DateTime? @db.Timestamptz(3)
+  relations      PersonOrganizationRelation[]
+  changes        DirectoryChange[]
+  auditEvents    AuditEvent[]
+
+  @@index([isActive, displayName, id])
+}
+
+model PersonOrganizationRelation {
+  id                String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  personId          String @db.Uuid
+  organizationId    String @db.Uuid
+  positionTitle     String? @db.VarChar(250)
+  area              String? @db.VarChar(250)
+  isCurrent         Boolean @default(true)
+  startDate         DateTime? @db.Date
+  endDate           DateTime? @db.Date
+  sourceDescription String? @db.VarChar(1000)
+  sourceUrl         String? @db.VarChar(2048)
+  notes             String? @db.VarChar(5000)
+  version           Int @default(1)
+  createdAt         DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+  person            Person @relation(fields: [personId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  changes           DirectoryChange[]
+  auditEvents       AuditEvent[]
+
+  @@index([personId, isCurrent, createdAt, id])
+  @@index([organizationId, isCurrent, createdAt, id])
 }
 
 model FirstAccessToken {
