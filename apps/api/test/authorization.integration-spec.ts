@@ -13,7 +13,6 @@ import { UserRole } from '../src/generated/prisma/client';
 import { UsersService } from '../src/modules/users/users.service';
 import type { UserIdentity } from '../src/modules/users/user-projections';
 import { publicIdentity } from '../src/modules/auth/auth.dto';
-import { PERMISSIONS } from '../src/modules/auth/authorization/permission';
 import { getRolePermissions } from '../src/modules/auth/authorization/role-permissions';
 import { FirstAccessService } from '../src/modules/auth/first-access.service';
 import { PasswordResetService } from '../src/modules/auth/password-reset.service';
@@ -103,7 +102,7 @@ describe('RBAC PostgreSQL y HTTP con rol vigente', () => {
     const configured = await fixture(UserRole.RESEARCH); const { cookie } = await login(actor);
     const originalSessions = await prisma.userSession.findMany({ where: { userId: actor.id } });
     await prisma.user.update({ where: { id: actor.id }, data: { role: UserRole.BOARD } });
-    expect((await me(cookie).expect(200)).body).toMatchObject({ role: UserRole.BOARD, permissions: [PERMISSIONS.USERS_READ] });
+    expect((await me(cookie).expect(200)).body).toMatchObject({ role: UserRole.BOARD, permissions: [...getRolePermissions(UserRole.BOARD)] });
     const before = await state();
     await issue('first-access-tokens', pending.id, cookie).expect(403);
     await issue('password-reset-tokens', configured.id, cookie).expect(403);
@@ -114,11 +113,11 @@ describe('RBAC PostgreSQL y HTTP con rol vigente', () => {
     await issue('password-reset-tokens', configured.id, cookie).expect(201);
     expect(await prisma.userSession.findMany({ where: { userId: actor.id } })).toEqual(originalSessions);
   });
-  it('Búsqueda y Planificación conservan roles distintos con la misma lista vacía', async () => {
+  it('Búsqueda y Planificación conservan roles distintos con las mismas capabilities del directorio', async () => {
     const actor = await fixture(UserRole.RESEARCH); const { cookie } = await login(actor);
-    expect((await me(cookie).expect(200)).body).toMatchObject({ role: UserRole.RESEARCH, permissions: [] });
+    expect((await me(cookie).expect(200)).body).toMatchObject({ role: UserRole.RESEARCH, permissions: [...getRolePermissions(UserRole.RESEARCH)] });
     await prisma.user.update({ where: { id: actor.id }, data: { role: UserRole.PLANNING } });
-    expect((await me(cookie).expect(200)).body).toMatchObject({ role: UserRole.PLANNING, permissions: [] });
+    expect((await me(cookie).expect(200)).body).toMatchObject({ role: UserRole.PLANNING, permissions: [...getRolePermissions(UserRole.PLANNING)] });
   });
   it.each(['first-access-tokens', 'password-reset-tokens'])('%s revalida el emisor en llamadas directas', async endpoint => {
     const actor = await fixture(UserRole.ADMINISTRATOR);
@@ -147,7 +146,7 @@ describe('RBAC PostgreSQL y HTTP con rol vigente', () => {
     expect(await prisma.firstAccessToken.count({ where: { userId: target.id } })).toBe(0);
     expect(await prisma.passwordResetToken.count({ where: { userId: target.id } })).toBe(0);
     expect(await prisma.auditEvent.count({ where: { targetUserId: target.id } })).toBe(0);
-    expect((await me(cookie).expect(200)).body).toMatchObject({ role: UserRole.BOARD, permissions: [PERMISSIONS.USERS_READ] });
+    expect((await me(cookie).expect(200)).body).toMatchObject({ role: UserRole.BOARD, permissions: [...getRolePermissions(UserRole.BOARD)] });
   });
   it.each(['absent', 'malformed', 'unknown', 'expired', 'revoked', 'inactive'])('sesión %s mantiene 401 antes de RBAC', async kind => {
     const actor = await fixture(UserRole.ADMINISTRATOR); const { cookie } = await login(actor);

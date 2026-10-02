@@ -25,6 +25,10 @@ enum AuditAction {
   USER_REACTIVATED
   MAILBOX_ASSIGNED
   MAILBOX_REMOVED
+  ORGANIZATION_UPDATED
+  ORGANIZATION_STATUS_CHANGED
+  CATEGORY_UPDATED
+  CATEGORY_STATUS_CHANGED
 }
 
 model User {
@@ -47,6 +51,7 @@ model User {
   issuedPasswordResetTokens PasswordResetToken[] @relation("PasswordResetIssuer")
   performedAuditEvents AuditEvent[] @relation("AuditActor")
   receivedAuditEvents AuditEvent[] @relation("AuditTarget")
+  directoryChanges DirectoryChange[]
 }
 
 model PasswordResetToken {
@@ -70,21 +75,96 @@ model AuditEvent {
   id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   action               AuditAction
   actorUserId          String?   @db.Uuid
-  targetUserId         String    @db.Uuid
+  targetUserId         String?   @db.Uuid
   passwordResetTokenId String?   @db.Uuid
   previousRole         UserRole?
   newRole              UserRole?
   emailAccountId       String?   @db.Uuid
+  organizationId       String?   @db.Uuid
+  categoryId           String?   @db.Uuid
+  operationId          String?   @db.Uuid
   createdAt            DateTime  @default(now()) @db.Timestamptz(3)
   actor                User?     @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  target               User      @relation("AuditTarget", fields: [targetUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  target               User?     @relation("AuditTarget", fields: [targetUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   passwordResetToken   PasswordResetToken? @relation(fields: [passwordResetTokenId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   emailAccount         EmailAccount? @relation(fields: [emailAccountId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  organization         Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  category             Category? @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([targetUserId, createdAt])
   @@index([actorUserId])
   @@index([passwordResetTokenId])
   @@index([emailAccountId])
+  @@index([organizationId, createdAt])
+  @@index([categoryId, createdAt])
+}
+
+model Organization {
+  id              String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String @db.VarChar(250)
+  country         String? @db.VarChar(150)
+  alias           String? @db.VarChar(150)
+  description     String? @db.VarChar(5000)
+  officialWebsite String? @db.VarChar(2048)
+  isActive        Boolean @default(true)
+  version         Int @default(1)
+  parentId        String? @db.Uuid
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+  lastVerifiedAt  DateTime? @db.Timestamptz(3)
+  parent          Organization? @relation("OrganizationHierarchy", fields: [parentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  children        Organization[] @relation("OrganizationHierarchy")
+  categories      OrganizationCategory[]
+  changes         DirectoryChange[]
+  auditEvents     AuditEvent[]
+
+  @@index([parentId, name, id])
+  @@index([isActive, name, id])
+}
+
+model Category {
+  id             String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String @db.VarChar(150)
+  normalizedName String @unique @db.VarChar(150)
+  isActive       Boolean @default(true)
+  version        Int @default(1)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+  organizations  OrganizationCategory[]
+  changes        DirectoryChange[]
+  auditEvents    AuditEvent[]
+
+  @@index([isActive, name, id])
+}
+
+model OrganizationCategory {
+  organizationId String @db.Uuid
+  categoryId     String @db.Uuid
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  category       Category @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@id([organizationId, categoryId])
+  @@index([categoryId])
+}
+
+model DirectoryChange {
+  id             String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String? @db.Uuid
+  categoryId     String? @db.Uuid
+  operationId    String @db.Uuid
+  field          String @db.VarChar(32)
+  previousValue  Json
+  newValue       Json
+  actorUserId    String @db.Uuid
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  category       Category? @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  actor          User @relation(fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([organizationId, createdAt, id])
+  @@index([categoryId, createdAt, id])
+  @@index([actorUserId])
+  @@unique([operationId, field])
 }
 
 model FirstAccessToken {

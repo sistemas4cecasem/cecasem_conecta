@@ -1,4 +1,8 @@
 export const PERMISSIONS = {
+  DIRECTORY_READ: 'directory.read',
+  DIRECTORY_WRITE: 'directory.write',
+  DIRECTORY_HISTORY_READ: 'directory.history.read',
+  DIRECTORY_STATUS_UPDATE: 'directory.status.update',
   FIRST_ACCESS_ISSUE: 'auth.first_access.issue',
   PASSWORD_RESET_ISSUE: 'auth.password_reset.issue',
   USERS_READ: 'users.read',

@@ -7,6 +7,9 @@ import { LoginPage } from '../../features/auth/login-page';
 import { FirstAccessPage } from '../../features/auth/first-access-page';
 import { ResetPasswordPage } from '../../features/auth/reset-password-page';
 import { UsersPage } from '../../features/users/users-page';
+import { OrganizationsPage, OrganizationCreationPage } from '../../features/directory/organizations-page';
+import { OrganizationDetailPage } from '../../features/directory/organization-detail-page';
+import { CategoriesPage } from '../../features/directory/categories-page';
 
 export function AppRoutes() {
   return (
@@ -20,6 +23,10 @@ export function AppRoutes() {
       <Route element={<AuthenticatedLayout />}>
         <Route index element={<HomePage />} />
         <Route path="users" element={<UsersPage />} />
+        <Route path="organizations" element={<OrganizationsPage />} />
+        <Route path="organizations/new" element={<OrganizationCreationPage />} />
+        <Route path="organizations/categories" element={<CategoriesPage />} />
+        <Route path="organizations/:id" element={<OrganizationDetailPage />} />
       </Route>
     </Routes>
   );

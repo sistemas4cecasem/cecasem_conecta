@@ -21,6 +21,7 @@ import { FirstAccessTokensService } from '../src/modules/auth/first-access-token
 import { PasswordResetService } from '../src/modules/auth/password-reset.service';
 import { publicIdentity } from '../src/modules/auth/auth.dto';
 import { hashOpaqueToken } from '../src/modules/auth/opaque-token';
+import { getRolePermissions } from '../src/modules/auth/authorization/role-permissions';
 
 const databaseUrl = validateDatabaseUrl(process.env.DATABASE_URL);
 if (!new URL(databaseUrl).pathname.endsWith('_test')) throw new Error('Administración requiere una base aislada _test.');
@@ -173,7 +174,7 @@ describe('Administración mínima PostgreSQL y HTTP', () => {
     await http('patch', `users/${actor.id}/role`, cookie, { role: UserRole.BOARD }).expect(204);
     expect(await prisma.auditEvent.findFirst({ where: { targetUserId: actor.id } })).toMatchObject({ action: AuditAction.USER_ROLE_CHANGED, actorUserId: actor.id, previousRole: UserRole.ADMINISTRATOR, newRole: UserRole.BOARD });
     expect(await prisma.userSession.findMany({ where: { userId: actor.id } })).toEqual(before);
-    expect((await http('get', 'auth/me', cookie).expect(200)).body).toMatchObject({ role: UserRole.BOARD, permissions: ['users.read'] });
+    expect((await http('get', 'auth/me', cookie).expect(200)).body).toMatchObject({ role: UserRole.BOARD, permissions: [...getRolePermissions(UserRole.BOARD)] });
     await http('get', 'users', cookie).expect(200); await http('get', 'email-accounts', cookie).expect(403);
   });
   it('estado conserva identidad, buzones e historial; revoca todas las credenciales sin revivirlas', async () => {
@@ -226,7 +227,7 @@ describe('Administración mínima PostgreSQL y HTTP', () => {
     expect(await users.findCredentialsById(target.id)).toEqual(before); expect(await prisma.auditEvent.count()).toBe(events);
     expect(await prisma.userEmailAccount.count({ where: { userId: target.id, removedAt: null } })).toBe(operation === 'remove' ? 1 : 0);
   });
-  it.each(Object.values(AuditAction))('CHECK acepta %s correcto y rechaza combinaciones imposibles', async action => {
+  it.each(Object.values(AuditAction).filter(action => !action.startsWith('ORGANIZATION_') && !action.startsWith('CATEGORY_')))('CHECK acepta %s correcto y rechaza combinaciones imposibles', async action => {
     const actor = await fixture(UserRole.ADMINISTRATOR); const target = await fixture(); const account = await mailbox();
     const token = await resets.issue(target.id, publicIdentity(actor));
     const reset = await prisma.passwordResetToken.findUniqueOrThrow({ where: { tokenHash: hashOpaqueToken(token.token)! } });

@@ -487,3 +487,11 @@ La evolución del catálogo a ocho capabilities, los endpoints `/users` y
 se documentan en [Administración mínima](../../docs/subfase-1.6-administracion.md).
 `UsersAdministrationModule` compone Users, Auth y Audit sin dependencias circulares.
 El comando `bootstrap:admin` no acepta contraseña ni existe como endpoint HTTP.
+
+## Organizaciones — Subfase 2.1
+
+`DirectoryModule` implementa organizaciones, sedes, categorías N:N, versión,
+historial y auditoría transaccional. Los cuatro roles tienen lectura, edición e
+historial del directorio; el cambio de estado corresponde a Administrador.
+Contratos, decisiones y migraciones están en
+[Organizaciones](../../docs/subfase-2.1-organizaciones.md).

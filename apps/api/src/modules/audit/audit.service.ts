@@ -6,6 +6,13 @@ type ResetAction = typeof AuditAction.PASSWORD_RESET_ISSUED | typeof AuditAction
 
 @Injectable()
 export class AuditService {
+  recordDirectory(action: typeof AuditAction.ORGANIZATION_UPDATED | typeof AuditAction.ORGANIZATION_STATUS_CHANGED |
+    typeof AuditAction.CATEGORY_UPDATED | typeof AuditAction.CATEGORY_STATUS_CHANGED,
+    target: { organizationId: string } | { categoryId: string }, actorUserId: string,
+    operationId: string, tx: Prisma.TransactionClient) {
+    return tx.auditEvent.create({ data: { action, ...target, actorUserId, operationId } });
+  }
+
   recordPasswordReset(action: ResetAction, actorUserId: string | null, targetUserId: string,
     passwordResetTokenId: string, tx: Prisma.TransactionClient, createdAt = new Date()) {
     return tx.auditEvent.create({ data: { action, actorUserId, targetUserId, passwordResetTokenId, createdAt } });

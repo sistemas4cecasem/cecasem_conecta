@@ -6,6 +6,7 @@ import { AUTH_QUERY_KEY, useSession } from '../../features/auth/session';
 import { ApplicationFrame } from './application-frame';
 import { AUTHENTICATED_NAVIGATION, visibleNavigationItems } from '../router/navigation';
 import { clearForbiddenAdministration } from '../../features/users/administration-cache';
+import { clearForbiddenDirectory } from '../../features/directory/queries';
 
 const ROLE_LABELS = { ADMINISTRATOR: 'Administrador', BOARD: 'Directorio', RESEARCH: 'Búsqueda', PLANNING: 'Planificación' };
 
@@ -16,7 +17,10 @@ export function AuthenticatedLayout() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    if (session.data !== undefined) void clearForbiddenAdministration(client, session.data);
+    if (session.data !== undefined) {
+      void clearForbiddenAdministration(client, session.data);
+      void clearForbiddenDirectory(client, session.data);
+    }
   }, [client, session.data]);
 
   async function logout() {
@@ -37,7 +41,7 @@ export function AuthenticatedLayout() {
     <button className="min-h-11 underline" onClick={() => void session.refetch()}>Reintentar</button></div></ApplicationFrame>;
   if (!session.data) return <Navigate to="/login" replace />;
   return <ApplicationFrame actions={<div className="flex flex-wrap items-center gap-3 text-sm">
-    <nav aria-label="Navegación principal">
+    <nav aria-label="Navegación principal" className="flex flex-wrap items-center gap-3">
       {visibleNavigationItems(AUTHENTICATED_NAVIGATION, session.data.permissions).map(item =>
         <NavLink key={item.to} to={item.to} end className="inline-flex min-h-11 items-center underline">{item.label}</NavLink>)}
     </nav>

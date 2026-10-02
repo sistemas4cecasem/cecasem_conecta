@@ -43,8 +43,12 @@ export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'cr
     if (response.status === 401 && (!/^\/?auth(?:\/|$)/.test(path) || /^auth\/(first-access-tokens|password-reset-tokens)$/.test(path))) {
       window.dispatchEvent(new Event('cecasem:unauthorized'));
     }
-    if (response.status === 409 && /^(users(?:\/|$)|email-accounts(?:\/|$))/.test(path)) {
+    if (response.status === 409 && /^(users(?:\/|$)|email-accounts(?:\/|$)|organizations(?:\/|$)|categories(?:\/|$))/.test(path)) {
       const conflicts: Record<string, string> = {
+        VERSION_CONFLICT: 'La ficha cambió desde que la abriste. Recarga y revisa tus cambios.',
+        INVALID_HIERARCHY: 'La relación matriz/sede produciría un ciclo. Elige otra matriz.',
+        CATEGORY_EXISTS: 'Ya existe una categoría con ese nombre.',
+        CATEGORY_INACTIVE: 'No puedes asignar una categoría inactiva.',
         LAST_ADMINISTRATOR: 'Debe permanecer al menos un Administrador activo.',
         EMAIL_EXISTS: 'El correo ya está registrado.', ACCOUNT_EXISTS: 'El buzón ya está registrado.',
         ACCOUNT_INACTIVE: 'El buzón está inactivo.', USERNAME_EXHAUSTED: 'No se pudo generar un nombre de usuario disponible.',
