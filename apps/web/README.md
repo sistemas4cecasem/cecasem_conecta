@@ -163,4 +163,25 @@ limpia cachés privadas y conserva el token solo en memoria. Un 409 de consumo
 provoca nueva consulta de sesión. Se distinguen errores de token, política y red.
 
 No hay emisión administrativa frontend: se realiza mediante el endpoint mínimo
-hasta 1.6. No se añade recuperación, reset o correo automático.
+hasta 1.6. El restablecimiento es un flujo separado de 1.4; no hay correo automático.
+
+## Restablecimiento — 1.4
+
+/reset-password es público bajo UnauthenticatedLayout. Usa #token= retirado
+inmediatamente y entrada manual. CredentialPasswordForm comparte únicamente
+formulario, política NFC, fragmento, detección de sesión y logout con primer acceso.
+Endpoints, mensajes y éxito son específicos de cada flujo. No se duplica la política
+ni se crea un framework general. No hay validación de token al cargar la pantalla.
+
+Contraseña/confirmación usan autocomplete=new-password. La confirmación no sale
+al backend; secretos no entran en storage ni caches de queries/mutations. Password
+se limpia al enviar y token al completar. Errores diferenciados: token uniforme,
+política, contraseña igual a actual, sesión abierta y red. Doble submit bloqueado.
+Logout explícito conserva token solo en memoria; fallo mantiene bloqueo. Éxito
+navega a /login con passwordResetCompleted=true, sin secreto ni login automático.
+Un reload requiere pegar la credencial otra vez. El cliente solo admite mensajes
+de validación conocidos de estos dos endpoints; no reenvía cuerpos arbitrarios.
+
+No se añade botón administrativo, listado de usuarios/resets, correo ni cambio
+personal de contraseña. Emitir/regenerar conserva contraseña y sesiones actuales;
+consumir revoca todas las sesiones del destinatario y sustituye la contraseña.

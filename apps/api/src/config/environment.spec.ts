@@ -3,6 +3,12 @@ import { validateEnvironment } from './environment';
 const databaseUrl = 'postgresql://test:example@localhost:5432/cecasem_test';
 
 describe('Environment configuration', () => {
+  it.each(['0', '-1', '1.5', '28801', '', true])('rejects unsafe reset TTL %s', (ttl) => {
+    expect(() => validateEnvironment({ DATABASE_URL: databaseUrl, PASSWORD_RESET_TOKEN_TTL_SECONDS: ttl })).toThrow('PASSWORD_RESET_TOKEN_TTL_SECONDS');
+  });
+  it.each(['1', '28800', 14400])('accepts bounded reset TTL %s', (ttl) => {
+    expect(validateEnvironment({ DATABASE_URL: databaseUrl, PASSWORD_RESET_TOKEN_TTL_SECONDS: ttl }).PASSWORD_RESET_TOKEN_TTL_SECONDS).toBe(Number(ttl));
+  });
   it.each(['0', '-1', '1.5', '172801', '', true])('rejects unsafe first-access TTL %s', (ttl) => {
     expect(() => validateEnvironment({ DATABASE_URL: databaseUrl, FIRST_ACCESS_TOKEN_TTL_SECONDS: ttl })).toThrow('FIRST_ACCESS_TOKEN_TTL_SECONDS');
   });
@@ -26,6 +32,7 @@ describe('Environment configuration', () => {
       DATABASE_URL: databaseUrl,
       SESSION_TTL_SECONDS: 28800,
       FIRST_ACCESS_TOKEN_TTL_SECONDS: 86400,
+      PASSWORD_RESET_TOKEN_TTL_SECONDS: 14400,
       SESSION_COOKIE_SECURE: false,
     });
   });
@@ -39,6 +46,7 @@ describe('Environment configuration', () => {
         DATABASE_URL: databaseUrl,
         SESSION_TTL_SECONDS: 28800,
         FIRST_ACCESS_TOKEN_TTL_SECONDS: 86400,
+        PASSWORD_RESET_TOKEN_TTL_SECONDS: 14400,
         SESSION_COOKIE_SECURE: false,
       });
     },

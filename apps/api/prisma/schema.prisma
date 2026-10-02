@@ -15,6 +15,13 @@ enum UserRole {
   PLANNING
 }
 
+enum AuditAction {
+  PASSWORD_RESET_ISSUED
+  PASSWORD_RESET_REGENERATED
+  PASSWORD_RESET_COMPLETED
+  PASSWORD_RESET_REVOKED
+}
+
 model User {
   id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   givenNames    String             @db.VarChar(150)
@@ -31,6 +38,43 @@ model User {
   sessions      UserSession[]
   firstAccessTokens FirstAccessToken[] @relation("FirstAccessRecipient")
   issuedFirstAccessTokens FirstAccessToken[] @relation("FirstAccessIssuer")
+  passwordResetTokens PasswordResetToken[] @relation("PasswordResetRecipient")
+  issuedPasswordResetTokens PasswordResetToken[] @relation("PasswordResetIssuer")
+  performedAuditEvents AuditEvent[] @relation("AuditActor")
+  receivedAuditEvents AuditEvent[] @relation("AuditTarget")
+}
+
+model PasswordResetToken {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String    @db.Uuid
+  createdByUserId String    @db.Uuid
+  tokenHash       String    @unique @db.VarChar(64)
+  createdAt       DateTime  @default(now()) @db.Timestamptz(3)
+  expiresAt       DateTime  @db.Timestamptz(3)
+  usedAt          DateTime? @db.Timestamptz(3)
+  revokedAt       DateTime? @db.Timestamptz(3)
+  user            User      @relation("PasswordResetRecipient", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy       User      @relation("PasswordResetIssuer", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  auditEvents     AuditEvent[]
+
+  @@index([userId])
+  @@index([createdByUserId])
+}
+
+model AuditEvent {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  action               AuditAction
+  actorUserId          String?   @db.Uuid
+  targetUserId         String    @db.Uuid
+  passwordResetTokenId String?   @db.Uuid
+  createdAt            DateTime  @default(now()) @db.Timestamptz(3)
+  actor                User?     @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  target               User      @relation("AuditTarget", fields: [targetUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  passwordResetToken   PasswordResetToken? @relation(fields: [passwordResetTokenId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([targetUserId, createdAt])
+  @@index([actorUserId])
+  @@index([passwordResetTokenId])
 }
 
 model FirstAccessToken {

@@ -22,6 +22,8 @@ export function LoginPage() {
   const navigationState: unknown = location.state;
   const firstAccessCompleted = typeof navigationState === 'object' && navigationState !== null &&
     'firstAccessCompleted' in navigationState && navigationState.firstAccessCompleted === true;
+  const passwordResetCompleted = typeof navigationState === 'object' && navigationState !== null &&
+    'passwordResetCompleted' in navigationState && navigationState.passwordResetCompleted === true;
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { register, handleSubmit, resetField, formState: { errors } } = useForm<LoginFields>({
@@ -56,6 +58,7 @@ export function LoginPage() {
     <h1 id="login-title" className="text-3xl font-semibold">Iniciar sesión</h1>
     <p className="mt-3 text-slate-600">Accede con tu cuenta de CECASEM.</p>
     {firstAccessCompleted && <p role="status" className="mt-4">Contraseña establecida correctamente. Ya puedes iniciar sesión.</p>}
+    {passwordResetCompleted && <p role="status" className="mt-4">Contraseña restablecida correctamente. Ya puedes iniciar sesión.</p>}
     {session.isError && <p role="alert" className="mt-4">No se pudo comprobar la sesión. Puedes intentar iniciar sesión nuevamente.</p>}
     <form onSubmit={handleSubmit(submit)} noValidate className="mt-8 space-y-5">
       <div><label htmlFor="email" className="block font-medium">Correo electrónico</label>

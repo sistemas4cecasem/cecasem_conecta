@@ -7,6 +7,7 @@ export interface AppEnvironment {
   SESSION_TTL_SECONDS: number;
   SESSION_COOKIE_SECURE: boolean;
   FIRST_ACCESS_TOKEN_TTL_SECONDS: number;
+  PASSWORD_RESET_TOKEN_TTL_SECONDS: number;
 }
 
 export function validateEnvironment(
@@ -36,6 +37,11 @@ export function validateEnvironment(
     throw new Error('SESSION_TTL_SECONDS debe ser un entero entre 1 y 604800.');
   }
   const rawSecure = environment.SESSION_COOKIE_SECURE ?? 'false';
+  const passwordResetTtl = environment.PASSWORD_RESET_TOKEN_TTL_SECONDS ?? '14400';
+  if ((typeof passwordResetTtl !== 'string' && typeof passwordResetTtl !== 'number') || !/^\d+$/.test(String(passwordResetTtl)) ||
+    !Number.isSafeInteger(Number(passwordResetTtl)) || Number(passwordResetTtl) < 1 || Number(passwordResetTtl) > 28800) {
+    throw new Error('PASSWORD_RESET_TOKEN_TTL_SECONDS debe ser un entero entre 1 y 28800.');
+  }
   const firstAccessTtl = environment.FIRST_ACCESS_TOKEN_TTL_SECONDS ?? '86400';
   if ((typeof firstAccessTtl !== 'string' && typeof firstAccessTtl !== 'number') || !/^\d+$/.test(String(firstAccessTtl)) ||
     !Number.isSafeInteger(Number(firstAccessTtl)) || Number(firstAccessTtl) < 1 || Number(firstAccessTtl) > 172800) {
@@ -52,5 +58,6 @@ export function validateEnvironment(
     SESSION_TTL_SECONDS: Number(rawTtl),
     SESSION_COOKIE_SECURE: rawSecure === true || rawSecure === 'true',
     FIRST_ACCESS_TOKEN_TTL_SECONDS: Number(firstAccessTtl),
+    PASSWORD_RESET_TOKEN_TTL_SECONDS: Number(passwordResetTtl),
   };
 }

@@ -230,7 +230,7 @@ id, nombres, apellidos, username, email y rol. Swagger marca password writeOnly.
 
 `User.passwordHash` es nullable y no tiene default. Una identidad sin contraseña
 no puede iniciar sesión; ninguna operación de 1.2 asigna contraseña al crearla.
-Primer acceso permite establecerla en 1.3; restablecimiento permanece fuera de alcance.
+Primer acceso permite establecerla en 1.3; restablecimiento administrativo la sustituye en 1.4.
 
 ### Contraseña
 
@@ -372,9 +372,77 @@ La contraseña respeta NFC, 15–128 puntos de código, Unicode y espacios sin t
 la política de contraseña devuelve un error de validación separado. Sesión
 válida del navegador: 409 sin cambios; cookie ausente/inválida/expirada/revocada
 se trata como anónimo. No se crea sesión automáticamente: usar login posterior.
-No hay endpoint de validación previa, reset ni auditoría transversal.
+Primer acceso no ofrece validación previa ni restablecimiento; el reset se implementa por separado en 1.4.
 
 Pruebas en test/first-access.integration-spec.ts: persistencia/constraints,
 HTTP completo, regeneración, rollback, sesiones y carreras con barreras. Ejecutar
 solo sobre PostgreSQL dedicado terminado en _test. La limpieza elimina únicamente
 UUID propios y sus referencias. No hay seeds permanentes.
+
+## Restablecimiento administrativo — 1.4
+
+PasswordResetToken es específico: UUID, userId, createdByUserId, tokenHash,
+createdAt, expiresAt, usedAt y revokedAt. Relaciones nombradas con RESTRICT,
+hash único y CHECK temporal/formato/terminal. Índices por destinatario y emisor;
+no se añade índice por expiración porque no hay consultas de limpieza ni scheduler.
+FirstAccessToken y las tres primeras migraciones permanecen intactos.
+
+| Endpoint | Contrato |
+| --- | --- |
+| POST /api/v1/auth/password-reset-tokens | JSON userId; Administrador autenticado; 201 token/expiresAt |
+| POST /api/v1/auth/password-reset | JSON token/password; anónimo; 204 sin usuario, sesión ni Set-Cookie |
+
+SessionGuard y comprobación localizada de ADMINISTRATOR protegen la emisión.
+El servicio comprueba la identidad vigente del emisor. El body nunca acepta actor.
+Destinatario existente/activo/con passwordHash. Errores: 401 anónimo, 403 otro rol,
+404 inexistente, 409 inactivo o pendiente de primer acceso. El autoreset es permitido.
+
+Token: utilidad opaca compartida, randomBytes(32), 256 bits, Base64URL canónico;
+solo SHA-256 persistido. TTL PASSWORD_RESET_TOKEN_TTL_SECONDS=14400, rango 1–28800.
+El plano se muestra una vez; entrega manual por canal institucional verificado.
+Si se pierde, regenerar. No hay recuperación, listado, validación previa ni email.
+URL de entrega relativa: /reset-password#token=<TOKEN>; nunca query o path.
+
+Emisión/regeneración bloquean User, revocan pendientes incluso expirados, crean
+nuevo token y AuditEvent en una única transacción. NO cambian hash, actividad,
+login ni sesiones. Expirar el token no bloquea la cuenta. No existe estado de reset
+obligatorio ni passwordResetRequiredAt. Login y consulta de sesiones no consultan resets.
+
+Consumo verifica propuesta frente al hash vigente y calcula Argon2id fuera de
+transacción. Se rechaza la contraseña actual, incluida su equivalencia NFC.
+Luego se bloquea User, se revalida actividad/hash/expiración tras el lock y se consume
+condicionalmente. Reemplazo por comparación de hash, revocación de otros resets y
+sesiones y auditoría de finalización se confirman juntos o hacen rollback completo.
+Un cambio concurrente de hash aborta; updatedAt no se usa como versión de credencial.
+
+400 público uniforme para token/estado no habilitado. Política y reutilización
+son errores separados. Una sesión válida de cualquier cuenta produce 409 hasta
+logout explícito; cookies inválidas/expiradas/revocadas se tratan como anónimo.
+JSON obligatorio, no-store también en errores, mismo origen sin CORS. Nunca loguear
+contraseña, token, sus hashes, body sensible ni enlace completo. HTTP no protege transporte.
+
+AuditEvent contiene solo UUID, action, actorUserId nullable, targetUserId,
+passwordResetTokenId nullable y createdAt. Todas las relaciones usan RESTRICT;
+índices target/fecha, actor y token. Las acciones actuales requieren token y
+los CHECK validan actor: emisión/regeneración administrativo, finalización null.
+Revocación acepta actor confiable o null para una llamada interna sin actor.
+Estas restricciones deberán evolucionar explícitamente si se agregan acciones futuras.
+Acciones: PASSWORD_RESET_ISSUED, PASSWORD_RESET_REGENERATED,
+PASSWORD_RESET_COMPLETED y PASSWORD_RESET_REVOKED. Regeneración vincula el nuevo
+reset; anteriores conservan revokedAt. Desactivación registra revocación por cada
+reset afectado y coordina sesiones/primer acceso/reset dentro del mismo lock/tx.
+Reactivar no revive tokens. Actor de deactivate es contexto interno confiable,
+no input HTTP; la administración futura debe derivarlo de su sesión.
+
+AuditService persiste en la transacción recibida, sin best-effort. Un fallo de
+emisión/regeneración/finalización/revocación auditada provoca rollback de todo.
+Se conservan tokens terminales y eventos; no hay eliminación ni scheduler.
+No se guardan secretos, metadata genérica, IP, User-Agent o before/after.
+
+Restricción operativa: si el único Administrador pierde todo acceso, 1.4 no
+introduce mecanismo de emergencia. No hay contraseña maestra, seed ni bypass.
+La autorización general y pantalla administrativa pertenecen a 1.5/1.6.
+
+Pruebas: password-reset.spec.ts, password-reset.integration-spec.ts y frontend.
+Integración sobre base _test con fixtures aleatorios; limpieza exclusiva de sus
+UUID, audit events y referencias, sin reset ni eliminación de volúmenes.

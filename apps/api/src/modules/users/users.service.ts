@@ -75,6 +75,10 @@ export class UsersService {
     return tx.user.findUnique({ where: { id }, select: userIdentitySelect });
   }
 
+  findCredentialsById(id: string): Promise<UserCredentials | null> {
+    return this.prisma.user.findUnique({ where: { id }, select: userCredentialsSelect });
+  }
+
   // El propietario de User controla el lock. El callback permite coordinar sesiones
   // en la misma transacción, sin acoplar UsersModule a AuthModule.
   withLockedCredentials<T>(id: string, operation: (user: UserCredentials | null, tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {

@@ -12,6 +12,9 @@ import { FirstAccessService } from './first-access.service';
 import { ConsumeFirstAccessDto, IssuedFirstAccessDto, IssueFirstAccessDto } from './first-access.dto';
 import { FirstAccessEmissionError, FirstAccessSessionConflictError, InvalidFirstAccessError } from './first-access.errors';
 import { InvalidNewPasswordError } from './password.service';
+import { PasswordResetService } from './password-reset.service';
+import { ConsumePasswordResetDto, IssuedPasswordResetDto, IssuePasswordResetDto } from './password-reset.dto';
+import { InvalidPasswordResetError, PasswordResetEmissionError, PasswordResetSessionConflictError, ReusedPasswordError } from './password-reset.errors';
 
 function requireJson(request: Request): void {
   if (!request.is('application/json')) throw new UnsupportedMediaTypeException('Se requiere application/json.');
@@ -21,7 +24,45 @@ function requireJson(request: Request): void {
 @Controller('auth')
 export class AuthController {
   constructor(private readonly auth: AuthService, private readonly sessions: SessionsService,
-    private readonly config: ConfigService<AppEnvironment, true>, private readonly firstAccess: FirstAccessService) {}
+    private readonly config: ConfigService<AppEnvironment, true>, private readonly firstAccess: FirstAccessService,
+    private readonly passwordReset: PasswordResetService) {}
+
+  @Post('password-reset-tokens')
+  @UseGuards(SessionGuard)
+  @Header('Cache-Control', 'no-store')
+  @ApiCookieAuth('cecasem_session')
+  @ApiCreatedResponse({ type: IssuedPasswordResetDto })
+  @ApiForbiddenResponse()
+  @ApiUnauthorizedResponse()
+  async issuePasswordReset(@Body() input: IssuePasswordResetDto, @CurrentUser() actor: AuthenticatedUserDto,
+    @Req() request: Request): Promise<IssuedPasswordResetDto> {
+    requireJson(request);
+    try { return await this.passwordReset.issue(input.userId, actor); }
+    catch (error) {
+      if (error instanceof PasswordResetEmissionError) {
+        if (error.reason === 'FORBIDDEN') throw new ForbiddenException('Solo un Administrador puede emitir restablecimientos.');
+        if (error.reason === 'NOT_FOUND') throw new NotFoundException('No se encontró el usuario destinatario.');
+        throw new ConflictException(error.reason === 'INACTIVE' ? 'El usuario está inactivo.' : 'El usuario debe completar primero el primer acceso.');
+      }
+      throw error;
+    }
+  }
+
+  @Post('password-reset')
+  @HttpCode(204)
+  @Header('Cache-Control', 'no-store')
+  @ApiNoContentResponse()
+  @ApiBadRequestResponse({ description: 'Credencial no válida, política inválida o contraseña reutilizada.' })
+  @ApiConflictResponse({ description: 'Debe cerrar la sesión abierta.' })
+  async consumePasswordReset(@Body() input: ConsumePasswordResetDto, @Req() request: Request): Promise<void> {
+    requireJson(request);
+    try { await this.passwordReset.consume(input.token, input.password, readSessionToken(request)); }
+    catch (error) {
+      if (error instanceof InvalidPasswordResetError || error instanceof ReusedPasswordError || error instanceof InvalidNewPasswordError) throw new BadRequestException(error.message);
+      if (error instanceof PasswordResetSessionConflictError) throw new ConflictException(error.message);
+      throw error;
+    }
+  }
 
   @Post('first-access-tokens')
   @UseGuards(SessionGuard)

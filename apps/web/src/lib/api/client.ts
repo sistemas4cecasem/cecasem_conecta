@@ -43,14 +43,16 @@ export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'cr
     if (response.status === 401 && !/^\/?auth(?:\/|$)/.test(path)) {
       window.dispatchEvent(new Event('cecasem:unauthorized'));
     }
-    if (response.status === 400 && path === 'auth/first-access') {
-      // Únicamente este mensaje público conocido; no reenviar cuerpos arbitrarios.
+    if (response.status === 400 && (path === 'auth/first-access' || path === 'auth/password-reset')) {
+      // Únicamente mensajes públicos conocidos; no reenviar cuerpos arbitrarios.
       const policyMessage = 'La contraseña nueva debe contener entre 15 y 128 caracteres.';
+      const messages = path === 'auth/password-reset' ? [policyMessage, 'La nueva contraseña debe ser diferente de la contraseña actual.'] : [policyMessage];
       try {
         const payload: unknown = await response.json();
         if (typeof payload === 'object' && payload !== null && 'message' in payload &&
-          (payload.message === policyMessage || (Array.isArray(payload.message) && payload.message.includes(policyMessage)))) {
-          throw new ApiError(policyMessage, 400);
+          (typeof payload.message === 'string' || Array.isArray(payload.message))) {
+          const known = messages.find((message) => payload.message === message || (Array.isArray(payload.message) && payload.message.includes(message)));
+          if (known) throw new ApiError(known, 400);
         }
       } catch (failure) { if (failure instanceof ApiError) throw failure; }
     }

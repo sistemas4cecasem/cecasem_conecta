@@ -5,6 +5,7 @@ import { NotFoundPage } from './not-found-page';
 import { AuthenticatedLayout } from '../layout/authenticated-layout';
 import { LoginPage } from '../../features/auth/login-page';
 import { FirstAccessPage } from '../../features/auth/first-access-page';
+import { ResetPasswordPage } from '../../features/auth/reset-password-page';
 
 export function AppRoutes() {
   return (
@@ -12,6 +13,7 @@ export function AppRoutes() {
       <Route element={<UnauthenticatedLayout />}>
         <Route path="login" element={<LoginPage />} />
         <Route path="first-access" element={<FirstAccessPage />} />
+        <Route path="reset-password" element={<ResetPasswordPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
       <Route element={<AuthenticatedLayout />}>
