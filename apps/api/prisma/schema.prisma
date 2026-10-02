@@ -29,6 +29,24 @@ model User {
   passwordHash  String?
   emailAccounts UserEmailAccount[]
   sessions      UserSession[]
+  firstAccessTokens FirstAccessToken[] @relation("FirstAccessRecipient")
+  issuedFirstAccessTokens FirstAccessToken[] @relation("FirstAccessIssuer")
+}
+
+model FirstAccessToken {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String    @db.Uuid
+  createdByUserId String    @db.Uuid
+  tokenHash       String    @unique @db.VarChar(64)
+  createdAt       DateTime  @default(now()) @db.Timestamptz(3)
+  expiresAt       DateTime  @db.Timestamptz(3)
+  usedAt          DateTime? @db.Timestamptz(3)
+  revokedAt       DateTime? @db.Timestamptz(3)
+  user            User      @relation("FirstAccessRecipient", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy       User      @relation("FirstAccessIssuer", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([userId])
+  @@index([createdByUserId])
 }
 
 model UserSession {

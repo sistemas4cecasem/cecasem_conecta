@@ -71,8 +71,8 @@ export class UsersService {
     return this.prisma.user.findUnique({ where: { email: normalizeEmail(email) }, select: userCredentialsSelect });
   }
 
-  findIdentityById(id: string): Promise<UserIdentity | null> {
-    return this.prisma.user.findUnique({ where: { id }, select: userIdentitySelect });
+  findIdentityById(id: string, tx: Prisma.TransactionClient = this.prisma): Promise<UserIdentity | null> {
+    return tx.user.findUnique({ where: { id }, select: userIdentitySelect });
   }
 
   // El propietario de User controla el lock. El callback permite coordinar sesiones
@@ -87,6 +87,11 @@ export class UsersService {
 
   async replaceCredentialIfUnchanged(id: string, previous: string, replacement: string, tx: Prisma.TransactionClient): Promise<boolean> {
     const result = await tx.user.updateMany({ where: { id, passwordHash: previous }, data: { passwordHash: replacement } });
+    return result.count === 1;
+  }
+
+  async establishInitialPassword(id: string, passwordHash: string, tx: Prisma.TransactionClient): Promise<boolean> {
+    const result = await tx.user.updateMany({ where: { id, isActive: true, passwordHash: null }, data: { passwordHash } });
     return result.count === 1;
   }
 

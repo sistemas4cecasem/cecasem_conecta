@@ -142,3 +142,25 @@ yarn workspace @cecasem-conecta/web preview
 Abre la URL impresa (por defecto `http://localhost:4173`), revisa `/`, una ruta
 inexistente y el enlace de regreso, y detén el proceso con Ctrl+C al finalizar.
 Vite preview es una herramienta de revisión local, no el servidor de producción.
+
+## Primer acceso — 1.3
+
+/first-access es público bajo UnauthenticatedLayout. Lee #token= únicamente en
+memoria y elimina inmediatamente el fragmento con history.replaceState, antes de
+cualquier request de consumo. No consulta/valida automáticamente el token. Permite
+pegarlo manualmente; una recarga puede exigir introducirlo otra vez.
+
+RHF/Zod valida contraseña y confirmación por puntos de código después de NFC,
+15–128, con espacios/Unicode. Ambos campos usan autocomplete=new-password.
+La confirmación no se envía. Se impide doble submit y se limpian contraseñas al
+enviar. No hay secretos en storage, navegación ni cachés de queries/mutations.
+Tras éxito se elimina el token y se vuelve a /login con una confirmación no sensible.
+
+useSession bloquea consumo ante sesión válida o fallo de comprobación. Muestra
+identidad de la sesión abierta (no del token) y ofrece Cerrar sesión y continuar.
+No cierra automáticamente; logout fallido mantiene el bloqueo. Logout correcto
+limpia cachés privadas y conserva el token solo en memoria. Un 409 de consumo
+provoca nueva consulta de sesión. Se distinguen errores de token, política y red.
+
+No hay emisión administrativa frontend: se realiza mediante el endpoint mínimo
+hasta 1.6. No se añade recuperación, reset o correo automático.

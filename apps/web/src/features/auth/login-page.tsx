@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Navigate, useNavigate } from 'react-router';
+import { Navigate, useLocation, useNavigate } from 'react-router';
 import { z } from 'zod';
 import { ApiError, apiRequest } from '../../lib/api/client';
 import { AUTH_QUERY_KEY, identitySchema, useSession } from './session';
@@ -18,6 +18,10 @@ export function LoginPage() {
   const session = useSession();
   const client = useQueryClient();
   const navigate = useNavigate();
+  const location = useLocation();
+  const navigationState: unknown = location.state;
+  const firstAccessCompleted = typeof navigationState === 'object' && navigationState !== null &&
+    'firstAccessCompleted' in navigationState && navigationState.firstAccessCompleted === true;
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { register, handleSubmit, resetField, formState: { errors } } = useForm<LoginFields>({
@@ -51,6 +55,7 @@ export function LoginPage() {
   return <section className="w-full max-w-md" aria-labelledby="login-title">
     <h1 id="login-title" className="text-3xl font-semibold">Iniciar sesión</h1>
     <p className="mt-3 text-slate-600">Accede con tu cuenta de CECASEM.</p>
+    {firstAccessCompleted && <p role="status" className="mt-4">Contraseña establecida correctamente. Ya puedes iniciar sesión.</p>}
     {session.isError && <p role="alert" className="mt-4">No se pudo comprobar la sesión. Puedes intentar iniciar sesión nuevamente.</p>}
     <form onSubmit={handleSubmit(submit)} noValidate className="mt-8 space-y-5">
       <div><label htmlFor="email" className="block font-medium">Correo electrónico</label>

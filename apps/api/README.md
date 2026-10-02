@@ -230,7 +230,7 @@ id, nombres, apellidos, username, email y rol. Swagger marca password writeOnly.
 
 `User.passwordHash` es nullable y no tiene default. Una identidad sin contraseña
 no puede iniciar sesión; ninguna operación de 1.2 asigna contraseña al crearla.
-Primer acceso y restablecimiento pertenecen a las siguientes subfases.
+Primer acceso permite establecerla en 1.3; restablecimiento permanece fuera de alcance.
 
 ### Contraseña
 
@@ -326,3 +326,55 @@ aislada: login, navegación, refresh, me=200, logout, redirección y me=401. La 
 no fue visible a JavaScript del frontend y los dos almacenamientos tenían cero
 entradas. Los atributos se validaron también por HTTP/E2E. Se eliminaron el
 fixture y los contenedores auxiliares; no se incorporaron endpoints diagnósticos.
+
+## Primer acceso — 1.3
+
+FirstAccessToken conserva UUID, destinatario userId, emisor createdByUserId,
+tokenHash único, createdAt, expiresAt, usedAt y revokedAt. Ambas relaciones usan
+RESTRICT. Índices por destinatario y emisor; no existe índice parcial ni estado enum.
+Los CHECK validan fechas, exclusión entre uso/revocación y digest hexadecimal.
+La tercera migración es 20261001230230_first_access; las anteriores no cambian.
+
+| Endpoint | Contrato |
+| --- | --- |
+| POST /api/v1/auth/first-access-tokens | JSON userId; sesión válida de ADMINISTRATOR; 201 token/expiresAt |
+| POST /api/v1/auth/first-access | JSON token/password; anónimo; 204 sin identidad ni Set-Cookie |
+
+La comprobación localizada de ADMINISTRATOR deberá integrarse al RBAC de 1.5.
+El emisor se deriva de la sesión; el body no acepta createdByUserId. El servicio
+comprueba también identidad vigente del emisor. Destinatario: existente, activo
+y passwordHash=null. Errores administrativos: 404 inexistente, 409 inactivo/con
+contraseña; 401 anónimo y 403 otro rol. No existe administración frontend.
+
+La credencial es de 32 bytes aleatorios (256 bits), Base64URL canónico sin padding;
+solo su SHA-256 se persiste. El token plano se devuelve una sola vez. No hay
+recuperación/listado ni envío automatizado. El Administrador lo entrega por un
+canal institucional verificado. La futura interfaz puede construir
+/first-access#token=<TOKEN>. Nunca usar query ni path para el secreto, porque
+Nginx registra la solicitud completa. No registrar token, digest, contraseña,
+hash, cuerpo sensible ni enlace completo.
+
+FIRST_ACCESS_TOKEN_TTL_SECONDS tiene default 86400 (24 h), rango 1–172800.
+No hay nuevo secreto ni URL pública. Las dos operaciones requieren JSON y usan
+Cache-Control: no-store incluso en errores mediante el middleware de auth.
+Mismo origen; no se habilita CORS. HTTP no protege el transporte de credenciales.
+
+Emisión, consumo y desactivación bloquean primero User. Cada emisión revoca
+anteriores pendientes, incluso expirados, y crea un token nuevo. Argon2id se
+calcula fuera de la transacción de consumo. Tras el lock se comprueban estado,
+hash nulo y expiración usando un instante nuevo; una actualización condicional
+marca el uso. Establecimiento inicial, consumo, revocación de otros pendientes y
+sesiones se confirman juntos o hacen rollback. Desactivar revoca sesiones y
+tokens en la misma transacción; reactivar no revive credenciales antiguas.
+
+La contraseña respeta NFC, 15–128 puntos de código, Unicode y espacios sin trim.
+400 de token inválido/expirado/usado/revocado o usuario no habilitado es uniforme;
+la política de contraseña devuelve un error de validación separado. Sesión
+válida del navegador: 409 sin cambios; cookie ausente/inválida/expirada/revocada
+se trata como anónimo. No se crea sesión automáticamente: usar login posterior.
+No hay endpoint de validación previa, reset ni auditoría transversal.
+
+Pruebas en test/first-access.integration-spec.ts: persistencia/constraints,
+HTTP completo, regeneración, rollback, sesiones y carreras con barreras. Ejecutar
+solo sobre PostgreSQL dedicado terminado en _test. La limpieza elimina únicamente
+UUID propios y sus referencias. No hay seeds permanentes.

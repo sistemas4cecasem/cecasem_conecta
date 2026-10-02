@@ -2,11 +2,13 @@
 
 Base técnica de Fase 0: monorepo Yarn, API NestJS, React/Vite y PostgreSQL/Prisma.
 Incluye el modelo interno de usuarios y cuentas de correo de Subfase 1.1 y la
-autenticación por contraseña/sesión de Subfase 1.2. No incluye primer acceso,
-restablecimiento, RBAC funcional ni administración de usuarios.
+autenticación por contraseña/sesión de Subfase 1.2 y primer acceso de Subfase 1.3.
+No incluye restablecimiento, RBAC funcional ni administración de usuarios.
 
 La ruta `/` requiere sesión y `/login` permite iniciar sesión. Las cuentas nuevas
-conservan `passwordHash=null`: el propio usuario establecerá su contraseña en 1.3.
+conservan `passwordHash=null` hasta completar `/first-access` con una credencial
+temporal emitida por un Administrador. El usuario establece su propia contraseña
+y después utiliza el login ordinario. No hay envío automático de correo.
 No hay seeds ni contraseñas provisionales. Consulta los contratos y límites en
 [la documentación de API](apps/api/README.md#contraseñas-y-sesiones--subfase-12).
 

@@ -6,6 +6,7 @@ export interface AppEnvironment {
   DATABASE_URL: string;
   SESSION_TTL_SECONDS: number;
   SESSION_COOKIE_SECURE: boolean;
+  FIRST_ACCESS_TOKEN_TTL_SECONDS: number;
 }
 
 export function validateEnvironment(
@@ -35,6 +36,11 @@ export function validateEnvironment(
     throw new Error('SESSION_TTL_SECONDS debe ser un entero entre 1 y 604800.');
   }
   const rawSecure = environment.SESSION_COOKIE_SECURE ?? 'false';
+  const firstAccessTtl = environment.FIRST_ACCESS_TOKEN_TTL_SECONDS ?? '86400';
+  if ((typeof firstAccessTtl !== 'string' && typeof firstAccessTtl !== 'number') || !/^\d+$/.test(String(firstAccessTtl)) ||
+    !Number.isSafeInteger(Number(firstAccessTtl)) || Number(firstAccessTtl) < 1 || Number(firstAccessTtl) > 172800) {
+    throw new Error('FIRST_ACCESS_TOKEN_TTL_SECONDS debe ser un entero entre 1 y 172800.');
+  }
   if (rawSecure !== 'true' && rawSecure !== 'false' && typeof rawSecure !== 'boolean') {
     throw new Error('SESSION_COOKIE_SECURE debe ser true o false.');
   }
@@ -45,5 +51,6 @@ export function validateEnvironment(
     DATABASE_URL: validateDatabaseUrl(environment.DATABASE_URL),
     SESSION_TTL_SECONDS: Number(rawTtl),
     SESSION_COOKIE_SECURE: rawSecure === true || rawSecure === 'true',
+    FIRST_ACCESS_TOKEN_TTL_SECONDS: Number(firstAccessTtl),
   };
 }
