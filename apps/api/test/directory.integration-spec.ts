@@ -66,6 +66,88 @@ describe('Directorio PostgreSQL y HTTP', () => {
     const result = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ email: user.email, password }).expect(200);
     return (result.headers['set-cookie'] as unknown as string[])[0].split(';')[0];
   }
+  async function categoryFilterFixtures() {
+    const actor = await fixture(); const auth = await cookie(actor);
+    const categories = { x: await category(actor.id, 'RF12 Educación'), y: await category(actor.id, 'RF12 Ambiente'),
+      z: await category(actor.id, 'RF12 Salud'), empty: await category(actor.id, 'RF12 Sin organizaciones') };
+    async function create(name: string, categoryIds: string[]) {
+      const row = await directory.createOrganization({ name, categoryIds }, actor.id); organizationIds.push(row.id); return row;
+    }
+    const a = await create('RF12 A', [categories.x.id, categories.y.id]);
+    const b = await create('RF12 B', [categories.x.id]);
+    const c = await create('RF12 C', [categories.z.id]); const d = await create('RF12 D', []);
+    const inactive = await directory.organizationStatus(b.id, { isActive: false, expectedVersion: b.version }, actor.id);
+    return { actor, auth, categories, organizations: { a, b: inactive, c, d } };
+  }
+  it.each([
+    { category: 'x', status: 'all', expected: ['a', 'b'] },
+    { category: 'x', status: 'active', expected: ['a'] },
+    { category: 'x', status: 'inactive', expected: ['b'] },
+    { category: 'y', status: 'all', expected: ['a'] },
+    { category: 'z', status: 'all', expected: ['c'] },
+    { category: 'empty', status: 'all', expected: [] },
+    { category: undefined, status: 'all', expected: ['a', 'b', 'c', 'd'] },
+    { category: undefined, status: 'active', expected: ['a', 'c', 'd'] },
+    { category: undefined, status: 'inactive', expected: ['b'] },
+  ] as const)('RF-12: categoría $category y estado $status, total de organizaciones sin duplicados', async input => {
+    const { auth, categories, organizations } = await categoryFilterFixtures();
+    const response = await request(app.getHttpServer()).get('/api/v1/organizations').set('Cookie', auth)
+      .query({ status: input.status, ...(input.category ? { categoryId: categories[input.category].id } : {}) }).expect(200);
+    const ids = (response.body as { items: { id: string }[] }).items.map(row => row.id);
+    expect(ids).toEqual(input.expected.map(key => organizations[key].id));
+    expect(response.body).toMatchObject({ total: input.expected.length, page: 1, pageSize: 25 });
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+  it('RF-12: UUID sin categoría devuelve 200 vacío, sin lookup obligatorio', async () => {
+    const { auth } = await categoryFilterFixtures();
+    await request(app.getHttpServer()).get('/api/v1/organizations').set('Cookie', auth)
+      .query({ categoryId: randomUUID(), status: 'all' }).expect(200)
+      .expect(({ body }: { body: { items: unknown[]; total: number } }) => expect(body).toMatchObject({ items: [], total: 0 }));
+  });
+  it('RF-12: combina nombre, categoría inactiva y estado sin modificar asociaciones', async () => {
+    const { actor, auth, categories, organizations } = await categoryFilterFixtures();
+    await directory.categoryStatus(categories.x.id, { isActive: false, expectedVersion: 1 }, actor.id);
+    const before = await prisma.organizationCategory.count();
+    const response = await request(app.getHttpServer()).get('/api/v1/organizations').set('Cookie', auth)
+      .query({ categoryId: categories.x.id, status: 'all', name: 'RF12 A' }).expect(200);
+    expect(response.body).toMatchObject({ items: [{ id: organizations.a.id }], total: 1 });
+    expect(await prisma.organizationCategory.count()).toBe(before);
+  });
+  it('RF-12: pagina organizaciones por nombre/UUID estable, no filas de la relación N:N', async () => {
+    const { actor, auth, categories, organizations } = await categoryFilterFixtures();
+    for (const key of ['a', 'b'] as const) {
+      const row = organizations[key];
+      await directory.editOrganization(row.id, { name: 'RF12 Igual', categoryIds: row.categories.map(c => c.id), expectedVersion: row.version }, actor.id);
+    }
+    const expected = [organizations.a.id, organizations.b.id].sort(); const selected: string[] = [];
+    for (const page of [1, 2, 3, 1]) {
+      const response = await request(app.getHttpServer()).get('/api/v1/organizations').set('Cookie', auth)
+        .query({ categoryId: categories.x.id, status: 'all', page, pageSize: 1 }).expect(200);
+      expect(response.body).toMatchObject({ total: 2, page, pageSize: 1 });
+      const ids = (response.body as { items: { id: string }[] }).items.map(row => row.id);
+      expect(ids).toEqual(page <= 2 ? [expected[page - 1]] : []);
+      if (page <= 2 && selected.length < 2) selected.push(...ids);
+    }
+    expect(new Set(selected).size).toBe(2);
+  });
+  it.each(['', 'bad', 'null', ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222']])('RF-12: categoryId inválido %j devuelve 400', async categoryId => {
+    const auth = await cookie(await fixture());
+    await request(app.getHttpServer()).get('/api/v1/organizations').set('Cookie', auth).query({ categoryId }).expect(400);
+  });
+  it.each(Object.values(UserRole))('RF-12: %s utiliza el filtro con directory.read', async role => {
+    const actor = await fixture(role); const cat = await category(actor.id); const row = await directory.createOrganization({ name: 'RF12 Permisos', categoryIds: [cat.id] }, actor.id);
+    organizationIds.push(row.id); const auth = await cookie(actor);
+    await request(app.getHttpServer()).get('/api/v1/organizations').set('Cookie', auth).query({ categoryId: cat.id }).expect(200)
+      .expect(({ body }: { body: { items: { id: string }[]; total: number } }) => expect(body).toMatchObject({ items: [{ id: row.id }], total: 1 }));
+  });
+  it('RF-12: sin sesión o capability rechaza antes de consultar organizaciones', async () => {
+    const list = jest.spyOn(directory, 'listOrganizations');
+    await request(app.getHttpServer()).get('/api/v1/organizations').query({ categoryId: randomUUID() }).expect(401);
+    const actor = await fixture();
+    jest.spyOn(app.get(SessionsService), 'findIdentity').mockResolvedValue({ ...actor, role: 'UNKNOWN' as UserRole });
+    await request(app.getHttpServer()).get('/api/v1/organizations').query({ categoryId: randomUUID() }).set('Cookie', 'cecasem_session=fixture').expect(403);
+    expect(list).not.toHaveBeenCalled();
+  });
   const routes = [
     ['get', 'organizations'], ['get', 'organizations/ID'], ['get', 'organizations/ID/children'], ['get', 'organizations/ID/history'],
     ['post', 'organizations'], ['put', 'organizations/ID'], ['patch', 'organizations/ID/status'],

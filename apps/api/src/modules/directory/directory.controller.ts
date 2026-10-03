@@ -5,14 +5,14 @@ import { PERMISSIONS } from '../auth/authorization/permission';
 import type { AuthenticatedRequest } from '../auth/session.guard';
 import { DirectoryService } from './directory.service';
 import { DirectoryErrorFilter } from './directory-error.filter';
-import { CategoryInputDto, CategoryEditDto, DirectoryQueryDto, DirectoryStatusDto, OrganizationInputDto, OrganizationEditDto, PageQueryDto } from './directory.dto';
+import { CategoryInputDto, CategoryEditDto, DirectoryQueryDto, DirectoryStatusDto, OrganizationInputDto, OrganizationEditDto, OrganizationQueryDto, PageQueryDto } from './directory.dto';
 
 @ApiTags('organizations') @ApiCookieAuth('cecasem_session') @UseFilters(DirectoryErrorFilter) @Controller('organizations')
 export class OrganizationsController {
   constructor(private readonly directory: DirectoryService) {}
   @Get() @Header('Cache-Control', 'no-store') @RequirePermissions(PERMISSIONS.DIRECTORY_READ)
   @ApiOperation({ summary: 'Listar organizaciones paginadas' })
-  list(@Query() query: DirectoryQueryDto) { return this.directory.listOrganizations(query); }
+  list(@Query() query: OrganizationQueryDto) { return this.directory.listOrganizations(query); }
   @Get(':id') @Header('Cache-Control', 'no-store') @RequirePermissions(PERMISSIONS.DIRECTORY_READ)
   detail(@Param('id', new ParseUUIDPipe()) id: string) { return this.directory.getOrganization(id); }
   @Post() @RequirePermissions(PERMISSIONS.DIRECTORY_WRITE)

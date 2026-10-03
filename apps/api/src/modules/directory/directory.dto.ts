@@ -34,3 +34,7 @@ export class DirectoryQueryDto extends PageQueryDto {
   @ApiPropertyOptional() @Transform(trim) @ValidateIf((_o, v) => v !== undefined) @IsString() @MaxLength(250) name?: string;
   @ApiPropertyOptional({ format: 'uuid' }) @ValidateIf((_o, v) => v !== undefined) @IsUUID() parentId?: string;
 }
+export class OrganizationQueryDto extends DirectoryQueryDto {
+  @ApiPropertyOptional({ format: 'uuid', description: 'Una categoría asociada; sin coincidencias devuelve una lista vacía.' })
+  @ValidateIf((_o, v) => v !== undefined) @IsUUID() categoryId?: string;
+}

@@ -9,7 +9,7 @@ import { PERMISSIONS, type Permission } from '../auth/authorization/permission';
 import { DirectoryHistoryService, type FieldChange, type DirectoryTarget } from './directory-history.service';
 import { DirectoryError } from './directory.errors';
 import { assertAcyclic, assertVersion, categoryName, institutionalText, website } from './directory.rules';
-import type { CategoryInputDto, CategoryEditDto, DirectoryQueryDto, DirectoryStatusDto, OrganizationInputDto, OrganizationEditDto, PageQueryDto } from './directory.dto';
+import type { CategoryInputDto, CategoryEditDto, DirectoryQueryDto, DirectoryStatusDto, OrganizationInputDto, OrganizationEditDto, OrganizationQueryDto, PageQueryDto } from './directory.dto';
 
 const categorySelect = { id: true, name: true, isActive: true, version: true, createdAt: true, updatedAt: true } satisfies Prisma.CategorySelect;
 const organizationSelect = {
@@ -44,9 +44,10 @@ export class DirectoryService {
   }
   async getOrganization(id: string) { return organizationContract(await this.organization(id)); }
 
-  async listOrganizations(query: DirectoryQueryDto) {
+  async listOrganizations(query: OrganizationQueryDto) {
     const where: Prisma.OrganizationWhereInput = { ...(query.status === 'all' ? {} : { isActive: query.status === 'active' }),
-      ...(query.parentId ? { parentId: query.parentId } : {}), ...(query.name ? { name: { contains: query.name, mode: 'insensitive' } } : {}) };
+      ...(query.parentId ? { parentId: query.parentId } : {}), ...(query.name ? { name: { contains: query.name, mode: 'insensitive' } } : {}),
+      ...(query.categoryId ? { categories: { some: { categoryId: query.categoryId } } } : {}) };
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.organization.findMany({ where, select: organizationSelect, orderBy: [{ name: 'asc' }, { id: 'asc' }], ...paging(query) }),
       this.prisma.organization.count({ where }),

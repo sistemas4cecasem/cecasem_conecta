@@ -1,6 +1,6 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { OrganizationInputDto, OrganizationEditDto, DirectoryQueryDto } from './directory.dto';
+import { OrganizationInputDto, OrganizationEditDto, DirectoryQueryDto, OrganizationQueryDto } from './directory.dto';
 import { assertAcyclic, assertVersion, categoryName, institutionalText, website } from './directory.rules';
 
 describe('Reglas del directorio', () => {
@@ -42,5 +42,15 @@ describe('Reglas del directorio', () => {
     expect(await validate(plainToInstance(OrganizationEditDto, { name: 'Nombre' }))).not.toHaveLength(0);
     expect(await validate(plainToInstance(DirectoryQueryDto, { pageSize: 101 }))).not.toHaveLength(0);
     expect(await validate(plainToInstance(DirectoryQueryDto, { page: '2', pageSize: '25' }))).toHaveLength(0);
+  });
+  it('permite categoría UUID opcional junto con estado y paginación, sin extender el catálogo', async () => {
+    const options = { whitelist: true, forbidNonWhitelisted: true };
+    expect(await validate(plainToInstance(OrganizationQueryDto, {}), options)).toHaveLength(0);
+    const input = { categoryId: '11111111-1111-4111-8111-111111111111', status: 'inactive', page: '2', pageSize: '1' };
+    expect(await validate(plainToInstance(OrganizationQueryDto, input), options)).toHaveLength(0);
+    expect(await validate(plainToInstance(DirectoryQueryDto, input), options)).not.toHaveLength(0);
+  });
+  it.each(['', 'no-es-uuid', 'null', null, ['11111111-1111-4111-8111-111111111111']])('rechaza categoryId inválido %j', async categoryId => {
+    expect(await validate(plainToInstance(OrganizationQueryDto, { categoryId }), { whitelist: true, forbidNonWhitelisted: true })).not.toHaveLength(0);
   });
 });
