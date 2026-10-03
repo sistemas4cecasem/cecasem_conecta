@@ -1,6 +1,9 @@
 import { z } from 'zod';
+export const consolidationOriginSchema = z.object({ source: z.object({ id:z.string(),path:z.string(),label:z.string() }),
+  outcome:z.enum(['CREATED','REUSED','KEPT_PRINCIPAL']),sourceVersion:z.number(),targetVersion:z.number(),resolvedAt:z.string().nullable(),
+  resolvedBy:z.object({id:z.string(),givenNames:z.string(),familyNames:z.string(),isActive:z.boolean()}).nullable() });
 export const categorySchema = z.object({ id: z.string(), name: z.string(), isActive: z.boolean(), version: z.number().int().positive(), createdAt: z.string(), updatedAt: z.string() });
-export const organizationSchema = z.object({ id: z.string(), name: z.string(), country: z.string().nullable(), alias: z.string().nullable(),
+export const organizationSchema = z.object({ duplicateOfId:z.string().nullable().optional(),duplicateOf:z.object({id:z.string(),name:z.string()}).nullable().optional(),consolidatedRecords:z.array(z.object({id:z.string(),name:z.string()})).optional(), id: z.string(), name: z.string(), country: z.string().nullable(), alias: z.string().nullable(),
   description: z.string().nullable(), officialWebsite: z.string().nullable(), isActive: z.boolean(), version: z.number().int().positive(),
   parentId: z.string().nullable(), parent: z.object({ id: z.string(), name: z.string(), isActive: z.boolean() }).nullable(),
   categories: z.array(categorySchema), createdAt: z.string(), updatedAt: z.string(), lastVerifiedAt: z.string().nullable() });
@@ -29,12 +32,12 @@ export const organizationFormSchema = z.object({
 export type OrganizationFormValues = z.infer<typeof organizationFormSchema>;
 export const categoryFormSchema = z.object({ name: text(150).pipe(z.string().min(1, 'El nombre es obligatorio.')) });
 
-export const personSchema = z.object({ id:z.string(),displayName:z.string(),givenNames:z.string().nullable(),familyNames:z.string().nullable(),
+export const personSchema = z.object({ duplicateOfId:z.string().nullable().optional(),duplicateOf:z.object({id:z.string(),displayName:z.string()}).nullable().optional(),consolidatedRecords:z.array(z.object({id:z.string(),displayName:z.string()})).optional(), id:z.string(),displayName:z.string(),givenNames:z.string().nullable(),familyNames:z.string().nullable(),
   isActive:z.boolean(),version:z.number().int().positive(),createdAt:z.string(),updatedAt:z.string(),lastVerifiedAt:z.string().nullable(),currentRelationsCount:z.number().int().nonnegative() });
-export const relationSchema = z.object({ id:z.string(),personId:z.string(),organizationId:z.string(),positionTitle:z.string().nullable(),area:z.string().nullable(),
+export const relationSchema = z.object({ consolidationOrigins:z.array(consolidationOriginSchema).optional(),id:z.string(),personId:z.string(),organizationId:z.string(),positionTitle:z.string().nullable(),area:z.string().nullable(),
   isCurrent:z.boolean(),startDate:z.string().nullable(),endDate:z.string().nullable(),sourceDescription:z.string().nullable(),sourceUrl:z.string().nullable(),notes:z.string().nullable(),
-  version:z.number().int().positive(),createdAt:z.string(),updatedAt:z.string(),person:z.object({id:z.string(),displayName:z.string(),isActive:z.boolean()}),
-  organization:z.object({id:z.string(),name:z.string(),isActive:z.boolean()}) });
+  version:z.number().int().positive(),createdAt:z.string(),updatedAt:z.string(),person:z.object({id:z.string(),displayName:z.string(),isActive:z.boolean(),duplicateOfId:z.string().nullable().optional()}),
+  organization:z.object({id:z.string(),name:z.string(),isActive:z.boolean(),duplicateOfId:z.string().nullable().optional()}) });
 export type Person = z.infer<typeof personSchema>;
 export type PersonRelation = z.infer<typeof relationSchema>;
 export const personFormSchema = z.object({ displayName:text(250).pipe(z.string().min(1,'El nombre de presentación es obligatorio.')),givenNames:text(150),familyNames:text(150) });

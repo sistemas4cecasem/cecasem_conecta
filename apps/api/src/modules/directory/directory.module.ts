@@ -1,3 +1,7 @@
+import { DuplicateDetectionService } from './duplicate-detection.service';
+import { ConsolidationService } from './consolidation.service';
+import { DuplicateCandidatesController, OrganizationDuplicatesController, PersonDuplicatesController } from './duplicates.controller';
+import { DirectoryActorPolicy } from './directory-actor.policy';
 import { SettingsModule } from '../settings/settings.module';
 import { VerificationClock, VerificationService } from './verification.service';
 import { OrganizationVerificationController, PersonVerificationController, RelationVerificationController, PersonContactVerificationController, OrganizationContactVerificationController } from './verification.controller';
@@ -14,7 +18,7 @@ import { PeopleController, PersonRelationsController, OrganizationPeopleControll
 import { ContactsService } from './contacts.service';
 import { ContactMethodsController, PersonContactsController, OrganizationContactsController, PersonContactsActionsController, OrganizationContactsActionsController } from './contacts.controller';
 @Module({ imports: [DatabaseModule, AuthModule, UsersModule, AuditModule, SettingsModule],
-  controllers: [OrganizationVerificationController, PersonVerificationController, RelationVerificationController, PersonContactVerificationController, OrganizationContactVerificationController, OrganizationsController, CategoriesController, PeopleController, PersonRelationsController, OrganizationPeopleController,
+  controllers: [DuplicateCandidatesController, OrganizationDuplicatesController, PersonDuplicatesController, OrganizationVerificationController, PersonVerificationController, RelationVerificationController, PersonContactVerificationController, OrganizationContactVerificationController, OrganizationsController, CategoriesController, PeopleController, PersonRelationsController, OrganizationPeopleController,
     ContactMethodsController, PersonContactsController, OrganizationContactsController, PersonContactsActionsController, OrganizationContactsActionsController],
-  providers: [VerificationClock, VerificationService, DirectoryService, DirectoryHistoryService, PeopleService, ContactsService] })
+  providers: [DuplicateDetectionService, ConsolidationService, DirectoryActorPolicy, VerificationClock, VerificationService, DirectoryService, DirectoryHistoryService, PeopleService, ContactsService] })
 export class DirectoryModule {}

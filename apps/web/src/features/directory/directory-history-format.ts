@@ -11,13 +11,14 @@ export function historyValueLabel(change: HistoryChange, side: 'previous' | 'new
   const refs = side === 'previous' ? change.previousReferences : change.newReferences;
   if (value === null || value === '') return 'Sin dato';
   if (refs.length) return refs.map(referenceLabel).join(', ');
-  if (Array.isArray(value)) return value.length ? 'Referencias conservadas (etiquetas históricas no registradas)' : 'Sin categorías';
+  if (Array.isArray(value)) return value.length ? 'Referencias conservadas (etiquetas históricas no registradas)' : change.field === 'categoryIds' ? 'Sin categorías' : 'Sin fichas consolidadas';
   if (typeof value === 'boolean') return change.field === 'isCurrent' ? (value ? 'Vigente' : 'Finalizado') : (value ? 'Activa' : 'Inactiva');
   if (change.field === 'condition') return value === 'USABLE' ? 'Disponible' : 'No utilizable (reportado)';
   if (['parentId', 'relationCreated', 'associationCreated'].includes(change.field)) return 'Referencia conservada (etiqueta histórica no registrada)';
   return value;
 }
 export function historyOperationLabel(operation: HistoryOperation): string {
+  if (operation.changes.some(change => ['duplicateOfOrganizationId', 'duplicateOfPersonId', 'consolidatedOrganizationIds', 'consolidatedPersonIds'].includes(change.field))) return 'Consolidación de fichas';
   if (operation.replacement) return 'Sustitución de contacto';
   if (operation.changes.some(change => change.field === 'relationCreated')) return 'Alta de vínculo institucional';
   if (operation.changes.some(change => change.field === 'associationCreated')) return 'Alta de asociación de contacto';

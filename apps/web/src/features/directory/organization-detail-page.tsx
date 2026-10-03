@@ -1,3 +1,4 @@
+import { DuplicatePanel } from './duplicate-panel';
 import { VerificationPanel } from './verification-panel';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
@@ -32,9 +33,12 @@ export function OrganizationDetailPage() {
     <Link className="inline-flex min-h-11 items-center underline" to="/organizations">Volver al directorio</Link>
     <h1 className="text-2xl font-semibold">{row.name}</h1>
     <p>Estado: {row.isActive ? 'Activa' : 'Inactiva'}</p>
+    {row.duplicateOf && <p role="status" className="rounded border border-amber-500 p-3">Este registro fue consolidado en: <Link className="underline" to={'/organizations/'+row.duplicateOf.id}>{row.duplicateOf.name}</Link>. Su historial permanece disponible.</p>}
+    {!!row.consolidatedRecords?.length && <p>Fichas consolidadas: {row.consolidatedRecords.map(item=><Link key={item.id} className="inline-flex min-h-11 items-center px-2 underline" to={'/organizations/'+item.id}>{item.name}</Link>)}</p>}
+    <DuplicatePanel key={'duplicates-'+id} identity={identity} actorPath={'organizations/'+id}/>
     <div className="flex flex-wrap gap-3">
-      {identity.permissions.includes('directory.write') && <button className={buttonClass} onClick={() => setEditing(row)}>Editar ficha</button>}
-      {identity.permissions.includes('directory.status.update') && <button disabled={mutation.isPending} className={buttonClass} onClick={() => void changeStatus()}>{row.isActive ? 'Desactivar organización' : 'Reactivar organización'}</button>}
+      {!row.duplicateOfId && identity.permissions.includes('directory.write') && <button className={buttonClass} onClick={() => setEditing(row)}>Editar ficha</button>}
+      {!row.duplicateOfId && identity.permissions.includes('directory.status.update') && <button disabled={mutation.isPending} className={buttonClass} onClick={() => void changeStatus()}>{row.isActive ? 'Desactivar organización' : 'Reactivar organización'}</button>}
     </div>
     <MutationError error={mutation.error} reload={async () => { await detail.refetch(); mutation.reset(); }} />
     <dl className="grid gap-3 sm:grid-cols-2">
@@ -50,9 +54,9 @@ export function OrganizationDetailPage() {
       <ul>{children.data?.items.map(child => <li key={child.id}><Link className="inline-flex min-h-11 items-center underline" to={'/organizations/' + child.id}>{child.name}</Link>{!child.isActive && ' (inactiva)'}</li>)}</ul>
       {children.data && <Pagination page={page} total={children.data.total} onPage={setPage} />}
     </section>
-    <VerificationPanel identity={identity} path={'organizations/'+id} label={'organización '+row.name}/>
-    <PersonRelations key={'people-'+id} identity={identity} organizationId={id}/>
-    <ContactSection key={'contacts-'+id} identity={identity} actorPath={'organizations/'+id}/>
+    <VerificationPanel identity={identity} readOnly={!!row.duplicateOfId} path={'organizations/'+id} label={'organización '+row.name}/>
+    <PersonRelations key={'people-'+id} identity={identity} organizationId={id} readOnly={!!row.duplicateOfId}/>
+    <ContactSection key={'contacts-'+id} identity={identity} actorPath={'organizations/'+id} readOnly={!!row.duplicateOfId}/>
     {identity.permissions.includes('directory.history.read') && <DirectoryHistory key={id} identity={identity} path={'organizations/' + id + '/history'} />}
   </section>;
 }

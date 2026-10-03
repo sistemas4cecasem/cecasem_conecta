@@ -60,7 +60,7 @@ Sesiones y permisos se comprueban en backend; los servicios de mutación tambié
 
 Las 13 migraciones anteriores no se editaron. Validación limpia 0→15 y upgrade 13→15 aprobados; 16 tablas preservadas campo por campo, incluidos sesiones, historial y snapshots históricos. Los defaults quedan disponibles sin intervención administrativa y no se inventan verificaciones previas.
 
-El validador `infra/development/validate-directory-migrations.cjs` requiere DATABASE_URL loopback terminada en `_test`, crea únicamente bases QA con nombres aleatorios y elimina solo esas bases/staging. Nunca resetea runtime. Sin selector valida 2.5. Selectores históricos aprobados:
+El validador `infra/development/validate-directory-migrations.cjs` requiere DATABASE_URL loopback terminada en `_test`, crea únicamente bases QA con nombres aleatorios y elimina solo esas bases/staging. Nunca resetea runtime. Para reproducir 2.5 después de incorporar migraciones posteriores, utilizar `--phase=2.5`. Selectores históricos aprobados:
 
 | Selector | Upgrade | Tablas preservadas |
 | --- | --- | --- |

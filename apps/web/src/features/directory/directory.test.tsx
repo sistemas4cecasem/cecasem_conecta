@@ -27,7 +27,8 @@ describe('Directorio operativo', () => {
     client = createQueryClient(); current = { ...identity }; row = { ...base }; listState = 'ok'; conflicting = false; total = 1; withCategories = true; loggedOut = false; showHistory = false;
     fetchMock.mockReset();
     fetchMock.mockImplementation((url, options) => {
-      const path = url.replace('/api/v1/', ''); const method = options?.method ?? 'GET';
+      const path = url.replace('/api/v1/', '');
+      if (url.includes('/duplicate-candidates?')) return Promise.resolve(Response.json({items:[],total:0,page:1,pageSize:25})); const method = options?.method ?? 'GET';
       if (path.endsWith('/verification')) return Promise.resolve(Response.json({objectType:'person',classification:'personal',intervalMonths:6,verificationStatus:'NEVER_VERIFIED',lastVerifiedAt:null,lastVerifiedBy:null,nextReviewAt:null,changedSinceVerification:false,timeReviewDue:false,version:1,contactValueVersion:null}));
       if (path === 'auth/me') return Promise.resolve(Response.json(loggedOut ? {} : current, { status: loggedOut ? 401 : 200 }));
       if (path === 'auth/logout') { loggedOut = true; return Promise.resolve(new Response(null, { status: 204 })); }

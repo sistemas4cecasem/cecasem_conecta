@@ -227,7 +227,7 @@ describe('Administración mínima PostgreSQL y HTTP', () => {
     expect(await users.findCredentialsById(target.id)).toEqual(before); expect(await prisma.auditEvent.count()).toBe(events);
     expect(await prisma.userEmailAccount.count({ where: { userId: target.id, removedAt: null } })).toBe(operation === 'remove' ? 1 : 0);
   });
-  it.each(Object.values(AuditAction).filter(action => !action.startsWith('ORGANIZATION_') && !action.startsWith('CATEGORY_') && !action.startsWith('PERSON_') && !action.startsWith('CONTACT_') && !action.startsWith('VERIFICATION_')))('CHECK acepta %s correcto y rechaza combinaciones imposibles', async action => {
+  it.each(Object.values(AuditAction).filter(action => !action.startsWith('ORGANIZATION_') && !action.startsWith('CATEGORY_') && !action.startsWith('PERSON_') && !action.startsWith('CONTACT_') && !action.startsWith('VERIFICATION_') && action !== AuditAction.DUPLICATE_CONSOLIDATED))('CHECK acepta %s correcto y rechaza combinaciones imposibles', async action => {
     const actor = await fixture(UserRole.ADMINISTRATOR); const target = await fixture(); const account = await mailbox();
     const token = await resets.issue(target.id, publicIdentity(actor));
     const reset = await prisma.passwordResetToken.findUniqueOrThrow({ where: { tokenHash: hashOpaqueToken(token.token)! } });

@@ -18,7 +18,7 @@ describe('Corrección global y asociación explícita',()=>{
       contactMethod:{findUnique:jest.fn().mockImplementation(()=>Promise.resolve(current)),findFirst:jest.fn().mockImplementation(()=>Promise.resolve(duplicate?{id:'other'}:null)),update:jest.fn().mockImplementation(({data}:{data:{value?:string;label?:string|null;version:{increment:number}}})=>{current={...current,...(data.value?{value:data.value}:{}),...(data.label!==undefined?{label:data.label}:{}),version:current.version+data.version.increment};return Promise.resolve(current);})},
       personContact:{findUnique:jest.fn().mockImplementation(()=>Promise.resolve(existing?row():null))},
     };
-    service=new ContactsService({...tx,$transaction:(work:(client:typeof tx)=>unknown)=>work(tx)} as unknown as PrismaService,
+    service=new ContactsService({lock:jest.fn(),writable:jest.fn()},{...tx,$transaction:(work:(client:typeof tx)=>unknown)=>work(tx)} as unknown as PrismaService,
       {findIdentityById:jest.fn().mockResolvedValue({isActive:true,role:UserRole.RESEARCH})} as unknown as UsersService,{record} as unknown as DirectoryHistoryService,
       {recordDirectory:jest.fn()} as unknown as AuditService,{} as DirectoryService);
   });

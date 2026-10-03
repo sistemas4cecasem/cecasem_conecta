@@ -16,6 +16,7 @@ enum UserRole {
 }
 
 enum AuditAction {
+  DUPLICATE_CONSOLIDATED
   VERIFICATION_SETTINGS_CHANGED
   PASSWORD_RESET_ISSUED
   PASSWORD_RESET_REGENERATED
@@ -57,6 +58,7 @@ enum ContactCondition {
 }
 
 model User {
+  resolvedDuplicateCandidates DuplicateCandidate[]
   id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   givenNames    String             @db.VarChar(150)
   familyNames   String             @db.VarChar(150)
@@ -98,6 +100,21 @@ model PasswordResetToken {
 }
 
 model AuditEvent {
+  duplicateCandidateId String? @db.Uuid
+  principalOrganizationId String? @db.Uuid
+  duplicateOrganizationId String? @db.Uuid
+  principalPersonId String? @db.Uuid
+  duplicatePersonId String? @db.Uuid
+  duplicateCandidate DuplicateCandidate? @relation(fields:[duplicateCandidateId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  principalOrganization Organization? @relation("AuditPrincipalOrganization",fields:[principalOrganizationId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  duplicateOrganization Organization? @relation("AuditDuplicateOrganization",fields:[duplicateOrganizationId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  principalPerson Person? @relation("AuditPrincipalPerson",fields:[principalPersonId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  duplicatePerson Person? @relation("AuditDuplicatePerson",fields:[duplicatePersonId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  @@index([duplicateCandidateId])
+  @@index([principalOrganizationId,createdAt])
+  @@index([duplicateOrganizationId,createdAt])
+  @@index([principalPersonId,createdAt])
+  @@index([duplicatePersonId,createdAt])
   previousPersonalVerificationMonths Int?
   newPersonalVerificationMonths Int?
   previousInstitutionalVerificationMonths Int?
@@ -145,6 +162,15 @@ model AuditEvent {
 }
 
 model Organization {
+  duplicateOfId String? @db.Uuid
+  duplicateOf Organization? @relation("OrganizationDuplicates",fields:[duplicateOfId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  consolidatedRecords Organization[] @relation("OrganizationDuplicates")
+  candidatesA DuplicateCandidate[] @relation("CandidateOrganizationA")
+  candidatesB DuplicateCandidate[] @relation("CandidateOrganizationB")
+  resolvedCandidates DuplicateCandidate[] @relation("CandidatePrincipalOrganization")
+  principalAuditEvents AuditEvent[] @relation("AuditPrincipalOrganization")
+  duplicateAuditEvents AuditEvent[] @relation("AuditDuplicateOrganization")
+  @@index([duplicateOfId])
   id              String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name            String @db.VarChar(250)
   country         String? @db.VarChar(150)
@@ -232,6 +258,15 @@ model DirectoryChange {
 }
 
 model Person {
+  duplicateOfId String? @db.Uuid
+  duplicateOf Person? @relation("PersonDuplicates",fields:[duplicateOfId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  consolidatedRecords Person[] @relation("PersonDuplicates")
+  candidatesA DuplicateCandidate[] @relation("CandidatePersonA")
+  candidatesB DuplicateCandidate[] @relation("CandidatePersonB")
+  resolvedCandidates DuplicateCandidate[] @relation("CandidatePrincipalPerson")
+  principalAuditEvents AuditEvent[] @relation("AuditPrincipalPerson")
+  duplicateAuditEvents AuditEvent[] @relation("AuditDuplicatePerson")
+  @@index([duplicateOfId])
   id             String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   displayName    String @db.VarChar(250)
   givenNames     String? @db.VarChar(150)
@@ -251,6 +286,8 @@ model Person {
 }
 
 model PersonOrganizationRelation {
+  reconciliationSources DuplicateReconciliation[] @relation("ReconciliationSourceRelation")
+  reconciliationTargets DuplicateReconciliation[] @relation("ReconciliationTargetRelation")
   id                String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   personId          String @db.Uuid
   organizationId    String @db.Uuid
@@ -297,6 +334,8 @@ model ContactMethod {
 }
 
 model PersonContact {
+  reconciliationSources DuplicateReconciliation[] @relation("ReconciliationSourcePersonContact")
+  reconciliationTargets DuplicateReconciliation[] @relation("ReconciliationTargetPersonContact")
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   personId String @db.Uuid
   contactMethodId String @db.Uuid
@@ -320,6 +359,8 @@ model PersonContact {
 }
 
 model OrganizationContact {
+  reconciliationSources DuplicateReconciliation[] @relation("ReconciliationSourceOrganizationContact")
+  reconciliationTargets DuplicateReconciliation[] @relation("ReconciliationTargetOrganizationContact")
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   organizationId String @db.Uuid
   contactMethodId String @db.Uuid
@@ -428,4 +469,80 @@ model Verification {
   @@index([personContactId,verifiedAt,id])
   @@index([organizationContactId,verifiedAt,id])
   @@index([actorUserId])
+}
+
+enum DuplicateState {
+  PENDING
+  NOT_DUPLICATE
+  CONSOLIDATED
+}
+
+enum ReconciliationOutcome {
+  CREATED
+  REUSED
+  KEPT_PRINCIPAL
+}
+
+model DuplicateCandidate {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationAId String? @db.Uuid
+  organizationBId String? @db.Uuid
+  personAId String? @db.Uuid
+  personBId String? @db.Uuid
+  identityA String @db.VarChar(64)
+  identityB String @db.VarChar(64)
+  examinedVersionA Int
+  examinedVersionB Int
+  score Float
+  signals String[]
+  state DuplicateState @default(PENDING)
+  version Int @default(1)
+  detectedAt DateTime @default(now()) @db.Timestamptz(3)
+  resolvedAt DateTime? @db.Timestamptz(3)
+  resolvedByUserId String? @db.Uuid
+  principalOrganizationId String? @db.Uuid
+  principalPersonId String? @db.Uuid
+  operationId String? @db.Uuid
+  organizationA Organization? @relation("CandidateOrganizationA",fields:[organizationAId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  organizationB Organization? @relation("CandidateOrganizationB",fields:[organizationBId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  personA Person? @relation("CandidatePersonA",fields:[personAId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  personB Person? @relation("CandidatePersonB",fields:[personBId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  principalOrganization Organization? @relation("CandidatePrincipalOrganization",fields:[principalOrganizationId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  principalPerson Person? @relation("CandidatePrincipalPerson",fields:[principalPersonId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  resolvedBy User? @relation(fields:[resolvedByUserId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  reconciliations DuplicateReconciliation[]
+  auditEvents AuditEvent[]
+  @@index([state,detectedAt,id])
+  @@index([organizationAId,detectedAt,id])
+  @@index([organizationBId,detectedAt,id])
+  @@index([personAId,detectedAt,id])
+  @@index([personBId,detectedAt,id])
+  @@index([resolvedByUserId])
+}
+
+model DuplicateReconciliation {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidateId String @db.Uuid
+  sourcePersonContactId String? @db.Uuid
+  targetPersonContactId String? @db.Uuid
+  sourceOrganizationContactId String? @db.Uuid
+  targetOrganizationContactId String? @db.Uuid
+  sourceRelationId String? @db.Uuid
+  targetRelationId String? @db.Uuid
+  sourceVersion Int
+  targetVersion Int
+  outcome ReconciliationOutcome
+  candidate DuplicateCandidate @relation(fields:[candidateId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  sourcePersonContact PersonContact? @relation("ReconciliationSourcePersonContact",fields:[sourcePersonContactId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  targetPersonContact PersonContact? @relation("ReconciliationTargetPersonContact",fields:[targetPersonContactId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  sourceOrganizationContact OrganizationContact? @relation("ReconciliationSourceOrganizationContact",fields:[sourceOrganizationContactId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  targetOrganizationContact OrganizationContact? @relation("ReconciliationTargetOrganizationContact",fields:[targetOrganizationContactId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  sourceRelation PersonOrganizationRelation? @relation("ReconciliationSourceRelation",fields:[sourceRelationId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  targetRelation PersonOrganizationRelation? @relation("ReconciliationTargetRelation",fields:[targetRelationId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  @@unique([candidateId,sourcePersonContactId])
+  @@unique([candidateId,sourceOrganizationContactId])
+  @@unique([candidateId,sourceRelationId])
+  @@index([targetPersonContactId])
+  @@index([targetOrganizationContactId])
+  @@index([targetRelationId])
 }

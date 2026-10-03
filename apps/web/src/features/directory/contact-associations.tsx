@@ -1,3 +1,4 @@
+import { ConsolidationProvenance } from './consolidation-provenance';
 import { VerificationPanel } from './verification-panel';
 import { useState } from 'react';
 import { Link } from 'react-router';
@@ -26,7 +27,7 @@ export function ContactReplacementForm({identity,row,target,done,cancel}:{identi
 }
 export function ContactAssociationCard({identity,row,readOnly=false,replacement}:{identity:AuthIdentity;row:ContactAssociation;readOnly?:boolean;replacement?:ContactMethod}) {
   const [editing,setEditing]=useState<ContactAssociation|null>(null),[ending,setEnding]=useState<ContactAssociation|null>(null),[confirmed,setConfirmed]=useState(false),[history,setHistory]=useState(false),[replacing,setReplacing]=useState(false),[reloadFailed,setReloadFailed]=useState(false);
-  const mutation=useDirectoryMutation(identity);const actorName='person' in row?row.person.displayName:row.organization.name;
+  const mutation=useDirectoryMutation(identity);readOnly=readOnly||!!('person' in row?row.person.duplicateOfId:row.organization.duplicateOfId);const actorName='person' in row?row.person.displayName:row.organization.name;
   return <li className="min-w-0 space-y-3 rounded border p-3 break-words"><Link className="inline-flex min-h-11 underline" to={'personId' in row?'/people/'+row.personId:'/organizations/'+row.organizationId}>{actorName}</Link>
     <p>{contactLabels[row.contactMethod.type]}: <Link className="underline" to={'/contact-methods/'+row.contactMethodId}>{row.contactMethod.value}</Link></p>
     <p>Asociación {row.isActive?'activa':'inactiva / antecedente'} · Medio: {conditionLabels[row.contactMethod.condition]}</p>
@@ -39,6 +40,7 @@ export function ContactAssociationCard({identity,row,readOnly=false,replacement}
         {replacement&&row.isActive&&<button className={buttonClass} onClick={()=>setReplacing(true)}>Usar el medio existente para {actorName}</button>}</>}
       {!row.isActive&&identity.permissions.includes('directory.status.update')&&<button className={buttonClass} disabled={mutation.isPending} onClick={()=>{void mutation.mutateAsync({path:associationPath(row)+'/status',method:'PATCH',body:{isActive:true,expectedVersion:row.version}}).catch(()=>undefined);}}>Reactivar asociación</button>}
       {identity.permissions.includes('directory.history.read')&&<button className={buttonClass} onClick={()=>setHistory(!history)}>{history?'Ocultar historial de asociación':'Ver historial de asociación'}</button>}</div>}
+    {readOnly&&identity.permissions.includes('directory.history.read')&&<button className={buttonClass} onClick={()=>setHistory(!history)}>{history?'Ocultar historial de asociación':'Ver historial de asociación'}</button>}
     {ending&&<form className="space-y-3" onSubmit={event=>{event.preventDefault();if(!confirmed)return;void mutation.mutateAsync({path:associationPath(row)+'/end',method:'PATCH',body:{expectedVersion:ending.version}}).then(()=>setEnding(null)).catch(()=>undefined);}}>
       <p>Finalizar esta asociación conserva el medio y los antecedentes; no cambia las asociaciones de otros actores.</p>
       <label className="flex min-h-11 items-center gap-2"><input type="checkbox" checked={confirmed} onChange={event=>setConfirmed(event.target.checked)}/>Confirmo finalizar esta asociación</label>
@@ -46,6 +48,7 @@ export function ContactAssociationCard({identity,row,readOnly=false,replacement}
     <MutationError error={mutation.error} reload={async()=>{try{const fresh=contactAssociationSchema.parse(await apiRequest(associationPath(row)));if(ending){setEnding(fresh);setConfirmed(false);}mutation.reset();setReloadFailed(false);}catch{setReloadFailed(true);}}}/>
     {reloadFailed&&<p role="alert">No se pudo recargar la asociación. Los datos se conservan.</p>}
     {replacing&&replacement&&<ContactReplacementForm identity={identity} row={row} target={replacement} done={()=>setReplacing(false)} cancel={()=>setReplacing(false)}/>}
+    <ConsolidationProvenance origins={row.consolidationOrigins}/>
     <VerificationPanel identity={identity} path={associationPath(row)} label={'contacto de '+('person' in row?row.person.displayName:row.organization.name)+': '+row.contactMethod.value} contact readOnly={readOnly}/>
     {history&&<DirectoryHistory identity={identity} path={associationPath(row)+'/history'}/>}</li>;
 }

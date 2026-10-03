@@ -26,6 +26,7 @@ describe('Medios canónicos y asociaciones en interfaz',()=>{
     client=createQueryClient();actor={...identity};methods=[{...base},{...base,id:otherId,value:'otro@fundacion.org'}];associations=[];listMode='ok';lookupMode='ok';conflicting=false;race=false;loggedOut=false;releaseObsolete=undefined;fetchMock.mockReset();
     fetchMock.mockImplementation((url,options)=>{
       const path=url.replace('/api/v1/',''),route=path.split('?')[0]!,query=new URLSearchParams(path.split('?')[1]),method=options?.method??'GET',body=options?.body?JSON.parse(String(options.body)) as Record<string,unknown>:{};
+      if (url.includes('/duplicate-candidates?')) return Promise.resolve(Response.json({items:[],total:0,page:1,pageSize:25}));
       if (route.endsWith('/verification')) return Promise.resolve(Response.json({objectType:'person',classification:'personal',intervalMonths:6,verificationStatus:'NEVER_VERIFIED',lastVerifiedAt:null,lastVerifiedBy:null,nextReviewAt:null,changedSinceVerification:false,timeReviewDue:false,version:1,contactValueVersion:null}));
       if(route==='auth/me')return Promise.resolve(Response.json(loggedOut?{}:actor,{status:loggedOut?401:200}));
       if(route==='auth/logout'){loggedOut=true;return Promise.resolve(new Response(null,{status:204}));}

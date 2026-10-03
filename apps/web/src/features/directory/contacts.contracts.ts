@@ -1,15 +1,15 @@
 import { z } from 'zod';
-import { organizationFormSchema } from './contracts';
+import { consolidationOriginSchema, organizationFormSchema } from './contracts';
 export const contactTypes = ['EMAIL','PHONE','LINKEDIN','FORM','WEB','OTHER'] as const;
 export const contactLabels: Record<typeof contactTypes[number],string> = {EMAIL:'Correo',PHONE:'Teléfono',LINKEDIN:'LinkedIn',FORM:'Formulario',WEB:'Web',OTHER:'Otro'};
 export const conditionLabels = {USABLE:'Disponible',UNUSABLE:'No utilizable (reportado)'};
 export const contactMethodSchema = z.object({id:z.string(),type:z.enum(contactTypes),value:z.string(),label:z.string().nullable(),condition:z.enum(['USABLE','UNUSABLE']),
   version:z.number().int().positive(),createdAt:z.string(),updatedAt:z.string(),associationCount:z.number().int().nonnegative()});
-const associationFields={id:z.string(),contactMethodId:z.string(),sourceDescription:z.string().nullable(),sourceUrl:z.string().nullable(),notes:z.string().nullable(),
+const associationFields={consolidationOrigins:z.array(consolidationOriginSchema).optional(),id:z.string(),contactMethodId:z.string(),sourceDescription:z.string().nullable(),sourceUrl:z.string().nullable(),notes:z.string().nullable(),
   isActive:z.boolean(),version:z.number().int().positive(),createdAt:z.string(),updatedAt:z.string(),lastVerifiedAt:z.string().nullable(),contactMethod:contactMethodSchema};
 export const contactAssociationSchema=z.union([
-  z.object({...associationFields,personId:z.string(),person:z.object({id:z.string(),displayName:z.string(),isActive:z.boolean()})}),
-  z.object({...associationFields,organizationId:z.string(),organization:z.object({id:z.string(),name:z.string(),isActive:z.boolean()})}),
+  z.object({...associationFields,personId:z.string(),person:z.object({id:z.string(),displayName:z.string(),isActive:z.boolean(),duplicateOfId:z.string().nullable().optional()})}),
+  z.object({...associationFields,organizationId:z.string(),organization:z.object({id:z.string(),name:z.string(),isActive:z.boolean(),duplicateOfId:z.string().nullable().optional()})}),
 ]);
 export type ContactMethod=z.infer<typeof contactMethodSchema>;
 export type ContactAssociation=z.infer<typeof contactAssociationSchema>;

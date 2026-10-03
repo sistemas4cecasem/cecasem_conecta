@@ -1,3 +1,4 @@
+import { DirectoryActorPolicy } from './directory-actor.policy';
 import { Injectable } from '@nestjs/common';
 import { AuditAction, Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../database/prisma.service';
@@ -13,7 +14,7 @@ import type { CategoryInputDto, CategoryEditDto, DirectoryQueryDto, DirectorySta
 const categorySelect = { id: true, name: true, isActive: true, version: true, createdAt: true, updatedAt: true } satisfies Prisma.CategorySelect;
 const organizationSelect = {
   id: true, name: true, country: true, alias: true, description: true, officialWebsite: true, isActive: true,
-  version: true, parentId: true, createdAt: true, updatedAt: true, lastVerifiedAt: true,
+  duplicateOfId: true, duplicateOf: { select: { id: true, name: true } }, consolidatedRecords: { select: { id: true, name: true } }, version: true, parentId: true, createdAt: true, updatedAt: true, lastVerifiedAt: true,
   parent: { select: { id: true, name: true, isActive: true } },
   categories: { select: { category: { select: categorySelect } }, orderBy: { categoryId: 'asc' } },
 } satisfies Prisma.OrganizationSelect;
@@ -28,12 +29,13 @@ function paging(query: PageQueryDto) { return { skip: (query.page - 1) * query.p
 
 @Injectable()
 export class DirectoryService {
-  constructor(private readonly prisma: PrismaService, private readonly users: UsersService,
+  constructor(private readonly actors: DirectoryActorPolicy, private readonly prisma: PrismaService, private readonly users: UsersService,
     private readonly history: DirectoryHistoryService, private readonly audit: AuditService) {}
 
   private async authorize(actorId: string, permission: Permission, tx: Prisma.TransactionClient): Promise<void> {
     const actor = await this.users.findIdentityById(actorId, tx);
     if (!actor?.isActive || !hasPermission(actor.role, permission)) throw new DirectoryError('FORBIDDEN');
+    await this.actors.lock(tx);
   }
   private async organization(id: string, tx: Prisma.TransactionClient = this.prisma): Promise<OrganizationRow> {
     const row = await tx.organization.findUnique({ where: { id }, select: organizationSelect });
@@ -65,6 +67,7 @@ export class DirectoryService {
     let next = parentId;
     while (next) {
       ancestors.push(next);
+      await this.actors.writable('organization', next, tx);
       assertAcyclic(id ?? '', ancestors);
       const parent = await tx.organization.findUnique({ where: { id: next }, select: { parentId: true } });
       if (!parent) throw new DirectoryError('ORGANIZATION_NOT_FOUND');
@@ -103,6 +106,7 @@ export class DirectoryService {
       await this.lockHierarchy(tx);
       await tx.$queryRaw`SELECT id FROM "Organization" WHERE id = ${id}::uuid FOR UPDATE`;
       const current = await this.organization(id, tx);
+      await this.actors.writable('organization', id, tx);
       assertVersion(current.version, input.expectedVersion);
       await this.validateParent(id, normalized.parentId, tx);
       const previousIds = current.categories.map(link => link.category.id).sort();
@@ -129,6 +133,7 @@ export class DirectoryService {
       await this.authorize(actorId, PERMISSIONS.DIRECTORY_STATUS_UPDATE, tx);
       await tx.$queryRaw`SELECT id FROM "Organization" WHERE id = ${id}::uuid FOR UPDATE`;
       const current = await this.organization(id, tx);
+      await this.actors.writable('organization', id, tx);
       assertVersion(current.version, input.expectedVersion);
       if (current.isActive === input.isActive) return organizationContract(current);
       await tx.organization.update({ where: { id }, data: { isActive: input.isActive, version: { increment: 1 } } });

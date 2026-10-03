@@ -1,3 +1,5 @@
+import { provenanceContract, relationOrigins } from './consolidation-provenance';
+import { DirectoryActorPolicy } from './directory-actor.policy';
 import { Injectable } from '@nestjs/common';
 import { AuditAction, Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../database/prisma.service';
@@ -14,25 +16,26 @@ import type { DirectoryStatusDto, PageQueryDto } from './directory.dto';
 import type { PeopleQueryDto, PersonEditDto, PersonInputDto, RelationCreateDto, RelationEditDto, RelationEndDto, RelationsQueryDto } from './people.dto';
 
 const personSelect = { id:true, displayName:true, givenNames:true, familyNames:true, isActive:true, version:true,
-  createdAt:true, updatedAt:true, lastVerifiedAt:true, _count:{select:{relations:{where:{isCurrent:true}}}} } satisfies Prisma.PersonSelect;
-const relationSelect = { id:true, personId:true, organizationId:true, positionTitle:true, area:true, isCurrent:true, startDate:true, endDate:true,
+  duplicateOfId:true, duplicateOf:{select:{id:true,displayName:true}},consolidatedRecords:{select:{id:true,displayName:true}}, createdAt:true, updatedAt:true, lastVerifiedAt:true, _count:{select:{relations:{where:{isCurrent:true}}}} } satisfies Prisma.PersonSelect;
+const relationSelect = { reconciliationTargets:relationOrigins,id:true, personId:true, organizationId:true, positionTitle:true, area:true, isCurrent:true, startDate:true, endDate:true,
   sourceDescription:true, sourceUrl:true, notes:true, version:true, createdAt:true, updatedAt:true, lastVerifiedAt:true,
-  person:{select:{id:true,displayName:true,isActive:true}}, organization:{select:{id:true,name:true,isActive:true}} } satisfies Prisma.PersonOrganizationRelationSelect;
+  person:{select:{id:true,displayName:true,isActive:true,duplicateOfId:true}}, organization:{select:{id:true,name:true,isActive:true,duplicateOfId:true}} } satisfies Prisma.PersonOrganizationRelationSelect;
 type PersonRow = Prisma.PersonGetPayload<{select:typeof personSelect}>;
 type RelationRow = Prisma.PersonOrganizationRelationGetPayload<{select:typeof relationSelect}>;
 function personContract(row:PersonRow) { const {_count,...fields}=row; return {...fields,currentRelationsCount:_count.relations}; }
 function dateValue(value:Date|null) { return value?.toISOString().slice(0,10) ?? null; }
-function relationContract(row:RelationRow) { return {...row,startDate:dateValue(row.startDate),endDate:dateValue(row.endDate)}; }
+function relationContract(row:RelationRow) { const {reconciliationTargets,...fields}=row;return {...fields,startDate:dateValue(row.startDate),endDate:dateValue(row.endDate),consolidationOrigins:provenanceContract(reconciliationTargets??[])}; }
 function paging(query:PageQueryDto) { return {skip:(query.page-1)*query.pageSize,take:query.pageSize}; }
 function historyValue(value:string|boolean|Date|null):HistoryValue { return value instanceof Date ? dateValue(value) : value; }
 
 @Injectable()
 export class PeopleService {
-  constructor(private readonly prisma:PrismaService, private readonly users:UsersService, private readonly history:DirectoryHistoryService,
+  constructor(private readonly actors: DirectoryActorPolicy, private readonly prisma:PrismaService, private readonly users:UsersService, private readonly history:DirectoryHistoryService,
     private readonly audit:AuditService, private readonly directory:DirectoryService) {}
   private async authorize(actorId:string, permission:Permission, tx:Prisma.TransactionClient) {
     const actor=await this.users.findIdentityById(actorId,tx);
     if(!actor?.isActive || !hasPermission(actor.role,permission)) throw new DirectoryError('FORBIDDEN');
+    await this.actors.lock(tx);
   }
   private async person(id:string,tx:Prisma.TransactionClient=this.prisma) {
     const row=await tx.person.findUnique({where:{id},select:personSelect});
@@ -60,6 +63,7 @@ export class PeopleService {
     return this.prisma.$transaction(async tx=>{
       await this.authorize(actorId,PERMISSIONS.DIRECTORY_WRITE,tx);
       await tx.$queryRaw`SELECT id FROM "Person" WHERE id=${id}::uuid FOR UPDATE`;
+      await this.actors.writable('person',id,tx);
       const current=await this.person(id,tx); assertVersion(current.version,input.expectedVersion);
       const changes:FieldChange[]=[];
       for(const field of ['displayName','givenNames','familyNames'] as const) if(current[field]!==fields[field]) changes.push({field,previousValue:current[field],newValue:fields[field]});
@@ -74,6 +78,7 @@ export class PeopleService {
     return this.prisma.$transaction(async tx=>{
       await this.authorize(actorId,PERMISSIONS.DIRECTORY_STATUS_UPDATE,tx);
       await tx.$queryRaw`SELECT id FROM "Person" WHERE id=${id}::uuid FOR UPDATE`;
+      await this.actors.writable('person',id,tx);
       const current=await this.person(id,tx); assertVersion(current.version,input.expectedVersion);
       if(current.isActive===input.isActive) return personContract(current);
       await tx.person.update({where:{id},data:{isActive:input.isActive,version:{increment:1}}});
@@ -96,7 +101,7 @@ export class PeopleService {
   async createRelation(personId:string,input:RelationCreateDto,actorId:string) {
     const fields=relationFields(input);
     return this.prisma.$transaction(async tx=>{
-      await this.authorize(actorId,PERMISSIONS.DIRECTORY_WRITE,tx);await this.person(personId,tx);
+      await this.authorize(actorId,PERMISSIONS.DIRECTORY_WRITE,tx);await this.actors.writable('person',personId,tx);await this.actors.writable('organization',input.organizationId,tx);
       if(!await tx.organization.findUnique({where:{id:input.organizationId},select:{id:true}})) throw new DirectoryError('ORGANIZATION_NOT_FOUND');
       const row=await tx.personOrganizationRelation.create({data:{...fields,personId,organizationId:input.organizationId},select:relationSelect});
       const changes:FieldChange[]=[{field:'relationCreated',previousValue:null,newValue:input.organizationId}];
@@ -125,7 +130,8 @@ export class PeopleService {
     return this.prisma.$transaction(async tx=>{
       await this.authorize(actorId,PERMISSIONS.DIRECTORY_WRITE,tx);
       await this.lockRelation(id,tx);
-      const current=await this.relation(id,tx);assertVersion(current.version,expectedVersion);
+      const current=await this.relation(id,tx);
+      await this.actors.writable('person',current.personId,tx);await this.actors.writable('organization',current.organizationId,tx);assertVersion(current.version,expectedVersion);
       const fields=resolve(current); const changes:FieldChange[]=[];
       for(const field of ['positionTitle','area','isCurrent','startDate','endDate','sourceDescription','sourceUrl','notes'] as const) {
         const next=fields[field];if(next===undefined) continue;

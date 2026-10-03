@@ -1,3 +1,5 @@
+import { organizationContactOrigins, personContactOrigins, provenanceContract } from './consolidation-provenance';
+import { DirectoryActorPolicy } from './directory-actor.policy';
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { AuditAction, ContactCondition, ContactType, Prisma } from '../../generated/prisma/client';
@@ -20,14 +22,14 @@ const methodSelect = { id:true,type:true,value:true,label:true,condition:true,ve
   _count:{select:{people:true,organizations:true}} } satisfies Prisma.ContactMethodSelect;
 const associationFields = {id:true,contactMethodId:true,sourceDescription:true,sourceUrl:true,notes:true,isActive:true,version:true,createdAt:true,updatedAt:true,lastVerifiedAt:true,
   contactMethod:{select:methodSelect}};
-const personSelect = {...associationFields,personId:true,person:{select:{id:true,displayName:true,isActive:true}}} satisfies Prisma.PersonContactSelect;
-const organizationSelect = {...associationFields,organizationId:true,organization:{select:{id:true,name:true,isActive:true}}} satisfies Prisma.OrganizationContactSelect;
+const personSelect = {...associationFields,reconciliationTargets:personContactOrigins,personId:true,person:{select:{id:true,displayName:true,isActive:true,duplicateOfId:true}}} satisfies Prisma.PersonContactSelect;
+const organizationSelect = {...associationFields,reconciliationTargets:organizationContactOrigins,organizationId:true,organization:{select:{id:true,name:true,isActive:true,duplicateOfId:true}}} satisfies Prisma.OrganizationContactSelect;
 type MethodRow = Prisma.ContactMethodGetPayload<{select:typeof methodSelect}>;
 type PersonRow = Prisma.PersonContactGetPayload<{select:typeof personSelect}>;
 type OrganizationRow = Prisma.OrganizationContactGetPayload<{select:typeof organizationSelect}>;
 type AssociationRow = PersonRow | OrganizationRow;
 function methodContract(row:MethodRow) {const {_count,...fields}=row;return {...fields,associationCount:_count.people+_count.organizations};}
-function associationContract(row:AssociationRow) {return {...row,contactMethod:methodContract(row.contactMethod)};}
+function associationContract(row:AssociationRow) {const {reconciliationTargets,...fields}=row;return {...fields,contactMethod:methodContract(row.contactMethod),consolidationOrigins:provenanceContract(reconciliationTargets??[])};}
 function paging(query:PageQueryDto) {return {skip:(query.page-1)*query.pageSize,take:query.pageSize};}
 function targetOf(kind:AssociationKind,id:string):DirectoryTarget {return kind==='person'?{personContactId:id}:{organizationContactId:id};}
 function actorOf(row:AssociationRow):ContactActor {return 'personId' in row?{personId:row.personId}:{organizationId:row.organizationId};}
@@ -35,11 +37,12 @@ function kindOf(actor:ContactActor):AssociationKind {return 'personId' in actor?
 
 @Injectable()
 export class ContactsService {
-  constructor(private readonly prisma:PrismaService,private readonly users:UsersService,private readonly history:DirectoryHistoryService,
+  constructor(private readonly actors: DirectoryActorPolicy, private readonly prisma:PrismaService,private readonly users:UsersService,private readonly history:DirectoryHistoryService,
     private readonly audit:AuditService,private readonly directory:DirectoryService) {}
   private async authorize(actorId:string,permission:Permission,tx:Prisma.TransactionClient) {
     const actor=await this.users.findIdentityById(actorId,tx);
     if(!actor?.isActive || !hasPermission(actor.role,permission)) throw new DirectoryError('FORBIDDEN');
+    await this.actors.lock(tx);
   }
   private async method(id:string,tx:Prisma.TransactionClient=this.prisma) {
     const row=await tx.contactMethod.findUnique({where:{id},select:methodSelect});
@@ -79,7 +82,7 @@ export class ContactsService {
   async createAndAssociate(actor:ContactActor,input:ContactCreateAssociationDto,actorId:string) {
     const fields=contactFields(input),context=contactContext(input);
     return this.prisma.$transaction(async tx=>{
-      await this.authorize(actorId,PERMISSIONS.DIRECTORY_WRITE,tx);await this.actorExists(actor,tx);
+      await this.authorize(actorId,PERMISSIONS.DIRECTORY_WRITE,tx);await this.actorExists(actor,tx);await this.actors.writable(kindOf(actor),'personId' in actor?actor.personId:actor.organizationId,tx);
       const method=await this.insertMethod(fields,tx);
       return this.associateInTransaction(actor,method.id,context,actorId,tx);
     });
@@ -87,11 +90,12 @@ export class ContactsService {
   async associate(actor:ContactActor,methodId:string,input:ContactContextDto & {expectedMethodVersion:number},actorId:string) {
     const context=contactContext(input);
     return this.prisma.$transaction(async tx=>{
-      await this.authorize(actorId,PERMISSIONS.DIRECTORY_WRITE,tx);await this.actorExists(actor,tx);
+      await this.authorize(actorId,PERMISSIONS.DIRECTORY_WRITE,tx);await this.actorExists(actor,tx);await this.actors.writable(kindOf(actor),'personId' in actor?actor.personId:actor.organizationId,tx);
       return this.associateInTransaction(actor,methodId,context,actorId,tx,input.expectedMethodVersion);
     });
   }
   private async associateInTransaction(actor:ContactActor,methodId:string,context:ReturnType<typeof contactContext>,actorId:string,tx:Prisma.TransactionClient,expectedMethodVersion?:number,historyOptions?:HistoryRecordOptions) {
+    await this.actors.writable(kindOf(actor),'personId' in actor?actor.personId:actor.organizationId,tx);
     await this.lockMethod(methodId,tx);const method=await this.method(methodId,tx);
     const existing='personId' in actor?await tx.personContact.findUnique({where:{personId_contactMethodId:{personId:actor.personId,contactMethodId:methodId}},select:personSelect}):
       await tx.organizationContact.findUnique({where:{organizationId_contactMethodId:{organizationId:actor.organizationId,contactMethodId:methodId}},select:organizationSelect});
@@ -163,7 +167,9 @@ export class ContactsService {
     return {items:rows.map(associationContract),total,page:query.page,pageSize:query.pageSize};
   }
   private async lockedAssociation(kind:AssociationKind,id:string,tx:Prisma.TransactionClient) {
-    const initial=await this.association(kind,id,tx);await this.lockMethod(initial.contactMethodId,tx);
+    const initial=await this.association(kind,id,tx);
+    const owner=actorOf(initial);await this.actors.writable(kind,'personId' in owner?owner.personId:owner.organizationId,tx);
+    await this.lockMethod(initial.contactMethodId,tx);
     // Todas las escrituras usan el mismo orden: medio → asociación.
     if(kind==='person')await tx.$queryRaw`SELECT id FROM "PersonContact" WHERE id=${id}::uuid FOR UPDATE`;
     else await tx.$queryRaw`SELECT id FROM "OrganizationContact" WHERE id=${id}::uuid FOR UPDATE`;

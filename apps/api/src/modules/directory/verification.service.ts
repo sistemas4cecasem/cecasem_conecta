@@ -1,3 +1,4 @@
+import { DirectoryActorPolicy } from './directory-actor.policy';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../database/prisma.service';
@@ -18,7 +19,7 @@ interface VerificationContext { id: string; version: number; contactValueVersion
 export class VerificationClock { now(): Date { return new Date(); } }
 @Injectable()
 export class VerificationService {
-  constructor(private readonly prisma: PrismaService, private readonly users: UsersService,
+  constructor(private readonly actors: DirectoryActorPolicy, private readonly prisma: PrismaService, private readonly users: UsersService,
     private readonly settings: VerificationSettingsService, private readonly clock: VerificationClock) {}
   private async context(kind: VerificationKind, id: string, tx: Prisma.TransactionClient): Promise<VerificationContext> {
     const table = Prisma.raw('"' + verificationTargets[kind].table + '"');
@@ -30,6 +31,22 @@ export class VerificationService {
     if (!rows[0]) throw new DirectoryError(kind === 'organization' ? 'ORGANIZATION_NOT_FOUND' : kind === 'person' ? 'PERSON_NOT_FOUND'
       : kind === 'relation' ? 'PERSON_RELATION_NOT_FOUND' : 'CONTACT_ASSOCIATION_NOT_FOUND');
     return rows[0];
+  }
+  private async writable(kind: VerificationKind,id: string,tx: Prisma.TransactionClient) {
+    if (kind === 'person' || kind === 'organization') return this.actors.writable(kind,id,tx);
+    if (kind === 'relation') {
+      const row = await tx.personOrganizationRelation.findUnique({where:{id}});
+      if (!row) throw new DirectoryError('PERSON_RELATION_NOT_FOUND');
+      await this.actors.writable('person',row.personId,tx); await this.actors.writable('organization',row.organizationId,tx);
+    } else if (kind === 'personContact') {
+      const row = await tx.personContact.findUnique({where:{id}});
+      if (!row) throw new DirectoryError('CONTACT_ASSOCIATION_NOT_FOUND');
+      await this.actors.writable('person',row.personId,tx);
+    } else {
+      const row = await tx.organizationContact.findUnique({where:{id}});
+      if (!row) throw new DirectoryError('CONTACT_ASSOCIATION_NOT_FOUND');
+      await this.actors.writable('organization',row.organizationId,tx);
+    }
   }
   private async condition(kind: VerificationKind, current: VerificationContext, tx: Prisma.TransactionClient) {
     const settings = await this.settings.get(tx);
@@ -49,6 +66,8 @@ export class VerificationService {
     return this.prisma.$transaction(async tx => {
       const actor = await this.users.findIdentityById(actorId, tx);
       if (!actor?.isActive || !hasPermission(actor.role, PERMISSIONS.DIRECTORY_VERIFY)) throw new DirectoryError('FORBIDDEN');
+      await this.actors.lock(tx);
+      await this.writable(kind,id,tx);
       const initial = await this.context(kind, id, tx);
       // Mismo orden que las mutaciones de contactos: canal, luego asociación.
       if (initial.contactMethodId) await tx.$queryRaw`SELECT id FROM "ContactMethod" WHERE id=${initial.contactMethodId}::uuid FOR SHARE`;

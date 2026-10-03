@@ -2,6 +2,15 @@ import { describe, expect, it, vi } from 'vitest';
 import { apiRequest } from './client';
 
 describe('Cliente API', () => {
+  it('conserva el principal público de un conflicto de consolidación', async () => {
+    const principalId='11111111-1111-4111-8111-111111111111',principalPath='organizations/'+principalId;
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json({code:'ACTOR_ALREADY_CONSOLIDATED',details:{principalId,principalPath},stack:'secreto'},{status:409})));
+    await expect(apiRequest('people/fixture')).rejects.toMatchObject({code:'ACTOR_ALREADY_CONSOLIDATED',details:{principalId,principalPath},message:expect.not.stringContaining('secreto')});
+  });
+  it.each(['https://evil.example.test','//evil.example.test','organizations/otro'])('no utiliza una redirección arbitraria %s del error HTTP', async principalPath => {
+    vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json({code:'ACTOR_ALREADY_CONSOLIDATED',details:{principalId:'11111111-1111-4111-8111-111111111111',principalPath}},{status:409})));
+    await expect(apiRequest('duplicate-candidates/fixture/consolidate')).rejects.toMatchObject({code:'ACTOR_ALREADY_CONSOLIDATED',details:undefined});
+  });
   it('usa /api/v1 y prepara cookies sin perder opciones del consumidor', async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ status: 'ok' }));
     vi.stubGlobal('fetch', fetchMock);

@@ -23,7 +23,7 @@ export function ContactCreateForm({identity,actorPath,saved,cancel}:{identity:Au
     const {sourceDescription,sourceUrl,notes}=input;
     try {contactAssociationResultSchema.parse(await mutation.mutateAsync({path:actorPath+'/contacts'+(reuseId?'/existing':''),method:'POST',
       body:reuseId?{contactMethodId:reuseId,expectedMethodVersion:existing?.version,sourceDescription,sourceUrl,notes}:input}));saved();}
-    catch(error){if(error instanceof ApiError&&error.code==='CONTACT_EMAIL_EXISTS'&&error.details)setConflictSelection({id:error.details.contactMethodId,value:input.value,type:input.type});}
+    catch(error){if(error instanceof ApiError&&error.code==='CONTACT_EMAIL_EXISTS'&&error.details?.contactMethodId)setConflictSelection({id:error.details.contactMethodId,value:input.value,type:input.type});}
   }
   return <form onSubmit={form.handleSubmit(input=>submit(input))} className="space-y-4">
     <Field label="Tipo de medio" error={form.formState.errors.type?.message}><select className={inputClass} {...form.register('type')}>{contactTypes.map(kind=><option key={kind} value={kind}>{contactLabels[kind]}</option>)}</select></Field>

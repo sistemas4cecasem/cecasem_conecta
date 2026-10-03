@@ -24,7 +24,7 @@ describe('Episodios institucionales en aplicación',()=>{
       },
     };
     const prisma={...tx,$transaction:(work:(value:typeof tx)=>unknown)=>work(tx)} as unknown as PrismaService;
-    service=new PeopleService(prisma,{findIdentityById:jest.fn().mockResolvedValue({isActive:true,role:UserRole.RESEARCH})} as unknown as UsersService,
+    service=new PeopleService({lock:jest.fn(),writable:jest.fn()},prisma,{findIdentityById:jest.fn().mockResolvedValue({isActive:true,role:UserRole.RESEARCH})} as unknown as UsersService,
       {record} as unknown as DirectoryHistoryService,{recordDirectory:jest.fn()} as unknown as AuditService,{} as DirectoryService);
   });
   it('independiente puede adquirir dos organizaciones simultáneas sin sustituir ninguna',async()=>{

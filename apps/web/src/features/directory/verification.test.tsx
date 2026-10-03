@@ -27,6 +27,7 @@ describe('Corroboración y configuración de intervalos', () => {
     configuration = { personalVerificationMonths: 6, institutionalVerificationMonths: 12, version: 1 };
     fetchMock.mockReset(); fetchMock.mockImplementation((url, options) => {
       const path = url.replace('/api/v1/', '');
+      if (url.includes('/duplicate-candidates?')) return Promise.resolve(Response.json({items:[],total:0,page:1,pageSize:25}));
       if (path === 'auth/me') return Promise.resolve(Response.json(loggedOut ? {} : identity, { status: loggedOut ? 401 : 200 }));
       if (path === 'auth/logout') { loggedOut = true; return Promise.resolve(new Response(null, { status: 204 })); }
       if (path === 'settings/verification') {

@@ -1,4 +1,6 @@
 export const PERMISSIONS = {
+  DIRECTORY_DUPLICATES_DISMISS: 'directory.duplicates.dismiss',
+  DIRECTORY_DUPLICATES_MANAGE: 'directory.duplicates.manage',
   DIRECTORY_VERIFY: 'directory.verify',
   SETTINGS_VERIFICATION_UPDATE: 'settings.verification.update',
   DIRECTORY_READ: 'directory.read',

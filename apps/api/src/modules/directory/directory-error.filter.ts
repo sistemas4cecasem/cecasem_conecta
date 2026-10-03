@@ -2,6 +2,13 @@ import { ArgumentsHost, Catch, ExceptionFilter } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { DirectoryError } from './directory.errors';
 const messages = {
+  DUPLICATE_CANDIDATE_NOT_FOUND: 'No se encontró el candidato.',
+  DUPLICATE_CANDIDATE_STALE: 'Las fichas cambiaron. Reevalúe la coincidencia antes de decidir.',
+  ACTOR_ALREADY_CONSOLIDATED: 'Esta ficha fue consolidada. Abra el registro principal.',
+  INVALID_CONSOLIDATION_TARGET: 'Seleccione dos fichas distintas y un principal válido, sin cadenas de consolidación.',
+  CONSOLIDATION_VERSION_CONFLICT: 'La vista previa cambió. Recargue y revise todos los efectos.',
+  CONSOLIDATION_HIERARCHY_CONFLICT: 'La consolidación afectaría una matriz, sede o jerarquía existente.',
+  CONSOLIDATION_CONFIRMATION_REQUIRED: 'Confirme los efectos y la reconciliación de contactos y vínculos.',
   FORBIDDEN: 'No tiene los permisos necesarios.', INVALID_DIRECTORY: 'Revise los datos de la ficha.',
   PERSON_NOT_FOUND: 'No se encontró la persona.', PERSON_RELATION_NOT_FOUND: 'No se encontró el vínculo institucional.',
   ORGANIZATION_NOT_FOUND: 'No se encontró la organización.', CATEGORY_NOT_FOUND: 'No se encontró la categoría.',

@@ -1,5 +1,5 @@
 export class ApiError extends Error {
-  constructor(message: string, public readonly status: number | null, public readonly code?: string, public readonly details?: { contactMethodId: string }) {
+  constructor(message: string, public readonly status: number | null, public readonly code?: string, public readonly details?: { contactMethodId?: string; principalId?: string; principalPath?: string }) {
     super(message);
     this.name = 'ApiError';
   }
@@ -46,8 +46,14 @@ export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'cr
     if (response.status === 409 && path === 'settings/verification') {
       throw new ApiError('Los intervalos cambiaron. Recarga y revisa tu propuesta.', 409, 'VERSION_CONFLICT');
     }
-    if (response.status === 409 && /^(users(?:\/|$)|email-accounts(?:\/|$)|organizations(?:\/|$)|categories(?:\/|$)|people(?:\/|$)|person-organization-relations(?:\/|$)|contact-methods(?:\/|$)|person-contacts(?:\/|$)|organization-contacts(?:\/|$))/.test(path)) {
+    if (response.status === 409 && /^(duplicate-candidates(?:\/|$)|users(?:\/|$)|email-accounts(?:\/|$)|organizations(?:\/|$)|categories(?:\/|$)|people(?:\/|$)|person-organization-relations(?:\/|$)|contact-methods(?:\/|$)|person-contacts(?:\/|$)|organization-contacts(?:\/|$))/.test(path)) {
       const conflicts: Record<string, string> = {
+        DUPLICATE_CANDIDATE_STALE: 'Las fichas cambiaron. Reevalúa la coincidencia antes de decidir.',
+        ACTOR_ALREADY_CONSOLIDATED: 'Esta ficha fue consolidada. Abre el registro principal.',
+        INVALID_CONSOLIDATION_TARGET: 'La selección de principal no es válida o produciría una cadena de consolidación.',
+        CONSOLIDATION_VERSION_CONFLICT: 'La vista previa cambió. Recarga, revisa y confirma nuevamente.',
+        CONSOLIDATION_HIERARCHY_CONFLICT: 'La consolidación afectaría una matriz, sede o jerarquía. Conserva las fichas separadas.',
+        CONSOLIDATION_CONFIRMATION_REQUIRED: 'Revisa y confirma los efectos de consolidar.',
         VERSION_CONFLICT: 'La ficha cambió desde que la abriste. Recarga y revisa tus cambios.',
         INVALID_HIERARCHY: 'La relación matriz/sede produciría un ciclo. Elige otra matriz.',
         CATEGORY_EXISTS: 'Ya existe una categoría con ese nombre.',
@@ -65,10 +71,17 @@ export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'cr
         const payload: unknown = await response.json();
         if (typeof payload === 'object' && payload !== null && 'code' in payload && typeof payload.code === 'string' &&
           Object.hasOwn(conflicts, payload.code)) {
-          let details: { contactMethodId: string } | undefined;
+          let details: ApiError['details'];
           if ('details' in payload && typeof payload.details === 'object' && payload.details !== null &&
             'contactMethodId' in payload.details && typeof payload.details.contactMethodId === 'string' &&
             /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(payload.details.contactMethodId)) details = { contactMethodId: payload.details.contactMethodId };
+          if ('details' in payload && typeof payload.details === 'object' && payload.details !== null &&
+            'principalId' in payload.details && typeof payload.details.principalId === 'string' &&
+            /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(payload.details.principalId) &&
+            'principalPath' in payload.details && typeof payload.details.principalPath === 'string' &&
+            ['organizations/' + payload.details.principalId, 'people/' + payload.details.principalId].includes(payload.details.principalPath)) {
+            details = { principalId: payload.details.principalId, principalPath: payload.details.principalPath };
+          }
           throw new ApiError(conflicts[payload.code] ?? httpErrorMessage(409), 409, payload.code, details);
         }
       } catch (failure) { if (failure instanceof ApiError) throw failure; }

@@ -16,7 +16,7 @@ export function DirectoryHistory({ identity, path }: { identity: AuthIdentity; p
       <h3 className="font-semibold">{historyOperationLabel(operation)} · {historyObjectLabels[operation.objectType]} · {operation.changes.length} {operation.changes.length === 1 ? 'cambio' : 'cambios'}</h3>
       <p><time dateTime={operation.createdAt}>{dateLabel(operation.createdAt)}</time> · {operation.actor.givenNames} {operation.actor.familyNames}{!operation.actor.isActive && ' · Usuario actualmente desactivado'}</p>
       {operation.relatedReferences.length > 0 && <p>Contexto al registrar: {operation.relatedReferences.map(referenceLabel).join(' · ')}</p>}
-      {operation.replacement && <p>Canal anterior: {referenceLabel(operation.replacement.previous)} · Canal nuevo: {referenceLabel(operation.replacement.next)}</p>}
+      {operation.replacement && <p>{operation.replacement.previous.kind === 'contactMethod' ? 'Canal anterior' : 'Ficha original'}: {referenceLabel(operation.replacement.previous)} · {operation.replacement.next.kind === 'contactMethod' ? 'Canal nuevo' : 'Principal'}: {referenceLabel(operation.replacement.next)}</p>}
       {!operation.contextRecorded && <p>Registro anterior: no se guardaron etiquetas de referencias ni contexto histórico. Los valores originales se conservan.</p>}
       <ul className="space-y-3">{operation.changes.map(change => <li key={change.field}>
         <p className="font-semibold">{change.label}</p>
