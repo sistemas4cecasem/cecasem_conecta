@@ -1,4 +1,5 @@
 import { VerificationSettingsPage } from '../../features/settings/verification-settings-page';
+import { lazy, Suspense } from 'react';
 import { Route, Routes } from 'react-router';
 import { HomePage } from '../../features/home/home-page';
 import { UnauthenticatedLayout } from '../layout/unauthenticated-layout';
@@ -14,6 +15,7 @@ import { CategoriesPage } from '../../features/directory/categories-page';
 import { PeoplePage, PersonCreationPage } from '../../features/directory/people-page';
 import { PersonDetailPage } from '../../features/directory/person-detail-page';
 import { ContactDetailPage } from '../../features/directory/contact-detail-page';
+const DirectorySearchPage = lazy(() => import('../../features/directory/search-page'));
 
 export function AppRoutes() {
   return (
@@ -29,6 +31,7 @@ export function AppRoutes() {
         <Route path="settings/verification" element={<VerificationSettingsPage />} />
         <Route path="users" element={<UsersPage />} />
         <Route path="organizations" element={<OrganizationsPage />} />
+        <Route path="directory/search" element={<Suspense fallback={<p role="status">Cargando búsqueda…</p>}><DirectorySearchPage /></Suspense>} />
         <Route path="organizations/new" element={<OrganizationCreationPage />} />
         <Route path="organizations/categories" element={<CategoriesPage />} />
         <Route path="organizations/:id" element={<OrganizationDetailPage />} />

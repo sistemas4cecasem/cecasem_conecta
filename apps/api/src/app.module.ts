@@ -6,6 +6,7 @@ import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersAdministrationModule } from './modules/users-administration/users-administration.module';
 import { DirectoryModule } from './modules/directory/directory.module';
+import { SearchModule } from './modules/search/search.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { DirectoryModule } from './modules/directory/directory.module';
     AuthModule,
     UsersAdministrationModule,
     DirectoryModule,
+    SearchModule,
   ],
 })
 export class AppModule {}
