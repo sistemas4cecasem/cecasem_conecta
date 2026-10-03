@@ -15,6 +15,9 @@ import { CategoriesPage } from '../../features/directory/categories-page';
 import { PeoplePage, PersonCreationPage } from '../../features/directory/people-page';
 import { PersonDetailPage } from '../../features/directory/person-detail-page';
 import { ContactDetailPage } from '../../features/directory/contact-detail-page';
+import { ContactIntentsPage } from '../../features/relationships/contact-intents-page';
+import { ContactIntentCreatePage } from '../../features/relationships/contact-intent-create-page';
+import { ContactIntentDetailPage } from '../../features/relationships/contact-intent-detail-page';
 const DirectorySearchPage = lazy(() => import('../../features/directory/search-page'));
 
 export function AppRoutes() {
@@ -39,6 +42,9 @@ export function AppRoutes() {
         <Route path="people/new" element={<PersonCreationPage />} />
         <Route path="people/:id" element={<PersonDetailPage />} />
         <Route path="contact-methods/:id" element={<ContactDetailPage />} />
+        <Route path="contact-intents" element={<ContactIntentsPage />} />
+        <Route path="contact-intents/new" element={<ContactIntentCreatePage />} />
+        <Route path="contact-intents/:id" element={<ContactIntentDetailPage />} />
       </Route>
     </Routes>
   );

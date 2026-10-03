@@ -1,5 +1,6 @@
 import { DuplicateDetectionService } from './duplicate-detection.service';
 import { DirectorySearchService } from './directory-search.service';
+import { DirectoryTargetService } from './directory-target.service';
 import { ConsolidationService } from './consolidation.service';
 import { DuplicateCandidatesController, OrganizationDuplicatesController, PersonDuplicatesController } from './duplicates.controller';
 import { DirectoryActorPolicy } from './directory-actor.policy';
@@ -21,6 +22,6 @@ import { ContactMethodsController, PersonContactsController, OrganizationContact
 @Module({ imports: [DatabaseModule, AuthModule, UsersModule, AuditModule, SettingsModule],
   controllers: [DuplicateCandidatesController, OrganizationDuplicatesController, PersonDuplicatesController, OrganizationVerificationController, PersonVerificationController, RelationVerificationController, PersonContactVerificationController, OrganizationContactVerificationController, OrganizationsController, CategoriesController, PeopleController, PersonRelationsController, OrganizationPeopleController,
     ContactMethodsController, PersonContactsController, OrganizationContactsController, PersonContactsActionsController, OrganizationContactsActionsController],
-  providers: [DirectorySearchService, DuplicateDetectionService, ConsolidationService, DirectoryActorPolicy, VerificationClock, VerificationService, DirectoryService, DirectoryHistoryService, PeopleService, ContactsService],
-  exports: [DirectorySearchService] })
+  providers: [DirectoryTargetService, DirectorySearchService, DuplicateDetectionService, ConsolidationService, DirectoryActorPolicy, VerificationClock, VerificationService, DirectoryService, DirectoryHistoryService, PeopleService, ContactsService],
+  exports: [DirectorySearchService, DirectoryTargetService] })
 export class DirectoryModule {}

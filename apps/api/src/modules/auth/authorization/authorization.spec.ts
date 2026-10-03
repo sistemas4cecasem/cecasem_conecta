@@ -13,10 +13,11 @@ import { PermissionsGuard } from './permissions.guard';
 import { RequirePermissions } from './require-permissions.decorator';
 
 const both = [PERMISSIONS.FIRST_ACCESS_ISSUE, PERMISSIONS.PASSWORD_RESET_ISSUE];
+const intentPermissions = [PERMISSIONS.INTENT_READ, PERMISSIONS.INTENT_CREATE, PERMISSIONS.INTENT_CANCEL];
 const directoryPermissions = [PERMISSIONS.DIRECTORY_READ, PERMISSIONS.DIRECTORY_WRITE, PERMISSIONS.DIRECTORY_HISTORY_READ, PERMISSIONS.DIRECTORY_VERIFY, PERMISSIONS.DIRECTORY_DUPLICATES_DISMISS];
 const allPermissions = [PERMISSIONS.FIRST_ACCESS_ISSUE, PERMISSIONS.PASSWORD_RESET_ISSUE, PERMISSIONS.USERS_READ,
   PERMISSIONS.USERS_DEACTIVATED_READ, PERMISSIONS.USERS_CREATE, PERMISSIONS.USERS_ROLE_UPDATE,
-  PERMISSIONS.USERS_STATUS_UPDATE, PERMISSIONS.USERS_MAILBOXES_MANAGE, ...directoryPermissions, PERMISSIONS.DIRECTORY_STATUS_UPDATE, PERMISSIONS.SETTINGS_VERIFICATION_UPDATE, PERMISSIONS.DIRECTORY_DUPLICATES_MANAGE];
+  PERMISSIONS.USERS_STATUS_UPDATE, PERMISSIONS.USERS_MAILBOXES_MANAGE, ...directoryPermissions, PERMISSIONS.DIRECTORY_STATUS_UPDATE, PERMISSIONS.SETTINGS_VERIFICATION_UPDATE, PERMISSIONS.DIRECTORY_DUPLICATES_MANAGE, ...intentPermissions];
 const reflector = new Reflector();
 
 // Se inspecciona metadata del método original, sin invocarlo ni hacer bind.
@@ -28,7 +29,7 @@ function methodHandler(prototype: object, method: string): ReturnType<ExecutionC
 
 describe('RBAC explícito y sin bypass', () => {
   it.each([
-    [UserRole.ADMINISTRATOR, allPermissions], [UserRole.BOARD, [PERMISSIONS.USERS_READ, ...directoryPermissions]], [UserRole.RESEARCH, directoryPermissions], [UserRole.PLANNING, directoryPermissions],
+    [UserRole.ADMINISTRATOR, allPermissions], [UserRole.BOARD, [PERMISSIONS.USERS_READ, ...directoryPermissions, ...intentPermissions]], [UserRole.RESEARCH, [...directoryPermissions, ...intentPermissions]], [UserRole.PLANNING, [...directoryPermissions, ...intentPermissions]],
   ])('%s conserva su lista explícita', (role, expected) => {
     expect(getRolePermissions(role)).toEqual(expected);
     expect(hasPermission(role, PERMISSIONS.FIRST_ACCESS_ISSUE)).toBe(role === UserRole.ADMINISTRATOR);

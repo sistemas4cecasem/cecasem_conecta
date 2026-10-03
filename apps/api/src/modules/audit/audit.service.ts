@@ -7,6 +7,10 @@ type ResetAction = typeof AuditAction.PASSWORD_RESET_ISSUED | typeof AuditAction
 
 @Injectable()
 export class AuditService {
+  recordContactIntent(action: typeof AuditAction.CONTACT_INTENT_CREATED | typeof AuditAction.CONTACT_INTENT_CANCELLED,
+    contactIntentId: string, actorUserId: string, operationId: string, tx: Prisma.TransactionClient) {
+    return tx.auditEvent.create({ data: { action, contactIntentId, actorUserId, operationId } });
+  }
   recordConsolidation(actorUserId: string, duplicateCandidateId: string,
     target: { principalOrganizationId: string; duplicateOrganizationId: string } | { principalPersonId: string; duplicatePersonId: string },
     operationId: string, tx: Prisma.TransactionClient) {

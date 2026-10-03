@@ -148,7 +148,7 @@ describe('Medios de contacto PostgreSQL y HTTP',()=>{
     const actor=await fixture(),p=await person(actor.id),m=await method(actor.id),association=await contacts.associate({personId:p.id},m.id,{expectedMethodVersion:1},actor.id);
     const valid={personContactId:association.association.id,actorUserId:actor.id,operationId:randomUUID(),field:'notes',previousValue:Prisma.JsonNull,newValue:'Dato'};
     for(const data of [{...valid,contactMethodId:m.id},{...valid,field:'value'},{...valid,field:'isActive',newValue:'false'}])await expect(prisma.directoryChange.create({data})).rejects.toThrow();
-    for(const action of Object.values(AuditAction).filter(action=>action.startsWith('CONTACT_'))) {
+    for(const action of Object.values(AuditAction).filter(action=>action.startsWith('CONTACT_METHOD_') || action.startsWith('CONTACT_ASSOCIATION_'))) {
       const target=action.startsWith('CONTACT_METHOD')?{contactMethodId:m.id}:{personContactId:association.association.id};const data={...target,actorUserId:actor.id,operationId:randomUUID(),action};await prisma.auditEvent.create({data});await expect(prisma.auditEvent.create({data:{...data,personId:p.id}})).rejects.toThrow();await expect(prisma.auditEvent.create({data:{...data,operationId:null}})).rejects.toThrow();
     }
   });

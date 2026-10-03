@@ -16,6 +16,8 @@ enum UserRole {
 }
 
 enum AuditAction {
+  CONTACT_INTENT_CREATED
+  CONTACT_INTENT_CANCELLED
   DUPLICATE_CONSOLIDATED
   VERIFICATION_SETTINGS_CHANGED
   PASSWORD_RESET_ISSUED
@@ -58,6 +60,8 @@ enum ContactCondition {
 }
 
 model User {
+  authoredContactIntents ContactIntent[] @relation("IntentAuthor")
+  cancelledContactIntents ContactIntent[] @relation("IntentCanceller")
   resolvedDuplicateCandidates DuplicateCandidate[]
   id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   givenNames    String             @db.VarChar(150)
@@ -100,6 +104,9 @@ model PasswordResetToken {
 }
 
 model AuditEvent {
+  contactIntentId String? @db.Uuid
+  contactIntent ContactIntent? @relation(fields: [contactIntentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  @@index([contactIntentId, createdAt])
   duplicateCandidateId String? @db.Uuid
   principalOrganizationId String? @db.Uuid
   duplicateOrganizationId String? @db.Uuid
@@ -162,6 +169,7 @@ model AuditEvent {
 }
 
 model Organization {
+  contactIntents ContactIntent[]
   duplicateOfId String? @db.Uuid
   duplicateOf Organization? @relation("OrganizationDuplicates",fields:[duplicateOfId],references:[id],onDelete:Restrict,onUpdate:Restrict)
   consolidatedRecords Organization[] @relation("OrganizationDuplicates")
@@ -258,6 +266,7 @@ model DirectoryChange {
 }
 
 model Person {
+  contactIntents ContactIntent[]
   duplicateOfId String? @db.Uuid
   duplicateOf Person? @relation("PersonDuplicates",fields:[duplicateOfId],references:[id],onDelete:Restrict,onUpdate:Restrict)
   consolidatedRecords Person[] @relation("PersonDuplicates")
@@ -475,6 +484,40 @@ enum DuplicateState {
   PENDING
   NOT_DUPLICATE
   CONSOLIDATED
+}
+
+enum ContactIntentState {
+  ACTIVE
+  CONVERTED
+  CANCELLED
+  CLOSED
+}
+
+model ContactIntent {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  purpose String @db.VarChar(5000)
+  authorUserId String @db.Uuid
+  organizationId String? @db.Uuid
+  personId String? @db.Uuid
+  state ContactIntentState @default(ACTIVE)
+  version Int @default(1)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+  lastActivityAt DateTime @default(now()) @db.Timestamptz(3)
+  cancelledAt DateTime? @db.Timestamptz(3)
+  cancelledByUserId String? @db.Uuid
+  author User @relation("IntentAuthor", fields: [authorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  cancelledBy User? @relation("IntentCanceller", fields: [cancelledByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  person Person? @relation(fields: [personId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  auditEvents AuditEvent[]
+
+  @@index([state, createdAt, id])
+  @@index([authorUserId, createdAt, id])
+  @@index([organizationId, state, createdAt, id])
+  @@index([personId, state, createdAt, id])
+  @@index([createdAt, id])
+  @@index([cancelledByUserId])
 }
 
 enum ReconciliationOutcome {

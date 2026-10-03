@@ -1,4 +1,7 @@
 export const PERMISSIONS = {
+  INTENT_READ: 'relationships.intent.read',
+  INTENT_CREATE: 'relationships.intent.create',
+  INTENT_CANCEL: 'relationships.intent.cancel',
   DIRECTORY_DUPLICATES_DISMISS: 'directory.duplicates.dismiss',
   DIRECTORY_DUPLICATES_MANAGE: 'directory.duplicates.manage',
   DIRECTORY_VERIFY: 'directory.verify',

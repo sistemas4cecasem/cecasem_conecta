@@ -7,6 +7,7 @@ import { ApplicationFrame } from './application-frame';
 import { AUTHENTICATED_NAVIGATION, visibleNavigationItems } from '../router/navigation';
 import { clearForbiddenAdministration } from '../../features/users/administration-cache';
 import { clearForbiddenDirectory } from '../../features/directory/queries';
+import { clearForbiddenIntents } from '../../features/relationships/queries';
 
 const ROLE_LABELS = { ADMINISTRATOR: 'Administrador', BOARD: 'Directorio', RESEARCH: 'Búsqueda', PLANNING: 'Planificación' };
 
@@ -20,6 +21,7 @@ export function AuthenticatedLayout() {
     if (session.data !== undefined) {
       void clearForbiddenAdministration(client, session.data);
       void clearForbiddenDirectory(client, session.data);
+      void clearForbiddenIntents(client, session.data);
     }
   }, [client, session.data]);
 

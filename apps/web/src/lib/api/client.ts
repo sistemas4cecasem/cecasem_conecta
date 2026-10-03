@@ -46,6 +46,19 @@ export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'cr
     if (response.status === 409 && path === 'settings/verification') {
       throw new ApiError('Los intervalos cambiaron. Recarga y revisa tu propuesta.', 409, 'VERSION_CONFLICT');
     }
+    if (response.status === 409 && /^contact-intents(?:\/|$)/.test(path)) {
+      const messages: Record<string, string> = {
+        VERSION_CONFLICT: 'La intención cambió. Recarga y revisa su estado antes de continuar.',
+        INTENT_NOT_ACTIVE: 'Solo puede cancelarse una intención activa.',
+        INTENT_TARGET_UNAVAILABLE: 'El objetivo ya no está disponible. Selecciona una ficha activa sin consolidar; para una persona con vínculo vigente, utiliza su organización.',
+      };
+      try {
+        const payload: unknown = await response.json();
+        if (typeof payload === 'object' && payload !== null && 'code' in payload && typeof payload.code === 'string' && Object.hasOwn(messages, payload.code)) {
+          throw new ApiError(messages[payload.code]!, 409, payload.code);
+        }
+      } catch (failure) { if (failure instanceof ApiError) throw failure; }
+    }
     if (response.status === 409 && /^(duplicate-candidates(?:\/|$)|users(?:\/|$)|email-accounts(?:\/|$)|organizations(?:\/|$)|categories(?:\/|$)|people(?:\/|$)|person-organization-relations(?:\/|$)|contact-methods(?:\/|$)|person-contacts(?:\/|$)|organization-contacts(?:\/|$))/.test(path)) {
       const conflicts: Record<string, string> = {
         DUPLICATE_CANDIDATE_STALE: 'Las fichas cambiaron. Reevalúa la coincidencia antes de decidir.',
