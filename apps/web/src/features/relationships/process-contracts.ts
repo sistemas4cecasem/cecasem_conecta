@@ -3,8 +3,8 @@ import { pageSchema } from '../directory/contracts';
 export const processStateSchema = z.enum(['PREPARATION', 'IN_PROGRESS', 'WAITING_RESPONSE', 'NEGOTIATION', 'CLOSED']);
 export const processResultSchema = z.enum(['ACHIEVED', 'REJECTED', 'NO_RESPONSE', 'CECASEM_WITHDREW', 'OTHER']);
 const userSchema = z.object({ id: z.uuid(), displayName: z.string(), isActive: z.boolean() });
-export const processParticipantSchema = z.object({ user: userSchema, joinedAt: z.iso.datetime(), origin: z.enum(['PROCESS_CREATOR', 'SENT_COMMUNICATION', 'RECEIVED_COMMUNICATION']) });
-export const PARTICIPANT_ORIGIN_LABELS = { PROCESS_CREATOR: 'Creador del proceso', SENT_COMMUNICATION: 'Comunicación enviada', RECEIVED_COMMUNICATION: 'Comunicación recibida' };
+export const processParticipantSchema = z.object({ user: userSchema, joinedAt: z.iso.datetime(), origin: z.enum(['PROCESS_CREATOR', 'SENT_COMMUNICATION', 'RECEIVED_COMMUNICATION', 'MEETING_CREATED']) });
+export const PARTICIPANT_ORIGIN_LABELS = { PROCESS_CREATOR: 'Creador del proceso', SENT_COMMUNICATION: 'Comunicación enviada', RECEIVED_COMMUNICATION: 'Comunicación recibida', MEETING_CREATED: 'Actuación formal de reunión' };
 export const processEventSchema = z.object({ id: z.uuid(), type: z.enum(['CREATED', 'STATE_CHANGED', 'CLOSED', 'REOPENED']), previousState: processStateSchema.nullable(), newState: processStateSchema,
   result: processResultSchema.nullable(), observation: z.string().nullable(), actor: userSchema, authority: z.enum(['PARTICIPANT', 'BOARD', 'ADMINISTRATOR']), version: z.number().int().positive(), createdAt: z.iso.datetime() });
 export const processSchema = z.object({ id: z.uuid(), purpose: z.string(), state: processStateSchema, version: z.number().int().positive(), sourceIntentId: z.uuid().nullable(),

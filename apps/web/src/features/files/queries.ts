@@ -2,11 +2,11 @@ import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-quer
 import { AUTH_QUERY_KEY, type AuthIdentity } from '../auth/session';
 import { apiRequest } from '../../lib/api/client';
 import { fileLimitsSchema, filePageSchema } from './contracts';
-export const fileIdentityKey = (identity: AuthIdentity) => ['files', identity.id, identity.role, identity.permissions.filter(value => ['files.read', 'files.upload', 'relationships.process.read', 'communications.read', 'opportunities.read'].includes(value)).sort().join(',')] as const;
-export function canReadFiles(identity: AuthIdentity, communication: boolean | 'opportunities' = false) { return identity.permissions.includes('files.read') && (communication === 'opportunities' ? identity.permissions.includes('opportunities.read') : identity.permissions.includes('relationships.process.read') && (!communication || identity.permissions.includes('communications.read'))); }
+export const fileIdentityKey = (identity: AuthIdentity) => ['files', identity.id, identity.role, identity.permissions.filter(value => ['files.read', 'files.upload', 'relationships.process.read', 'communications.read', 'opportunities.read', 'meetings.read'].includes(value)).sort().join(',')] as const;
+export function canReadFiles(identity: AuthIdentity, communication: boolean | 'opportunities' | 'meetings' = false) { return identity.permissions.includes('files.read') && (communication === 'meetings' ? identity.permissions.includes('meetings.read') : communication === 'opportunities' ? identity.permissions.includes('opportunities.read') : identity.permissions.includes('relationships.process.read') && (!communication || identity.permissions.includes('communications.read'))); }
 export function useAttachments(identity: AuthIdentity, path: string, page: number) {
   const client = useQueryClient();
-  return useQuery({ queryKey: [...fileIdentityKey(identity), path, page], enabled: canReadFiles(identity, path.startsWith('opportunities/') ? 'opportunities' : path.startsWith('communications/')),
+  return useQuery({ queryKey: [...fileIdentityKey(identity), path, page], enabled: canReadFiles(identity, path.startsWith('meetings/') ? 'meetings' : path.startsWith('opportunities/') ? 'opportunities' : path.startsWith('communications/')),
     queryFn: async ({ signal }) => {
       assertIdentity(client, identity); const response = await apiRequest(path + '?page=' + page + '&pageSize=25', { signal }); assertIdentity(client, identity); return filePageSchema.parse(response);
     }, retry: false });

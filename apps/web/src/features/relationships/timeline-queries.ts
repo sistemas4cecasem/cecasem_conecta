@@ -2,7 +2,7 @@ import { useInfiniteQuery, useMutation, useQueryClient, type QueryClient } from 
 import { apiRequest } from '../../lib/api/client';
 import { AUTH_QUERY_KEY, type AuthIdentity } from '../auth/session';
 import { timelineItemSchema, timelinePageSchema } from './timeline-contracts';
-const permissions = ['relationships.process.read', 'communications.read', 'relationships.note.create'];
+const permissions = ['relationships.process.read', 'communications.read', 'relationships.note.create', 'meetings.read', 'opportunities.read', 'files.read', 'referrals.read'];
 export const canReadTimeline = (identity: AuthIdentity) => ['relationships.process.read', 'communications.read'].every(permission => identity.permissions.includes(permission));
 export const timelineIdentityKey = (identity: AuthIdentity) => ['relationship-timeline', identity.id, identity.role, permissions.filter(permission => identity.permissions.includes(permission)).join(',')] as const;
 export function useTimeline(identity: AuthIdentity, processId: string) {

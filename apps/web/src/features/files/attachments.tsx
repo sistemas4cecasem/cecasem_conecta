@@ -7,9 +7,9 @@ import { buttonClass, MutationError, Pagination, QueryState } from '../directory
 import { timelineIdentityKey } from '../relationships/timeline-queries';
 import { canReadFiles, fileIdentityKey, useAttachments, useFileLimits } from './queries';
 import { EXTENSIONS, fileMetadataSchema, selectionError } from './contracts';
-type Props = { identity: AuthIdentity; resource: 'relationship-processes' | 'communications' | 'opportunities'; resourceId: string; processId?: string; blocked: boolean };
+type Props = { identity: AuthIdentity; resource: 'relationship-processes' | 'communications' | 'opportunities' | 'meetings'; resourceId: string; processId?: string; blocked: boolean };
 export function Attachments(props: Props) {
-  if (!canReadFiles(props.identity, props.resource === 'opportunities' ? 'opportunities' : props.resource === 'communications')) return null;
+  if (!canReadFiles(props.identity, props.resource === 'meetings' ? 'meetings' : props.resource === 'opportunities' ? 'opportunities' : props.resource === 'communications')) return null;
   return <AttachmentPanel key={fileIdentityKey(props.identity).join(':') + ':' + props.resourceId} {...props} />;
 }
 function AttachmentPanel({ identity, resource, resourceId, processId, blocked }: Props) {
@@ -26,7 +26,7 @@ function AttachmentPanel({ identity, resource, resourceId, processId, blocked }:
     setSelected([]); setInputVersion(value => value + 1); requestKey.current = null;
     await Promise.all([client.invalidateQueries({ queryKey: [...fileIdentityKey(identity), path] }), client.invalidateQueries({ queryKey: resource === 'opportunities' ? ['opportunity-history'] : [...timelineIdentityKey(identity), processId] })]);
   }, onError: async () => {
-    if (isCurrent()) await Promise.all([query.refetch(), client.invalidateQueries({ queryKey: ['relationship-processes'] }), client.invalidateQueries({ queryKey: ['communications'] }), client.invalidateQueries({ queryKey: ['opportunities'] })]);
+    if (isCurrent()) await Promise.all([query.refetch(), client.invalidateQueries({ queryKey: ['relationship-processes'] }), client.invalidateQueries({ queryKey: ['communications'] }), client.invalidateQueries({ queryKey: ['opportunities'] }), client.invalidateQueries({ queryKey: ['meetings'] })]);
   } });
   const download = useMutation({ mutationFn: async (file: z.infer<typeof fileMetadataSchema>) => {
     const blob = await apiRequest<Blob>('files/' + file.id + '/download', {}, 'blob');
@@ -45,7 +45,7 @@ function AttachmentPanel({ identity, resource, resourceId, processId, blocked }:
       <button className={buttonClass} disabled={download.isPending} onClick={() => download.mutate(file)}>Descargar {file.originalName}</button>
     </li>)}</ul>
     {query.data && <Pagination page={page} total={query.data.total} onPage={setPage} />}
-    {blocked ? <p>{resource === 'opportunities' ? 'La oportunidad está descartada o finalizada: se conservan los adjuntos anteriores y no se admiten nuevas cargas.' : resource === 'communications' ? 'La comunicación está invalidada: se conservan los adjuntos anteriores y no se admiten nuevas cargas.' : 'El proceso está cerrado: se conservan los adjuntos anteriores y no se admiten nuevas cargas directas.'}</p> : identity.permissions.includes('files.upload') && <form className="space-y-3" onSubmit={event => {
+    {blocked ? <p>{resource === 'meetings' ? 'La reunión está cancelada: se conservan sus adjuntos anteriores y no se admiten nuevas cargas.' : resource === 'opportunities' ? 'La oportunidad está descartada o finalizada: se conservan los adjuntos anteriores y no se admiten nuevas cargas.' : resource === 'communications' ? 'La comunicación está invalidada: se conservan los adjuntos anteriores y no se admiten nuevas cargas.' : 'El proceso está cerrado: se conservan los adjuntos anteriores y no se admiten nuevas cargas directas.'}</p> : identity.permissions.includes('files.upload') && <form className="space-y-3" onSubmit={event => {
       event.preventDefault(); if (!limits.data) return; const error = selectionError(selected, limits.data); setValidation(error); if (!error && !upload.isPending) upload.mutate();
     }}>
       <QueryState pending={limits.isPending} error={limits.isError} retry={limits.refetch} />

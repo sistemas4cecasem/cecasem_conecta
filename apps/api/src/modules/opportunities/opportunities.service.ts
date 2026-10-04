@@ -179,6 +179,12 @@ export class OpportunitiesService {
       throw new OpportunityError('OPPORTUNITY_NOT_FOUND');
     return row;
   }
+  /** Vínculo de reunión: revalida y protege el origen durante el comando. */
+  async requireMeetingOpportunity(id: string, tx: Prisma.TransactionClient, locking: boolean) {
+    if (locking) await tx.$queryRaw`SELECT id FROM "Opportunity" WHERE id=${id}::uuid FOR SHARE`;
+    const row = await tx.opportunity.findUnique({ where: { id }, select: { id: true, processId: true, name: true } });
+    if (!row) throw new OpportunityError('OPPORTUNITY_NOT_FOUND'); return row;
+  }
   async assertRead(id: string, actorId: string, tx: Prisma.TransactionClient) { this.authorize(await this.users.findIdentityById(actorId, tx), PERMISSIONS.OPPORTUNITY_READ); await this.requireAttachmentOpportunity(id, tx, false); }
   /** Proyección pública interna mínima para notificaciones; no incluye contenido privado. */
   notificationSummaries(ids: string[]) {

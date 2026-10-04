@@ -1,4 +1,6 @@
 import { OpportunitiesModule } from './modules/opportunities/opportunities.module';
+import { ReferralsModule } from './modules/referrals/referrals.module';
+import { MeetingsModule } from './modules/meetings/meetings.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { OpportunityHistoryModule } from './modules/opportunities/opportunity-history.module';
 import { Module } from '@nestjs/common';
@@ -18,6 +20,8 @@ import { RelationshipTimelineModule } from './modules/relationships/relationship
 
 @Module({
   imports: [
+    ReferralsModule,
+    MeetingsModule,
     OpportunitiesModule, OpportunityHistoryModule,
     NotificationsModule,
     FilesModule,

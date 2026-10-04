@@ -43,6 +43,13 @@ function uniqueConflict(error: unknown, fields: readonly string[], index: string
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Selección de equipo CECASEM: nombres e IDs, sin credenciales ni administración. */
+  async meetingCandidates(search: string, page: number, pageSize: number, tx: Prisma.TransactionClient) {
+    const where = { isActive: true, OR: [{ givenNames: { contains: search, mode: 'insensitive' as const } }, { familyNames: { contains: search, mode: 'insensitive' as const } }] };
+    const rows = await tx.user.findMany({ where, select: { id: true, givenNames: true, familyNames: true, isActive: true }, orderBy: [{ givenNames: 'asc' }, { id: 'asc' }], skip: (page - 1) * pageSize, take: pageSize });
+    return { items: rows.map(row => ({ id: row.id, displayName: row.givenNames + ' ' + row.familyNames, isActive: row.isActive })), total: await tx.user.count({ where }), page, pageSize };
+  }
+
   // Destinatarios actuales; los locks preservan esta selección hasta confirmar el lote.
   opportunityNotificationRecipients(tx: Prisma.TransactionClient): Promise<{ id: string }[]> {
     return tx.$queryRaw`SELECT id FROM "User" WHERE "isActive" = true

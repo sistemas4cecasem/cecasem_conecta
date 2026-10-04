@@ -33,6 +33,13 @@ function contract(row: Row): CommunicationDto {
 }
 @Injectable()
 export class CommunicationsService {
+  /** Origen de recomendaciones: mismo lock que invalidación, sin tocar proceso ni original. */
+  async requireReferralSource(id: string, tx: Prisma.TransactionClient, registering = false) {
+    if (registering) await tx.$queryRaw`SELECT id FROM "Communication" WHERE id=${id}::uuid FOR UPDATE`;
+    const row = await tx.communication.findUnique({ where: { id }, select: { id: true, processId: true, subject: true, validity: true } });
+    if (!row) throw new CommunicationError('COMMUNICATION_NOT_FOUND');
+    return row;
+  }
   async requireOpportunityOrigin(id: string, tx: Prisma.TransactionClient) {
     const row = await tx.communication.findUnique({ where: { id }, select: { id: true, processId: true, subject: true, validity: true } });
     if (!row) throw new CommunicationError('COMMUNICATION_NOT_FOUND'); return row;

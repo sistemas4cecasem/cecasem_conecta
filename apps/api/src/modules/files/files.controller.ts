@@ -12,6 +12,11 @@ function uploadDocs() { return ApiBody({ schema: { type: 'object', required: ['f
 @Controller() @ApiTags('files') @ApiCookieAuth('cecasem_session') @UseFilters(FileErrorFilter)
 export class FilesController {
   constructor(private readonly files: FilesService) {}
+  @Post('meetings/:id/attachments') @RequirePermissions(PERMISSIONS.FILE_UPLOAD, PERMISSIONS.MEETING_READ)
+  @UseInterceptors(FileUploadInterceptor) @ApiConsumes('multipart/form-data') @uploadDocs() @ApiHeader({ name: 'Idempotency-Key', required: true }) @ApiCreatedResponse({ type: [FileMetadataDto] })
+  uploadMeeting(@Param('id', new ParseUUIDPipe()) id: string, @Req() request: UploadRequest, @Headers('idempotency-key') key: string) { return this.files.upload({ meetingId: id }, request.files ?? [], request.authenticatedUser.id, key); }
+  @Get('meetings/:id/attachments') @Header('Cache-Control', 'no-store') @RequirePermissions(PERMISSIONS.FILE_READ, PERMISSIONS.MEETING_READ) @ApiOkResponse({ type: FilePageDto })
+  listMeeting(@Param('id', new ParseUUIDPipe()) id: string, @Query() query: FilePaginationDto, @Req() request: AuthenticatedRequest) { return this.files.list({ meetingId: id }, query, request.authenticatedUser.id); }
   @Post('opportunities/:id/attachments') @RequirePermissions(PERMISSIONS.FILE_UPLOAD, PERMISSIONS.OPPORTUNITY_READ)
   @UseInterceptors(FileUploadInterceptor) @ApiConsumes('multipart/form-data') @uploadDocs() @ApiHeader({ name: 'Idempotency-Key', required: true }) @ApiCreatedResponse({ type: [FileMetadataDto] })
   uploadOpportunity(@Param('id', new ParseUUIDPipe()) id: string, @Req() request: UploadRequest, @Headers('idempotency-key') key: string) { return this.files.upload({ opportunityId: id }, request.files ?? [], request.authenticatedUser.id, key); }

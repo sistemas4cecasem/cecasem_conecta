@@ -1,0 +1,26 @@
+import { randomUUID } from 'node:crypto';
+import { canAttachMeeting, meetingFingerprint, meetingInstant, meetingLocal, meetingOrigin, meetingParticipant, meetingPlanning, meetingText, meetingVersion, requireFuture, requireResults } from './meeting.rules';
+describe('Reglas de reuniones',()=>{
+ const planning={scheduledLocal:'2026-10-15T10:00',timezone:'America/La_Paz',modality:'ONLINE' as const,purpose:'Cooperación'};
+ it('conserva instante y reconstruye la zona original sin zona de servidor',()=>{ const instant=meetingInstant(planning.scheduledLocal,planning.timezone);expect(instant.toISOString()).toBe('2026-10-15T14:00:00.000Z');expect(meetingLocal(instant,planning.timezone)).toBe(planning.scheduledLocal); });
+ it.each(['Inventada/Zona','+04:00','GMT+4','',null])('rechaza zona %s',zone=>expect(()=>meetingInstant(planning.scheduledLocal,zone as string)).toThrow('INVALID_TIMEZONE'));
+ it.each(['2026-02-30T10:00','2026-10-15T25:00','2026-10-15 10:00','2026-10-15T10:00Z','2026-1-1T1:00'])('rechaza fecha %s',local=>expect(()=>meetingInstant(local,planning.timezone)).toThrow('INVALID_MEETING'));
+ it('rechaza hora inexistente por DST',()=>expect(()=>meetingInstant('2026-03-08T02:30','America/New_York')).toThrow('NONEXISTENT_LOCAL_TIME'));
+ it('rechaza hora ambigua sin elección explícita',()=>expect(()=>meetingInstant('2026-11-01T01:30','America/New_York')).toThrow('AMBIGUOUS_LOCAL_TIME'));
+ it('resuelve ambas ocurrencias y conserva su hora local',()=>{expect(meetingInstant('2026-11-01T01:30','America/New_York','earlier').toISOString()).toBe('2026-11-01T05:30:00.000Z');expect(meetingInstant('2026-11-01T01:30','America/New_York','later').toISOString()).toBe('2026-11-01T06:30:00.000Z');});
+ it('reconoce DST de media hora',()=>expect(()=>meetingInstant('2026-10-04T02:15','Australia/Lord_Howe')).toThrow('NONEXISTENT_LOCAL_TIME'));
+ it('reconoce el salto histórico de un día',()=>expect(()=>meetingInstant('2011-12-30T10:00','Pacific/Apia')).toThrow('NONEXISTENT_LOCAL_TIME'));
+ it.each(['ONLINE','IN_PERSON','HYBRID'] as const)('modalidad %s admite datos opcionales',modality=>expect(meetingPlanning({...planning,modality})).toMatchObject({modality,meetingUrl:null,location:null}));
+ it.each([{modality:'ONLINE' as const,location:'Sala'},{modality:'IN_PERSON' as const,meetingUrl:'https://example.test'}])('rechaza combinación incoherente',extra=>expect(()=>meetingPlanning({...planning,...extra})).toThrow('INVALID_MEETING'));
+ it.each(['javascript:alert(1)','file:///etc/test','https://user:password@example.test','url'])('URL insegura %s',meetingUrl=>expect(()=>meetingPlanning({...planning,meetingUrl})).toThrow('INVALID_MEETING'));
+ it('híbrida permite enlace y lugar',()=>expect(meetingPlanning({...planning,modality:'HYBRID',meetingUrl:'https://example.test',location:'Sala'})).toMatchObject({location:'Sala'}));
+ it('requiere origen',()=>expect(()=>meetingOrigin({})).toThrow('INVALID_MEETING_ORIGIN'));
+ it('permite oportunidad sola y ambos vínculos',()=>{expect(meetingOrigin({opportunityId:randomUUID()}).processId).toBeNull();expect(meetingOrigin({processId:randomUUID(),opportunityId:randomUUID()}).processId).not.toBeNull();});
+ it('no inventa persona para invitado textual',()=>expect(meetingParticipant({nameSnapshot:' María ',organizationSnapshot:'Fundación X'})).toMatchObject({nameSnapshot:'María',personId:null,userId:null}));
+ it('rechaza participante sin identificación o con referencias incompatibles',()=>{expect(()=>meetingParticipant({})).toThrow();expect(()=>meetingParticipant({personId:randomUUID(),userId:randomUUID()})).toThrow();});
+ it.each(['','  ','texto\0'])('rechaza texto histórico %s',value=>expect(()=>meetingText(value,5000,true)).toThrow('INVALID_MEETING'));
+ it('restringe planificación a futuro no consolidado',()=>{const now=new Date();expect(()=>requireFuture('SCHEDULED',new Date(+now+1000),now)).not.toThrow();expect(()=>requireFuture('SCHEDULED',now,now)).toThrow();expect(()=>requireFuture('COMPLETED',new Date(+now+1000),now)).toThrow();});
+ it('resultados requieren realización explícita',()=>{expect(()=>requireResults('COMPLETED')).not.toThrow();expect(()=>requireResults('SCHEDULED')).toThrow();expect(()=>requireResults('CANCELLED')).toThrow();});
+ it.each([['SCHEDULED',true],['COMPLETED',true],['CANCELLED',false]] as const)('archivos en %s: %s',(status,result)=>expect(canAttachMeeting(status)).toBe(result));
+ it('idempotencia y versionado',()=>{const key=randomUUID();expect(meetingFingerprint(planning,key)).toBe(meetingFingerprint({...planning},key));expect(meetingFingerprint({...planning,purpose:'Otra'},key)).not.toBe(meetingFingerprint(planning,key));expect(()=>meetingVersion(0)).toThrow();expect(()=>meetingFingerprint(planning,'incorrecta')).toThrow();});
+});

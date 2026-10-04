@@ -1,3 +1,4 @@
+import { clearForbiddenMeetings } from '../../features/meetings/queries';
 import { clearForbiddenOpportunities } from '../../features/opportunities/queries';
 import { clearForbiddenNotifications } from '../../features/notifications/queries';
 import { NotificationIndicator } from '../../features/notifications/notifications-page';
@@ -43,6 +44,7 @@ export function AuthenticatedLayout() {
       void clearForbiddenOpportunities(client, session.data);
       void clearForbiddenNotifications(client, session.data);
       void clearForbiddenFiles(client, session.data);
+      void clearForbiddenMeetings(client, session.data);
     }
   }, [client, session.data]);
 

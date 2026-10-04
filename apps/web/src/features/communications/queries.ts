@@ -4,7 +4,7 @@ import { AUTH_QUERY_KEY, type AuthIdentity } from '../auth/session';
 import { accountsSchema, communicationSchema, communicationsPageSchema, type SentBody, type ReceivedBody } from './contracts';
 import { amendmentSchema, amendmentsPageSchema } from './amendment-contracts';
 export function communicationIdentityKey(identity: AuthIdentity) {
-  return ['communications', identity.id, identity.role, identity.permissions.filter(permission => permission.startsWith('communications.') || permission === 'relationships.process.read').sort().join(',')] as const;
+  return ['communications', identity.id, identity.role, identity.permissions.filter(permission => permission.startsWith('communications.') || permission.startsWith('referrals.') || permission === 'relationships.process.read').sort().join(',')] as const;
 }
 export function communicationIdentityMatches(client: QueryClient, identity: AuthIdentity): boolean {
   const current = client.getQueryData<AuthIdentity | null>(AUTH_QUERY_KEY);

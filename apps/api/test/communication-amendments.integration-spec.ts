@@ -206,8 +206,8 @@ describe('Correcciones e invalidación PostgreSQL/HTTP', () => {
     await read(f.owner.cookie, f.process.id, { pageSize: 5 }); const baseline = selectCount();
     await prisma.communicationAmendment.createMany({ data: Array.from({ length: 999 }, () => ({ communicationId: row.id, authorUserId: f.owner.id, type: 'ANNOTATION' as const, content: 'Contenido contextual', requestKey: randomUUID(), requestFingerprint: '0'.repeat(64) })) });
     const before = await snapshot(f.process.id); spy.mockClear(); const result = await read(f.owner.cookie, f.process.id, { pageSize: 5 });
-    // 4.1: quinta fuente de archivos; se mantiene la igualdad de consultas con 1000 registros.
-    expect(result.items).toHaveLength(5); expect(result.nextCursor).not.toBeNull(); expect(selectCount()).toBe(baseline); expect(baseline).toBeLessThanOrEqual(18);
+    // 4.4: séptima fuente de reuniones; un SELECT adicional cuando está vacía, sin N+1.
+    expect(result.items).toHaveLength(5); expect(result.nextCursor).not.toBeNull(); expect(selectCount()).toBe(baseline); expect(baseline).toBeLessThanOrEqual(20);
     expect(await snapshot(f.process.id)).toEqual(before); const detail = await amendments().list(row.id, 1, f.owner.id); expect(detail.items).toHaveLength(25); expect(detail.total).toBe(1000);
   });
 });

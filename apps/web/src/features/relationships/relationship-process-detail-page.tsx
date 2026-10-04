@@ -1,3 +1,4 @@
+import { ContextMeetings } from '../meetings/meeting-components';
 import { Attachments } from '../files/attachments';
 import { useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
@@ -74,6 +75,7 @@ function ProcessDetailView({ identity, id }: { identity: AuthIdentity; id: strin
       <RelationshipTimeline key={timelineIdentityKey(identity).join(':') + ':' + id} identity={identity} processId={id} />
       <Attachments identity={identity} resource='relationship-processes' resourceId={id} processId={id} blocked={process.state === 'CLOSED'} />
       {identity.permissions.includes('opportunities.create') && <Link className={buttonClass} to={'/opportunities/new?processId=' + id}>Crear oportunidad desde este proceso</Link>}
+      <ContextMeetings identity={identity} processId={id} />
       <CommunicationsList key={'communications-' + id} identity={identity} processId={id} />
       <div className="flex flex-wrap gap-3">{(['state', 'close', 'reopen'] as const).map(value => actions[value] && <button key={value} className={buttonClass} disabled={mutation.isPending || !!mutation.error} onClick={() => { mutation.reset(); setAction(value); }}>{value === 'state' ? 'Cambiar estado' : value === 'close' ? 'Cerrar proceso' : 'Reabrir proceso'}</button>)}</div>
       {!actions.state && !actions.close && !actions.reopen && <p>Consulta disponible. Las acciones requieren los permisos y la participación correspondientes.</p>}

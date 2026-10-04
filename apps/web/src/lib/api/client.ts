@@ -40,6 +40,33 @@ export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'cr
   }
 
   if (!response.ok) {
+    if (/^meetings(?:\/|\?|$)/.test(path)) {
+      const payload: unknown = await response.clone().json().catch(() => null);
+      const messages: Record<string, string> = {
+        INVALID_MEETING: 'Revisa la fecha, modalidad y datos disponibles de la reunión.',
+        INVALID_MEETING_ORIGIN: 'Selecciona un proceso u oportunidad existente y vínculos coherentes.',
+        INVALID_TIMEZONE: 'Indica una zona horaria IANA válida, por ejemplo America/La_Paz.',
+        NONEXISTENT_LOCAL_TIME: 'Esta hora local no existe por un cambio de horario. Elige otra hora.',
+        AMBIGUOUS_LOCAL_TIME: 'Esta hora local ocurre dos veces. Selecciona la primera o segunda ocurrencia.',
+        VERSION_CONFLICT: 'Otra persona cambió la reunión. Recarga y revisa los cambios antes de reintentar.',
+        REQUEST_CONFLICT: 'Este intento ya registró otro comando. Revisa el resultado antes de continuar.',
+        MEETING_REFERENCE_UNAVAILABLE: 'La ficha seleccionada cambió o ya no está disponible. Revisa la selección.',
+        DUPLICATE_PARTICIPANT: 'Ese usuario o persona ya participa en esta reunión.',
+        MEETING_STATE_CONFLICT: 'El estado o la fecha de la reunión no permite esta acción. Revisa sus datos actuales.',
+        MEETING_CANCELLED: 'La reunión está cancelada; se conservan sus adjuntos, pero no admite nuevas cargas.',
+      };
+      if (typeof payload === 'object' && payload !== null && 'code' in payload && typeof payload.code === 'string' && Object.hasOwn(messages, payload.code)) throw new ApiError(messages[payload.code]!, response.status, payload.code);
+    }
+    if (/^(?:referrals\/|communications\/[^/]+\/referrals(?:\?|$))/.test(path)) {
+      const payload: unknown = await response.clone().json().catch(() => null);
+      const messages: Record<string, string> = {
+        REQUEST_CONFLICT: 'Este intento ya registró datos diferentes. Revisa el resultado antes de iniciar un nuevo registro.',
+        REFERRAL_SOURCE_INVALIDATED: 'La comunicación fue invalidada y no admite nuevos contactos recomendados.',
+        REFERRAL_REFERENCE_UNAVAILABLE: 'Una ficha cambió o el medio no corresponde. Revisa el Directorio y vuelve a seleccionar.',
+        INVALID_REFERRAL: 'Revisa la información disponible y el medio recomendado. No es necesario completar datos desconocidos.',
+      };
+      if (typeof payload === 'object' && payload !== null && 'code' in payload && typeof payload.code === 'string' && Object.hasOwn(messages, payload.code)) throw new ApiError(messages[payload.code]!, response.status, payload.code);
+    }
     if (/^(files\/|(?:communications|relationship-processes|opportunities)\/[^/]+\/attachments)/.test(path)) {
       const payload: unknown = await response.clone().json().catch(() => null);
       const messages: Record<string, string> = {

@@ -4,6 +4,35 @@ generator client {
   moduleFormat = "cjs"
 }
 
+model Referral {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sourceCommunicationId String @db.Uuid
+  sourceCommunication Communication @relation(fields: [sourceCommunicationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdByUserId String @db.Uuid
+  createdBy User @relation(fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  recommendedName String? @db.VarChar(300)
+  recommendedRole String? @db.VarChar(300)
+  organizationNameSnapshot String? @db.VarChar(300)
+  mediumType ContactType?
+  mediumValue String? @db.VarChar(2048)
+  notes String? @db.VarChar(5000)
+  personId String? @db.Uuid
+  person Person? @relation(fields: [personId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  organizationId String? @db.Uuid
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  contactMethodId String? @db.Uuid
+  contactMethod ContactMethod? @relation(fields: [contactMethodId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  requestKey String @db.Uuid
+  requestFingerprint String @db.VarChar(64)
+  auditEvent AuditEvent?
+  @@unique([createdByUserId, requestKey])
+  @@index([sourceCommunicationId, createdAt, id])
+  @@index([personId])
+  @@index([organizationId])
+  @@index([contactMethodId])
+}
+
 datasource db {
   provider = "postgresql"
 }
@@ -16,6 +45,8 @@ enum UserRole {
 }
 
 enum AuditAction {
+  MEETING_RECORDED
+  REFERRAL_CREATED
   OPPORTUNITY_CREATED
   OPPORTUNITY_UPDATED
   OPPORTUNITY_STATUS_CHANGED
@@ -76,6 +107,12 @@ enum ContactCondition {
 }
 
 model User {
+  createdMeetings Meeting[] @relation("MeetingCreator")
+  meetingParticipations MeetingParticipant[] @relation("MeetingInternalUser")
+  addedMeetingParticipants MeetingParticipant[] @relation("MeetingParticipantAuthor")
+  meetingAgreements MeetingAgreement[]
+  meetingEvents MeetingEvent[]
+  createdReferrals Referral[]
   notifications Notification[]
   createdOpportunities Opportunity[]
   opportunityEvents OpportunityEvent[]
@@ -133,6 +170,10 @@ model PasswordResetToken {
 }
 
 model AuditEvent {
+  meetingEventId String? @unique @db.Uuid
+  meetingEvent MeetingEvent? @relation(fields: [meetingEventId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  referralId String? @unique @db.Uuid
+  referral Referral? @relation(fields: [referralId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   opportunityEventId String? @unique @db.Uuid
   opportunityEvent OpportunityEvent? @relation(fields: [opportunityEventId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   fileUploadId String? @unique @db.Uuid
@@ -212,6 +253,7 @@ model AuditEvent {
 }
 
 model Organization {
+  referrals Referral[]
   opportunityLinks OpportunityOrganization[]
   contactRestrictions ContactRestriction[]
   relationshipProcesses RelationshipProcess[]
@@ -312,6 +354,8 @@ model DirectoryChange {
 }
 
 model Person {
+  meetingParticipations MeetingParticipant[]
+  referrals Referral[]
   contactRestrictions ContactRestriction[]
   relationshipProcesses RelationshipProcess[]
   contactIntents ContactIntent[]
@@ -371,6 +415,7 @@ model PersonOrganizationRelation {
 }
 
 model ContactMethod {
+  referrals Referral[]
   valueVersion Int @default(1)
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   type ContactType
@@ -658,6 +703,7 @@ enum ProcessResult {
 }
 
 enum ParticipantOrigin {
+  MEETING_CREATED
   PROCESS_CREATOR
   SENT_COMMUNICATION
   RECEIVED_COMMUNICATION
@@ -677,6 +723,7 @@ enum ProcessAuthority {
 }
 
 model RelationshipProcess {
+  meetings Meeting[]
   opportunities Opportunity[]
   fileUploads FileUpload[]
   internalNotes InternalNote[]
@@ -793,6 +840,7 @@ enum RecipientType {
 }
 
 model Communication {
+  referrals Referral[]
   coherentOpportunities Opportunity[] @relation("OpportunityCoherentCommunication")
   opportunities Opportunity[]
   @@unique([id, processId])
@@ -882,6 +930,9 @@ model CommunicationAmendment {
 
 // Cada lote conserva recurso, autor/fecha y comando idempotente; sus archivos comparten esa procedencia.
 model FileUpload {
+  meetingId String? @db.Uuid
+  meeting Meeting? @relation(fields: [meetingId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  @@index([meetingId, createdAt, id])
   opportunityId String? @db.Uuid
   opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   @@index([opportunityId, createdAt, id])
@@ -932,6 +983,7 @@ enum OpportunityEventType {
   FINISHED
 }
 model Opportunity {
+  meetings Meeting[]
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name String @db.VarChar(300)
   description String? @db.VarChar(10000)
@@ -1030,4 +1082,120 @@ model NotificationCheckpoint {
   throughEventId String? @db.Uuid
   completedSweeps Int @default(0)
   updatedAt DateTime @default(now()) @db.Timestamptz(3)
+}
+enum MeetingStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+enum MeetingModality {
+  ONLINE
+  IN_PERSON
+  HYBRID
+}
+enum MeetingAttendance {
+  UNKNOWN
+  ATTENDED
+  ABSENT
+}
+enum MeetingEventType {
+  CREATED
+  UPDATED
+  COMPLETED
+  CANCELLED
+  PARTICIPANT_ADDED
+  ATTENDANCE_RECORDED
+  AGREEMENT_ADDED
+}
+model Meeting {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  processId String? @db.Uuid
+  opportunityId String? @db.Uuid
+  scheduledAt DateTime @db.Timestamptz(3)
+  timezone String @db.VarChar(100)
+  modality MeetingModality
+  meetingUrl String? @db.VarChar(2048)
+  location String? @db.VarChar(500)
+  purpose String @db.VarChar(5000)
+  status MeetingStatus @default(SCHEDULED)
+  completedAt DateTime? @db.Timestamptz(3)
+  cancelledAt DateTime? @db.Timestamptz(3)
+  cancellationReason String? @db.VarChar(5000)
+  createdByUserId String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+  version Int @default(1)
+  requestKey String @db.Uuid
+  requestFingerprint String @db.VarChar(64)
+  process RelationshipProcess? @relation(fields: [processId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy User @relation("MeetingCreator", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  participants MeetingParticipant[]
+  agreements MeetingAgreement[]
+  events MeetingEvent[]
+  fileUploads FileUpload[]
+  @@unique([createdByUserId, requestKey])
+  @@index([scheduledAt, id])
+  @@index([processId, scheduledAt, id])
+  @@index([opportunityId, scheduledAt, id])
+}
+model MeetingParticipant {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  meetingId String @db.Uuid
+  userId String? @db.Uuid
+  personId String? @db.Uuid
+  nameSnapshot String @db.VarChar(400)
+  organizationSnapshot String? @db.VarChar(300)
+  roleSnapshot String? @db.VarChar(300)
+  attendance MeetingAttendance @default(UNKNOWN)
+  createdByUserId String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  user User? @relation("MeetingInternalUser", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  person Person? @relation(fields: [personId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy User @relation("MeetingParticipantAuthor", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  events MeetingEvent[]
+  @@unique([meetingId, userId])
+  @@unique([meetingId, personId])
+  @@index([meetingId, createdAt, id])
+  @@index([userId])
+  @@index([personId])
+  @@index([createdByUserId])
+}
+model MeetingAgreement {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  meetingId String @db.Uuid
+  text String @db.VarChar(5000)
+  createdByUserId String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy User @relation(fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  events MeetingEvent[]
+  @@index([meetingId, createdAt, id])
+  @@index([createdByUserId])
+}
+model MeetingEvent {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  meetingId String @db.Uuid
+  type MeetingEventType
+  version Int
+  snapshot Json
+  changes Json
+  participantId String? @db.Uuid
+  agreementId String? @db.Uuid
+  actorUserId String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  requestKey String @db.Uuid
+  requestFingerprint String @db.VarChar(64)
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  participant MeetingParticipant? @relation(fields: [participantId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  agreement MeetingAgreement? @relation(fields: [agreementId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  actor User @relation(fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  auditEvent AuditEvent?
+  @@unique([meetingId, version])
+  @@unique([actorUserId, requestKey])
+  @@index([meetingId, createdAt, id])
+  @@index([createdAt, id])
+  @@index([participantId])
+  @@index([agreementId])
 }

@@ -177,7 +177,8 @@ describe('Archivos PostgreSQL/HTTP/filesystem', () => {
       await prisma.fileAttachment.createMany({ data: uploads.map(upload => ({ uploadId: upload.id, originalName: 'histórico.txt', mimeType: 'text/plain', declaredMimeType: 'text/plain', sizeBytes: 1, sha256: 'a'.repeat(64), storageKey: randomUUID(), position: 0 })) });
       spy.mockClear(); const page = await read().expect(200);
       const body = page.body as { items: { id: string; kind: string }[]; nextCursor: string };
-      expect(count()).toBe(baseline); expect(count()).toBeLessThanOrEqual(18);
+      // 4.4: una consulta acotada adicional para la séptima fuente histórica.
+      expect(count()).toBe(baseline); expect(count()).toBeLessThanOrEqual(20);
       expect(body.items).toHaveLength(5); expect(body.items.every(item => item.kind === 'FILES_ATTACHED')).toBe(true);
       const next = await request(app.getHttpServer()).get('/api/v1/relationship-processes/' + row.id + '/timeline').query({ pageSize: 5, after: body.nextCursor }).set('Cookie', owner.cookie).expect(200);
       const nextItems = (next.body as typeof body).items;

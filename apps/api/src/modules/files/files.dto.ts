@@ -6,6 +6,7 @@ export class FilePaginationDto {
   @ApiPropertyOptional({ default: 25, maximum: 100 }) @Type(() => Number) @IsInt() @Min(1) @Max(100) pageSize = 25;
 }
 export class FileMetadataDto {
+  @ApiPropertyOptional({ nullable: true }) meetingId?: string | null;
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty() originalName!: string;
   @ApiProperty() mimeType!: string;
@@ -16,7 +17,7 @@ export class FileMetadataDto {
   @ApiProperty({ nullable: true }) processId!: string | null;
   @ApiProperty({ nullable: true }) communicationId!: string | null;
   @ApiProperty({ nullable: true }) opportunityId!: string | null;
-  @ApiProperty() incorporation!: 'PROCESS_ATTACHMENT' | 'LATER_COMMUNICATION_ATTACHMENT' | 'OPPORTUNITY_ATTACHMENT';
+  @ApiProperty() incorporation!: 'PROCESS_ATTACHMENT' | 'LATER_COMMUNICATION_ATTACHMENT' | 'OPPORTUNITY_ATTACHMENT' | 'MEETING_ATTACHMENT';
   @ApiProperty() uploadedBy!: { id: string; displayName: string; isActive: boolean };
 }
 export class FilePageDto {

@@ -1,4 +1,11 @@
 export const PERMISSIONS = {
+  MEETING_READ: 'meetings.read',
+  MEETING_CREATE: 'meetings.create',
+  MEETING_UPDATE: 'meetings.update',
+  MEETING_PARTICIPANTS: 'meetings.participants',
+  MEETING_RESULTS: 'meetings.results',
+  REFERRAL_READ: 'referrals.read',
+  REFERRAL_CREATE: 'referrals.create',
   NOTIFICATION_READ: 'notifications.read',
   NOTIFICATION_MARK_READ: 'notifications.mark_read',
   OPPORTUNITY_READ: 'opportunities.read',

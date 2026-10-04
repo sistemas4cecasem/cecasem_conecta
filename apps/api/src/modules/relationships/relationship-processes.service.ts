@@ -161,6 +161,10 @@ export class RelationshipProcessesService {
     await tx.relationshipProcess.update({ where: { id }, data: { version: { increment: 1 },
       lastActivityAt: new Date(Math.max(+row.lastActivityAt, +registeredAt)), updatedAt: new Date(Math.max(+row.updatedAt, +registeredAt)) } });
   }
+  /** Misma semántica monotónica de actuaciones formales, bajo lock del propietario. */
+  async recordMeetingActivity(id: string, registeredAt: Date, tx: Prisma.TransactionClient): Promise<void> {
+    await this.recordCommunicationActivity(id, registeredAt, tx);
+  }
   async requireCommunicationProcess(id: string, tx: Prisma.TransactionClient): Promise<void> {
     if (!await tx.relationshipProcess.findUnique({ where: { id }, select: { id: true } })) throw new ProcessError('PROCESS_NOT_FOUND');
   }

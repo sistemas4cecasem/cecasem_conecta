@@ -1,4 +1,5 @@
 import { Attachments } from '../files/attachments';
+import { ReferralsPanel } from '../referrals/referrals-panel';
 import { Link, useParams } from 'react-router';
 import { useSession, type AuthIdentity } from '../auth/session';
 import { buttonClass, QueryState } from '../directory/directory-ui';
@@ -30,6 +31,7 @@ function CommunicationDetail({ identity, id }: { identity: AuthIdentity; id: str
       <p>Registrada por: {row.registeredBy.displayName}{!row.registeredBy.isActive && ' (cuenta inactiva)'}</p><p>El contenido original es histórico y no dispone de edición ordinaria.</p>
       <Attachments identity={identity} resource='communications' resourceId={id} processId={row.processId} blocked={row.validity === 'INVALIDATED'} />
       <CommunicationAmendments identity={identity} row={row} />
+      {identity.permissions.includes('referrals.read') && <ReferralsPanel identity={identity} row={row} />}
     </>}
   </section>;
 }

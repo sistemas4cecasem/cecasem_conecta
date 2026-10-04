@@ -1,11 +1,13 @@
 import { isUUID } from 'class-validator';
 import type { TimelineItem } from './timeline.dto';
-export type TimelineSource = 'AMENDMENT' | 'COMMUNICATION' | 'EVENT' | 'FILE' | 'NOTE';
+export type TimelineSource = 'AMENDMENT' | 'COMMUNICATION' | 'EVENT' | 'FILE' | 'NOTE' | 'REFERRAL' | 'MEETING';
 export type TimelinePosition = { occurredAt: Date; registeredAt: Date; source: TimelineSource; id: string };
 export class TimelineError extends Error {
   constructor(public readonly code: 'INVALID_TIMELINE_CURSOR' | 'INVALID_INTERNAL_NOTE') { super(code); }
 }
 export function timelineSource(kind: TimelineItem['kind']): TimelineSource {
+  if (kind === 'MEETING_ACTIVITY') return 'MEETING';
+  if (kind === 'REFERRAL_CREATED') return 'REFERRAL';
   if (kind === 'FILES_ATTACHED') return 'FILE';
   if (['COMMUNICATION_CORRECTED', 'COMMUNICATION_ANNOTATED', 'COMMUNICATION_INVALIDATED'].includes(kind)) return 'AMENDMENT';
   return kind === 'INTERNAL_NOTE' ? 'NOTE' : kind === 'SENT_COMMUNICATION' || kind === 'RECEIVED_COMMUNICATION' ? 'COMMUNICATION' : 'EVENT';
@@ -24,7 +26,7 @@ export function decodeTimelineCursor(processId: string, value?: string): Timelin
     const parsed: unknown = JSON.parse(Buffer.from(value, 'base64url').toString());
     if (!parsed || typeof parsed !== 'object' || !('processId' in parsed) || parsed.processId !== processId
       || !('id' in parsed) || typeof parsed.id !== 'string' || !isUUID(parsed.id)
-      || !('source' in parsed) || typeof parsed.source !== 'string' || !['AMENDMENT', 'COMMUNICATION', 'EVENT', 'FILE', 'NOTE'].includes(parsed.source)
+      || !('source' in parsed) || typeof parsed.source !== 'string' || !['AMENDMENT', 'COMMUNICATION', 'EVENT', 'FILE', 'NOTE', 'REFERRAL', 'MEETING'].includes(parsed.source)
       || !('occurredAt' in parsed) || typeof parsed.occurredAt !== 'string' || new Date(parsed.occurredAt).toISOString() !== parsed.occurredAt
       || !('registeredAt' in parsed) || typeof parsed.registeredAt !== 'string' || new Date(parsed.registeredAt).toISOString() !== parsed.registeredAt) throw new Error();
     return { id: parsed.id, source: parsed.source as TimelineSource, occurredAt: new Date(parsed.occurredAt), registeredAt: new Date(parsed.registeredAt) };

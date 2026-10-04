@@ -1,3 +1,4 @@
+import { MeetingsPage, MeetingCreatePage, MeetingDetailPage } from '../../features/meetings/meetings-pages';
 import { OpportunitiesPage, OpportunityCreatePage, OpportunityDetailPage } from '../../features/opportunities/opportunities-pages';
 import { NotificationsPage } from '../../features/notifications/notifications-page';
 import { VerificationSettingsPage } from '../../features/settings/verification-settings-page';
@@ -41,6 +42,9 @@ export function AppRoutes() {
         <Route path="*" element={<NotFoundPage />} />
       </Route>
       <Route element={<AuthenticatedLayout />}>
+        <Route path="meetings" element={<MeetingsPage />} />
+        <Route path="meetings/new" element={<MeetingCreatePage />} />
+        <Route path="meetings/:id" element={<MeetingDetailPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="opportunities" element={<OpportunitiesPage />} />
         <Route path="opportunities/new" element={<OpportunityCreatePage />} />

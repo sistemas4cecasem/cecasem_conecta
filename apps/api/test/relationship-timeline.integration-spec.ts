@@ -173,8 +173,8 @@ describe('Timeline y notas internas PostgreSQL/HTTP', () => {
       senderSnapshot: 'Old@Example.test', senderNormalizedAddress: 'old@example.test', subject: 'Carga histórica', bodyOriginal: 'Cuerpo privado no proyectado '.repeat(100),
       receivedAt: new Date('2000-09-01T12:00:00.000Z'), occurredAt: new Date('2000-09-01T12:00:00.000Z'), registeredByUserId: f.owner.id, requestKey: randomUUID(), requestFingerprint: '0'.repeat(64) })) });
     const before = await snapshot(f.process.id); querySpy.mockClear(); const row = await read(f.owner.cookie, f.process.id, { pageSize: 5 });
-    // 4.1 agrega una quinta fuente con dos SELECT acotados; el volumen histórico no aumenta consultas.
-    expect(row.items).toHaveLength(5); expect(row.nextCursor).not.toBeNull(); expect(selectCount()).toBe(baseline); expect(baseline).toBeLessThanOrEqual(18);
+    // 4.4 agrega una séptima fuente: un SELECT adicional cuando está vacía; el volumen no aumenta consultas.
+    expect(row.items).toHaveLength(5); expect(row.nextCursor).not.toBeNull(); expect(selectCount()).toBe(baseline); expect(baseline).toBeLessThanOrEqual(20);
     expect(JSON.stringify(row).length).toBeLessThan(15000); expect(await snapshot(f.process.id)).toEqual(before);
   });
   it('constraint SQL rechaza nota vacía y conserva referencias restrictivas', async () => {
