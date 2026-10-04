@@ -18,7 +18,7 @@ export function Pagination({ page, total, pageSize = 25, onPage }: { page: numbe
     <button type="button" className={buttonClass} disabled={page * pageSize >= total} onClick={() => onPage(page + 1)}>Siguiente</button>
   </nav>;
 }
-export function MutationError({ error, reload }: { error: Error | null; reload?: () => unknown }) {
+export function MutationError({ error, reload, preserveDraft = false }: { error: Error | null; reload?: () => unknown; preserveDraft?: boolean }) {
   if (!error) return null;
   const conflict = error instanceof ApiError && error.code === 'VERSION_CONFLICT';
   const duplicateConflict = error instanceof ApiError && ['DUPLICATE_CANDIDATE_STALE', 'CONSOLIDATION_VERSION_CONFLICT'].includes(error.code ?? '');
@@ -26,7 +26,7 @@ export function MutationError({ error, reload }: { error: Error | null; reload?:
     <p>{error instanceof ApiError ? error.message : 'No se pudo guardar. Intenta nuevamente.'}</p>
     {error instanceof ApiError && error.details?.principalPath && <Link className="inline-flex min-h-11 items-center underline" to={'/' + error.details.principalPath}>Abrir registro principal</Link>}
     {duplicateConflict && reload && <button type="button" className={buttonClass} onClick={() => void reload()}>Recargar y revisar coincidencia</button>}
-    {conflict && reload && <><p>Recargar descartará los cambios del formulario. Copia lo que quieras conservar antes de continuar.</p>
-      <button type="button" className={buttonClass} onClick={() => void reload()}>Recargar ficha y descartar cambios</button></>}
+    {conflict && reload && <><p>{preserveDraft ? 'La recarga conserva el borrador; revisa la versión actual antes de confirmar nuevamente.' : 'Recargar descartará los cambios del formulario. Copia lo que quieras conservar antes de continuar.'}</p>
+      <button type="button" className={buttonClass} onClick={() => void reload()}>{preserveDraft ? 'Recargar ficha conservando borrador' : 'Recargar ficha y descartar cambios'}</button></>}
   </div>;
 }

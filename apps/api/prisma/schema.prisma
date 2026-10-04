@@ -16,6 +16,11 @@ enum UserRole {
 }
 
 enum AuditAction {
+  OPPORTUNITY_CREATED
+  OPPORTUNITY_UPDATED
+  OPPORTUNITY_STATUS_CHANGED
+  OPPORTUNITY_DISCARDED
+  OPPORTUNITY_FINISHED
   FILES_ATTACHED
   COMMUNICATION_INVALIDATED
   RECEIVED_COMMUNICATION_REGISTERED
@@ -71,6 +76,8 @@ enum ContactCondition {
 }
 
 model User {
+  createdOpportunities Opportunity[]
+  opportunityEvents OpportunityEvent[]
   fileUploads FileUpload[]
   communicationAmendments CommunicationAmendment[]
   internalNotes InternalNote[]
@@ -125,6 +132,8 @@ model PasswordResetToken {
 }
 
 model AuditEvent {
+  opportunityEventId String? @unique @db.Uuid
+  opportunityEvent OpportunityEvent? @relation(fields: [opportunityEventId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   fileUploadId String? @unique @db.Uuid
   fileUpload FileUpload? @relation(fields: [fileUploadId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   @@unique([communicationId, action])
@@ -202,6 +211,7 @@ model AuditEvent {
 }
 
 model Organization {
+  opportunityLinks OpportunityOrganization[]
   contactRestrictions ContactRestriction[]
   relationshipProcesses RelationshipProcess[]
   contactIntents ContactIntent[]
@@ -666,6 +676,7 @@ enum ProcessAuthority {
 }
 
 model RelationshipProcess {
+  opportunities Opportunity[]
   fileUploads FileUpload[]
   internalNotes InternalNote[]
   communicationAuditEvents AuditEvent[]
@@ -781,6 +792,9 @@ enum RecipientType {
 }
 
 model Communication {
+  coherentOpportunities Opportunity[] @relation("OpportunityCoherentCommunication")
+  opportunities Opportunity[]
+  @@unique([id, processId])
   fileUploads FileUpload[]
   amendments CommunicationAmendment[]
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -867,6 +881,9 @@ model CommunicationAmendment {
 
 // Cada lote conserva recurso, autor/fecha y comando idempotente; sus archivos comparten esa procedencia.
 model FileUpload {
+  opportunityId String? @db.Uuid
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  @@index([opportunityId, createdAt, id])
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   processId String? @db.Uuid
   communicationId String? @db.Uuid
@@ -896,4 +913,77 @@ model FileAttachment {
   position Int
   upload FileUpload @relation(fields: [uploadId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   @@unique([uploadId, position])
+}
+
+
+enum OpportunityStatus {
+  PENDING_REVIEW
+  PREPARING
+  SUBMITTED
+  DISCARDED
+  FINISHED
+}
+enum OpportunityEventType {
+  CREATED
+  UPDATED
+  STATUS_CHANGED
+  DISCARDED
+  FINISHED
+}
+model Opportunity {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name String @db.VarChar(300)
+  description String? @db.VarChar(10000)
+  url String? @db.VarChar(2048)
+  deadline DateTime? @db.Date
+  requirements String? @db.VarChar(10000)
+  status OpportunityStatus @default(PENDING_REVIEW)
+  discardReason String? @db.VarChar(5000)
+  finalResult String? @db.VarChar(5000)
+  processId String? @db.Uuid
+  communicationId String? @db.Uuid
+  createdByUserId String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @db.Timestamptz(3)
+  version Int @default(1)
+  requestKey String @db.Uuid
+  requestFingerprint String @db.VarChar(64)
+  process RelationshipProcess? @relation(fields: [processId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  communication Communication? @relation(fields: [communicationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  // Refleja la FK SQL adicional cuando el origen contiene ambos identificadores.
+  coherentCommunication Communication? @relation("OpportunityCoherentCommunication", fields: [communicationId, processId], references: [id, processId], map: "Opportunity_origin_coherence_fkey", onDelete: Restrict, onUpdate: Restrict)
+  createdBy User @relation(fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  organizations OpportunityOrganization[]
+  events OpportunityEvent[]
+  fileUploads FileUpload[]
+  @@unique([createdByUserId, requestKey])
+  @@index([status, createdAt, id])
+  @@index([createdAt, id])
+  @@index([processId])
+  @@index([communicationId])
+}
+model OpportunityOrganization {
+  opportunityId String @db.Uuid
+  organizationId String @db.Uuid
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  @@id([opportunityId, organizationId])
+  @@index([organizationId])
+}
+model OpportunityEvent {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  opportunityId String @db.Uuid
+  type OpportunityEventType
+  previousStatus OpportunityStatus?
+  newStatus OpportunityStatus
+  changes Json
+  actorUserId String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  version Int
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  actor User @relation(fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  auditEvent AuditEvent?
+  @@unique([opportunityId, version])
+  @@index([opportunityId, createdAt, id])
+  @@index([createdAt, id])
 }

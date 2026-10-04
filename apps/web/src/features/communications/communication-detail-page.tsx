@@ -17,6 +17,7 @@ function CommunicationDetail({ identity, id }: { identity: AuthIdentity; id: str
   return <section className="min-w-0 w-full space-y-4 break-words"><h1 className="text-2xl font-semibold">{row?.direction === 'RECEIVED' ? 'Comunicación recibida registrada' : 'Comunicación enviada registrada'}</h1>
     <QueryState pending={detail.isPending} error={detail.isError} retry={detail.refetch} />
     {row && <><Link className={buttonClass} to={'/relationship-processes/' + row.processId}>Volver al proceso</Link>
+      {identity.permissions.includes('opportunities.create') && <Link className={buttonClass} to={'/opportunities/new?processId=' + row.processId + '&communicationId=' + row.id}>Crear oportunidad desde esta comunicación</Link>}
       <p>{row.direction === 'SENT' ? 'Enviada' : 'Recibida'} · {row.validity === 'INVALIDATED' ? 'INVALIDADA' : 'Registro válido'}</p>
       {row.invalidation && <aside className="rounded border border-red-700 p-3"><p>Invalidada por {row.invalidation.author.displayName} · {new Date(row.invalidation.createdAt).toLocaleString('es-BO')}</p><p className="whitespace-pre-wrap">Motivo: {row.invalidation.content}</p></aside>}
       <h2 className="font-semibold">Contenido original registrado</h2>{row.emailAccount && <p>Cuenta utilizada: {row.emailAccount.displayName} · {row.emailAccount.address}</p>}<p>Remitente: {row.sender}</p>

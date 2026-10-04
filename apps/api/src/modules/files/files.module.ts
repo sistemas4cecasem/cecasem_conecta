@@ -1,3 +1,4 @@
+import { OpportunitiesModule } from '../opportunities/opportunities.module';
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../database/database.module';
 import { AuthModule } from '../auth/auth.module';
@@ -10,6 +11,6 @@ import { LocalFileStorage } from './local-file-storage';
 import { FilesService } from './files.service';
 import { FilesController } from './files.controller';
 import { FileUploadInterceptor } from './file-upload.interceptor';
-@Module({ imports: [DatabaseModule, AuthModule, UsersModule, AuditModule, RelationshipsModule, CommunicationsModule],
+@Module({ imports: [OpportunitiesModule, DatabaseModule, AuthModule, UsersModule, AuditModule, RelationshipsModule, CommunicationsModule],
   controllers: [FilesController], providers: [FilesService, FileUploadInterceptor, { provide: FileStorage, useClass: LocalFileStorage }], exports: [FilesService] })
 export class FilesModule {}

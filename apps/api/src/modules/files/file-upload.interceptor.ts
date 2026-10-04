@@ -14,7 +14,7 @@ export class FileUploadInterceptor implements NestInterceptor {
   constructor(private readonly storage: FileStorage, private readonly files: FilesService) {}
   async intercept(context: ExecutionContext, next: CallHandler) {
     const request = context.switchToHttp().getRequest<UploadRequest>();
-    const target = request.path.startsWith('/api/v1/communications/') ? { communicationId: String(request.params.id) } : { processId: String(request.params.id) };
+    const target = request.path.startsWith('/api/v1/opportunities/') ? { opportunityId: String(request.params.id) } : request.path.startsWith('/api/v1/communications/') ? { communicationId: String(request.params.id) } : { processId: String(request.params.id) };
     const requestKey = request.headers['idempotency-key'];
     if (typeof requestKey !== 'string' || !isUUID(String(request.params.id))) throw new FileError('INVALID_UPLOAD');
     await this.files.checkUpload(target, request.authenticatedUser.id, requestKey);

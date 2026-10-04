@@ -12,6 +12,11 @@ function uploadDocs() { return ApiBody({ schema: { type: 'object', required: ['f
 @Controller() @ApiTags('files') @ApiCookieAuth('cecasem_session') @UseFilters(FileErrorFilter)
 export class FilesController {
   constructor(private readonly files: FilesService) {}
+  @Post('opportunities/:id/attachments') @RequirePermissions(PERMISSIONS.FILE_UPLOAD, PERMISSIONS.OPPORTUNITY_READ)
+  @UseInterceptors(FileUploadInterceptor) @ApiConsumes('multipart/form-data') @uploadDocs() @ApiHeader({ name: 'Idempotency-Key', required: true }) @ApiCreatedResponse({ type: [FileMetadataDto] })
+  uploadOpportunity(@Param('id', new ParseUUIDPipe()) id: string, @Req() request: UploadRequest, @Headers('idempotency-key') key: string) { return this.files.upload({ opportunityId: id }, request.files ?? [], request.authenticatedUser.id, key); }
+  @Get('opportunities/:id/attachments') @Header('Cache-Control', 'no-store') @RequirePermissions(PERMISSIONS.FILE_READ, PERMISSIONS.OPPORTUNITY_READ) @ApiOkResponse({ type: FilePageDto })
+  listOpportunity(@Param('id', new ParseUUIDPipe()) id: string, @Query() query: FilePaginationDto, @Req() request: AuthenticatedRequest) { return this.files.list({ opportunityId: id }, query, request.authenticatedUser.id); }
   @Get('files/config') @Header('Cache-Control', 'no-store') @RequirePermissions(PERMISSIONS.FILE_READ)
   limits() { return this.files.limits(); }
   @Post('relationship-processes/:id/attachments') @RequirePermissions(PERMISSIONS.FILE_UPLOAD, PERMISSIONS.PROCESS_READ)

@@ -33,6 +33,10 @@ function contract(row: Row): CommunicationDto {
 }
 @Injectable()
 export class CommunicationsService {
+  async requireOpportunityOrigin(id: string, tx: Prisma.TransactionClient) {
+    const row = await tx.communication.findUnique({ where: { id }, select: { id: true, processId: true, subject: true, validity: true } });
+    if (!row) throw new CommunicationError('COMMUNICATION_NOT_FOUND'); return row;
+  }
   async requireAttachmentCommunication(id: string, tx: Prisma.TransactionClient, uploading: boolean) {
     if (uploading) await tx.$queryRaw`SELECT id FROM "Communication" WHERE id=${id}::uuid FOR UPDATE`;
     const row = await tx.communication.findUnique({ where: { id }, select: { id: true, validity: true, processId: true } });

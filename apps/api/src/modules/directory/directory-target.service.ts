@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { Prisma } from '../../generated/prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import { DirectoryActorPolicy } from './directory-actor.policy';
 
 export type InstitutionalTarget = { organizationId: string; personId?: never } | { personId: string; organizationId?: never };
@@ -18,6 +18,15 @@ export class DirectoryTargetService {
       orderBy: [{ name: 'asc' }, { id: 'asc' }], take: limit });
     const total = await tx.organization.count({ where });
     return { items: rows.map(row => ({ kind: 'ORGANIZATION', id: row.id, label: row.name, isActive: row.isActive })), total };
+  }
+
+  /** Valida asociaciones nuevas en lote y conserva referencias históricas ya existentes. */
+  async requireOrganizationLinks(ids: readonly string[], retainedIds: readonly string[], tx: Prisma.TransactionClient): Promise<{ id: string; name: string; isActive: boolean }[]> {
+    await this.actors.lock(tx);
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM "Organization" WHERE id IN (${Prisma.join(ids.map(id => Prisma.sql`${id}::uuid`))}) ORDER BY id FOR SHARE`);
+    const rows = await tx.organization.findMany({ where: { id: { in: [...ids] } }, select: { id: true, name: true, isActive: true, duplicateOfId: true } });
+    if (rows.length !== ids.length || rows.some(row => !retainedIds.includes(row.id) && (!row.isActive || row.duplicateOfId))) throw new UnavailableDirectoryTarget();
+    return rows.map(row => ({ id: row.id, name: row.name, isActive: row.isActive }));
   }
 
   async summary(target: InstitutionalTarget, tx: Prisma.TransactionClient): Promise<TargetSummary> {

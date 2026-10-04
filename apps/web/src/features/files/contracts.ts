@@ -1,7 +1,7 @@
 import { z } from 'zod';
 export const EXTENSIONS = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'png', 'jpg', 'jpeg', 'webp'];
 export const fileMetadataSchema = z.object({ id: z.uuid(), originalName: z.string(), mimeType: z.string(), declaredMimeType: z.string(), sizeBytes: z.number().int().positive(), sha256: z.string(),
-  createdAt: z.iso.datetime(), processId: z.uuid().nullable(), communicationId: z.uuid().nullable(), incorporation: z.enum(['PROCESS_ATTACHMENT', 'LATER_COMMUNICATION_ATTACHMENT']),
+  createdAt: z.iso.datetime(), processId: z.uuid().nullable(), communicationId: z.uuid().nullable(), opportunityId: z.uuid().nullable().default(null), incorporation: z.enum(['PROCESS_ATTACHMENT', 'LATER_COMMUNICATION_ATTACHMENT', 'OPPORTUNITY_ATTACHMENT']),
   uploadedBy: z.object({ id: z.uuid(), displayName: z.string(), isActive: z.boolean() }) });
 export const filePageSchema = z.object({ items: z.array(fileMetadataSchema), total: z.number().int(), page: z.number().int(), pageSize: z.number().int() });
 export const fileLimitsSchema = z.object({ maxBytes: z.number().int().positive(), maxFiles: z.number().int().positive().max(10) });

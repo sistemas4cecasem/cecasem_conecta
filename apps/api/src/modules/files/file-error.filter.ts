@@ -6,6 +6,7 @@ const messages: Record<FileErrorCode, string> = {
   FILE_TOO_LARGE: 'Un archivo supera el límite permitido (máximo inicial: 20 MiB).',
   UNSUPPORTED_FILE: 'Un archivo no coincide con un tipo permitido. Revisa su extensión y contenido.',
   FORBIDDEN: 'No tienes permiso para acceder a los adjuntos de este recurso.', RESOURCE_NOT_FOUND: 'No se encontró el recurso.',
+  OPPORTUNITY_CLOSED: 'La oportunidad está descartada o finalizada; no admite nuevos adjuntos.',
   RESOURCE_CLOSED: 'No se pueden incorporar adjuntos directamente a un proceso cerrado.', COMMUNICATION_INVALIDATED: 'No se pueden incorporar adjuntos a una comunicación invalidada.',
   FILE_NOT_FOUND: 'No se encontró el adjunto.', FILE_UNAVAILABLE: 'El archivo no está disponible o no superó la comprobación de integridad.', REQUEST_CONFLICT: 'Esta clave ya registró otra carga. Revisa los adjuntos antes de continuar.',
 };

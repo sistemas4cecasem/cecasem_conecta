@@ -40,18 +40,24 @@ export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'cr
   }
 
   if (!response.ok) {
-    if (/^(files\/|(?:communications|relationship-processes)\/[^/]+\/attachments)/.test(path)) {
+    if (/^(files\/|(?:communications|relationship-processes|opportunities)\/[^/]+\/attachments)/.test(path)) {
       const payload: unknown = await response.clone().json().catch(() => null);
       const messages: Record<string, string> = {
         INVALID_UPLOAD: 'Selecciona de 1 a 10 archivos no vacíos con nombres válidos.',
         FILE_TOO_LARGE: 'Un archivo supera el límite de tamaño permitido.',
         UNSUPPORTED_FILE: 'Un archivo no coincide con un tipo permitido. Revisa su extensión y contenido.',
+        OPPORTUNITY_CLOSED: 'La oportunidad está descartada o finalizada; no admite nuevos adjuntos.',
         RESOURCE_CLOSED: 'El proceso está cerrado; no admite nuevas cargas directas.',
         COMMUNICATION_INVALIDATED: 'La comunicación está invalidada; no admite nuevos adjuntos.',
         FILE_UNAVAILABLE: 'El archivo no está disponible o no superó la comprobación de integridad.',
         REQUEST_CONFLICT: 'Esta solicitud ya registró otra carga. Revisa los adjuntos existentes.',
       };
       if (typeof payload === 'object' && payload !== null && 'code' in payload && typeof payload.code === 'string' && Object.hasOwn(messages, payload.code)) throw new ApiError(messages[payload.code] ?? httpErrorMessage(response.status), response.status, payload.code);
+    }
+    if (/^opportunities(?:\/|\?|$)/.test(path)) {
+      const payload: unknown = await response.clone().json().catch(() => null);
+      const messages: Record<string, string> = { VERSION_CONFLICT: 'La oportunidad cambió. Conserva tu borrador, recarga y revisa antes de confirmar.', REQUEST_CONFLICT: 'Esta solicitud ya creó otra oportunidad. Revisa el registro antes de continuar.', INVALID_OPPORTUNITY_TRANSITION: 'El cambio de estado no está permitido.', INVALID_OPPORTUNITY_ORIGIN: 'El origen no existe o la comunicación no pertenece al proceso indicado.', OPPORTUNITY_ORGANIZATION_UNAVAILABLE: 'Selecciona organizaciones activas sin consolidar.', INVALID_OPPORTUNITY: 'Revisa el nombre, la fecha, las organizaciones y los campos de la oportunidad.' };
+      if (typeof payload === 'object' && payload !== null && 'code' in payload && typeof payload.code === 'string' && Object.hasOwn(messages, payload.code)) throw new ApiError(messages[payload.code]!, response.status, payload.code);
     }
     if (response.status === 409 && (path.startsWith('communications/') || /relationship-processes\/[^/]+\/communications/.test(path))) {
       const payload: unknown = await response.clone().json().catch(() => null);

@@ -1,4 +1,10 @@
 export const PERMISSIONS = {
+  OPPORTUNITY_READ: 'opportunities.read',
+  OPPORTUNITY_CREATE: 'opportunities.create',
+  OPPORTUNITY_UPDATE: 'opportunities.update',
+  OPPORTUNITY_STATE_CHANGE: 'opportunities.state.change',
+  OPPORTUNITY_DISCARD: 'opportunities.discard',
+  OPPORTUNITY_FINISH: 'opportunities.finish',
   FILE_READ: 'files.read',
   FILE_UPLOAD: 'files.upload',
   COMMUNICATION_AMEND: 'communications.amend',

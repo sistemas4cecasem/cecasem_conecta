@@ -19,7 +19,7 @@ const ROLE_PERMISSIONS: Readonly<Record<UserRole, readonly Permission[]>> = Obje
 const NO_PERMISSIONS: readonly Permission[] = Object.freeze([]);
 
 export function getRolePermissions(role: string): readonly Permission[] {
-  return Object.hasOwn(ROLE_PERMISSIONS, role) ? Object.freeze([...ROLE_PERMISSIONS[role as UserRole], PERMISSIONS.FILE_READ, PERMISSIONS.FILE_UPLOAD]) : NO_PERMISSIONS;
+  return Object.hasOwn(ROLE_PERMISSIONS, role) ? Object.freeze([...ROLE_PERMISSIONS[role as UserRole], PERMISSIONS.FILE_READ, PERMISSIONS.FILE_UPLOAD, PERMISSIONS.OPPORTUNITY_READ, PERMISSIONS.OPPORTUNITY_CREATE, PERMISSIONS.OPPORTUNITY_UPDATE, PERMISSIONS.OPPORTUNITY_STATE_CHANGE, PERMISSIONS.OPPORTUNITY_DISCARD, PERMISSIONS.OPPORTUNITY_FINISH]) : NO_PERMISSIONS;
 }
 
 export function hasPermission(role: string, permission: string): boolean {

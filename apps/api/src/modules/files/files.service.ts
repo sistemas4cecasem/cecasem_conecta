@@ -1,3 +1,6 @@
+import { OpportunitiesService } from '../opportunities/opportunities.service';
+import { opportunityHistorySeek, type OpportunityHistoryCursor } from '../opportunities/opportunity.rules';
+import type { OpportunityHistoryItemDto } from '../opportunities/opportunity.dto';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'node:crypto';
@@ -20,14 +23,14 @@ import type { FileMetadataDto, FilePaginationDto } from './files.dto';
 import { timelineSeek, type TimelinePosition } from '../relationships/timeline.rules';
 import type { TimelineItem } from '../relationships/timeline.dto';
 
-export type FileTarget = { processId: string; communicationId?: never } | { communicationId: string; processId?: never };
+export type FileTarget = { opportunityId: string; processId?: never; communicationId?: never } | { processId: string; communicationId?: never; opportunityId?: never } | { communicationId: string; processId?: never; opportunityId?: never };
 export type ReceivedFile = StagedFile & { originalname: string; mimetype: string };
-const uploadSelect = { processId: true, communicationId: true, createdAt: true, uploadedBy: { select: { id: true, givenNames: true, familyNames: true, isActive: true } } } as const;
+const uploadSelect = { opportunityId: true, processId: true, communicationId: true, createdAt: true, uploadedBy: { select: { id: true, givenNames: true, familyNames: true, isActive: true } } } as const;
 const fileSelect = { id: true, originalName: true, mimeType: true, declaredMimeType: true, sizeBytes: true, sha256: true, upload: { select: uploadSelect } } satisfies Prisma.FileAttachmentSelect;
 type FileRow = Prisma.FileAttachmentGetPayload<{ select: typeof fileSelect }>;
 const metadata = (row: FileRow): FileMetadataDto => ({ id: row.id, originalName: row.originalName, mimeType: row.mimeType, declaredMimeType: row.declaredMimeType,
-  sizeBytes: row.sizeBytes, sha256: row.sha256, createdAt: row.upload.createdAt.toISOString(), processId: row.upload.processId, communicationId: row.upload.communicationId,
-  incorporation: row.upload.communicationId ? 'LATER_COMMUNICATION_ATTACHMENT' : 'PROCESS_ATTACHMENT',
+  opportunityId: row.upload.opportunityId, sizeBytes: row.sizeBytes, sha256: row.sha256, createdAt: row.upload.createdAt.toISOString(), processId: row.upload.processId, communicationId: row.upload.communicationId,
+  incorporation: row.upload.opportunityId ? 'OPPORTUNITY_ATTACHMENT' : row.upload.communicationId ? 'LATER_COMMUNICATION_ATTACHMENT' : 'PROCESS_ATTACHMENT',
   uploadedBy: { id: row.upload.uploadedBy.id, displayName: row.upload.uploadedBy.givenNames + ' ' + row.upload.uploadedBy.familyNames, isActive: row.upload.uploadedBy.isActive } });
 
 @Injectable()
@@ -36,16 +39,19 @@ export class FilesService {
   private readonly activeKeys = new Set<string>();
   constructor(private readonly prisma: PrismaService, private readonly users: UsersService, private readonly storage: FileStorage,
     private readonly processes: RelationshipProcessesService, private readonly communications: CommunicationsService,
-    private readonly audit: AuditService, private readonly config: ConfigService<AppEnvironment, true>) {}
+    private readonly opportunities: OpportunitiesService, private readonly audit: AuditService, private readonly config: ConfigService<AppEnvironment, true>) {}
   limits() { return { maxBytes: this.config.get('FILE_MAX_BYTES', { infer: true }), maxFiles: FILE_MAX_COUNT }; }
   private authorize(actor: UserIdentity | null, target: FileTarget, upload: boolean) {
-    if (!actor?.isActive || !hasPermission(actor.role, upload ? PERMISSIONS.FILE_UPLOAD : PERMISSIONS.FILE_READ) || !hasPermission(actor.role, PERMISSIONS.PROCESS_READ)
+    if (!actor?.isActive || !hasPermission(actor.role, upload ? PERMISSIONS.FILE_UPLOAD : PERMISSIONS.FILE_READ) || !hasPermission(actor.role, target.opportunityId ? PERMISSIONS.OPPORTUNITY_READ : PERMISSIONS.PROCESS_READ)
       || (target.communicationId && !hasPermission(actor.role, PERMISSIONS.COMMUNICATION_READ))) throw new FileError('FORBIDDEN');
   }
   private async requireTarget(target: FileTarget, tx: Prisma.TransactionClient, uploading: boolean) {
-    if (!!target.processId === !!target.communicationId) throw new FileError('INVALID_UPLOAD');
+    if ([target.processId, target.communicationId, target.opportunityId].filter(Boolean).length !== 1) throw new FileError('INVALID_UPLOAD');
     try {
-      if (target.processId) {
+      if (target.opportunityId) {
+        const row = await this.opportunities.requireAttachmentOpportunity(target.opportunityId, tx, uploading);
+        if (uploading && ['DISCARDED', 'FINISHED'].includes(row.status)) throw new FileError('OPPORTUNITY_CLOSED');
+      } else if (target.processId) {
         const row = await this.processes.requireAttachmentProcess(target.processId, tx, uploading);
         if (uploading && row.state === 'CLOSED') throw new FileError('RESOURCE_CLOSED');
       } else {
@@ -53,7 +59,7 @@ export class FilesService {
         if (uploading && row.validity === 'INVALIDATED') throw new FileError('COMMUNICATION_INVALIDATED');
       }
     } catch (error) {
-      if (error instanceof Error && 'code' in error && ['PROCESS_NOT_FOUND', 'COMMUNICATION_NOT_FOUND'].includes(String(error.code))) throw new FileError('RESOURCE_NOT_FOUND');
+      if (error instanceof Error && 'code' in error && ['PROCESS_NOT_FOUND', 'COMMUNICATION_NOT_FOUND', 'OPPORTUNITY_NOT_FOUND'].includes(String(error.code))) throw new FileError('RESOURCE_NOT_FOUND');
       throw error;
     }
   }
@@ -62,8 +68,8 @@ export class FilesService {
     await this.prisma.$transaction(async tx => {
       this.authorize(await this.users.findIdentityById(actorId, tx), target, true);
       // Retry ya confirmado sigue permitido aunque el recurso haya cambiado de estado.
-      const prior = await tx.fileUpload.findUnique({ where: { uploadedByUserId_requestKey: { uploadedByUserId: actorId, requestKey } }, select: { processId: true, communicationId: true } });
-      if (prior && (prior.processId !== (target.processId ?? null) || prior.communicationId !== (target.communicationId ?? null))) throw new FileError('REQUEST_CONFLICT');
+      const prior = await tx.fileUpload.findUnique({ where: { uploadedByUserId_requestKey: { uploadedByUserId: actorId, requestKey } }, select: { processId: true, communicationId: true, opportunityId: true } });
+      if (prior && (prior.opportunityId !== (target.opportunityId ?? null) || prior.processId !== (target.processId ?? null) || prior.communicationId !== (target.communicationId ?? null))) throw new FileError('REQUEST_CONFLICT');
       await this.requireTarget(target, tx, !prior);
     });
   }
@@ -128,10 +134,10 @@ export class FilesService {
   private async authorizedFile(id: string, actorId: string) {
     return this.prisma.$transaction(async tx => {
       const actor = await this.users.findIdentityById(actorId, tx);
-      this.authorize(actor, { processId: id }, false);
+      if (!actor?.isActive || !hasPermission(actor.role, PERMISSIONS.FILE_READ)) throw new FileError('FORBIDDEN');
       const row = await tx.fileAttachment.findUnique({ where: { id }, select: { ...fileSelect, storageKey: true } });
       if (!row) throw new FileError('FILE_NOT_FOUND');
-      const target: FileTarget = row.upload.communicationId ? { communicationId: row.upload.communicationId } : { processId: row.upload.processId! };
+      const target: FileTarget = row.upload.opportunityId ? { opportunityId: row.upload.opportunityId } : row.upload.communicationId ? { communicationId: row.upload.communicationId } : { processId: row.upload.processId! };
       this.authorize(actor, target, false); await this.requireTarget(target, tx, false);
       return row;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
@@ -146,6 +152,10 @@ export class FilesService {
     return rows.map(row => ({ id: row.id, kind: 'FILES_ATTACHED', occurredAt: row.createdAt.toISOString(), registeredAt: row.createdAt.toISOString(), summary: 'Adjuntos incorporados',
       actor: { id: row.uploadedBy.id, displayName: row.uploadedBy.givenNames + ' ' + row.uploadedBy.familyNames, isActive: row.uploadedBy.isActive },
       payload: { uploadId: row.id, communicationId: row.communicationId, names: row.files.map(file => file.originalName) } }));
+  }
+  async opportunityHistoryItems(opportunityId: string, after: OpportunityHistoryCursor | undefined, limit: number, tx: Prisma.TransactionClient): Promise<OpportunityHistoryItemDto[]> {
+    const rows = await tx.fileUpload.findMany({ where: { opportunityId, ...opportunityHistorySeek(after, 'FILE') }, select: { id: true, ...uploadSelect, files: { select: { originalName: true }, orderBy: { position: 'asc' } } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: limit });
+    return rows.map(row => ({ id: row.id, source: 'FILE', kind: 'FILES_ATTACHED', previousStatus: null, newStatus: null, createdAt: row.createdAt.toISOString(), actor: { id: row.uploadedBy.id, displayName: row.uploadedBy.givenNames + ' ' + row.uploadedBy.familyNames, isActive: row.uploadedBy.isActive }, changes: { files: row.files.map(file => file.originalName) } }));
   }
   /** Solo mantenimiento con cargas detenidas. Por defecto identifica; nunca se ejecuta automáticamente. */
   async reconcile(olderThan: Date, remove = false) {

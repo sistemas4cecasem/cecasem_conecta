@@ -15,7 +15,7 @@ export function useAvailableAccounts(identity: AuthIdentity) {
     queryFn: async ({ signal }) => accountsSchema.parse(await apiRequest('me/email-accounts', { signal })), retry: false });
 }
 export function useCommunication(identity: AuthIdentity, id: string) {
-  return useQuery({ queryKey: [...communicationIdentityKey(identity), 'detail', id], enabled: identity.permissions.includes('communications.read') && identity.permissions.includes('relationships.process.read'),
+  return useQuery({ queryKey: [...communicationIdentityKey(identity), 'detail', id], enabled: !!id && identity.permissions.includes('communications.read') && identity.permissions.includes('relationships.process.read'),
     queryFn: async ({ signal }) => communicationSchema.parse(await apiRequest('communications/' + id, { signal })), retry: false });
 }
 export function useCommunications(identity: AuthIdentity, processId: string, page: number) {

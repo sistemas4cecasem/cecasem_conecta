@@ -141,6 +141,10 @@ export class RelationshipProcessesService {
       actor: publicUser(row.actor), summary: summaries[row.type], payload: { eventId: row.id, previousState: row.previousState, newState: row.newState, result: row.result, observation: row.observation } }));
   }
   /** Productores formales externos a relationships: el propietario del proceso controla el lock. */
+  async requireOpportunityOrigin(id: string, tx: Prisma.TransactionClient) {
+    const row = await tx.relationshipProcess.findUnique({ where: { id }, select: { id: true, purpose: true } });
+    if (!row) throw new ProcessError('PROCESS_NOT_FOUND'); return row;
+  }
   async requireAttachmentProcess(id: string, tx: Prisma.TransactionClient, uploading: boolean) {
     if (uploading) await tx.$queryRaw`SELECT id FROM "RelationshipProcess" WHERE id=${id}::uuid FOR UPDATE`;
     const row = await this.requireRow(id, tx);

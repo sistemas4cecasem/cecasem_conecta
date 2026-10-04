@@ -15,7 +15,8 @@ export class FileMetadataDto {
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
   @ApiProperty({ nullable: true }) processId!: string | null;
   @ApiProperty({ nullable: true }) communicationId!: string | null;
-  @ApiProperty() incorporation!: 'PROCESS_ATTACHMENT' | 'LATER_COMMUNICATION_ATTACHMENT';
+  @ApiProperty({ nullable: true }) opportunityId!: string | null;
+  @ApiProperty() incorporation!: 'PROCESS_ATTACHMENT' | 'LATER_COMMUNICATION_ATTACHMENT' | 'OPPORTUNITY_ATTACHMENT';
   @ApiProperty() uploadedBy!: { id: string; displayName: string; isActive: boolean };
 }
 export class FilePageDto {

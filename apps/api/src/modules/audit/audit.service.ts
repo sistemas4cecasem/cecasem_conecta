@@ -7,6 +7,9 @@ type ResetAction = typeof AuditAction.PASSWORD_RESET_ISSUED | typeof AuditAction
 
 @Injectable()
 export class AuditService {
+  recordOpportunity(action: 'OPPORTUNITY_CREATED' | 'OPPORTUNITY_UPDATED' | 'OPPORTUNITY_STATUS_CHANGED' | 'OPPORTUNITY_DISCARDED' | 'OPPORTUNITY_FINISHED', opportunityEventId: string, actorUserId: string, tx: Prisma.TransactionClient) {
+    return tx.auditEvent.create({ data: { action, opportunityEventId, actorUserId, operationId: opportunityEventId } });
+  }
   recordFilesAttached(fileUploadId: string, actorUserId: string, tx: Prisma.TransactionClient) {
     return tx.auditEvent.create({ data: { action: AuditAction.FILES_ATTACHED, fileUploadId, actorUserId, operationId: fileUploadId } });
   }

@@ -1,3 +1,4 @@
+import { OpportunitiesPage, OpportunityCreatePage, OpportunityDetailPage } from '../../features/opportunities/opportunities-pages';
 import { VerificationSettingsPage } from '../../features/settings/verification-settings-page';
 import { lazy, Suspense } from 'react';
 import { Route, Routes } from 'react-router';
@@ -39,6 +40,9 @@ export function AppRoutes() {
         <Route path="*" element={<NotFoundPage />} />
       </Route>
       <Route element={<AuthenticatedLayout />}>
+        <Route path="opportunities" element={<OpportunitiesPage />} />
+        <Route path="opportunities/new" element={<OpportunityCreatePage />} />
+        <Route path="opportunities/:id" element={<OpportunityDetailPage />} />
         <Route index element={<HomePage />} />
         <Route path="settings/verification" element={<VerificationSettingsPage />} />
         <Route path="users" element={<UsersPage />} />
