@@ -180,24 +180,36 @@ export class OpportunitiesService {
     return row;
   }
   async assertRead(id: string, actorId: string, tx: Prisma.TransactionClient) { this.authorize(await this.users.findIdentityById(actorId, tx), PERMISSIONS.OPPORTUNITY_READ); await this.requireAttachmentOpportunity(id, tx, false); }
+  /** Proyección pública interna mínima para notificaciones; no incluye contenido privado. */
+  notificationSummaries(ids: string[]) {
+    if (ids.length > 100 || ids.some(id => !isUUID(id))) throw new OpportunityError('INVALID_OPPORTUNITY');
+    return this.prisma.opportunity.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, status: true } });
+  }
   async historyItems(id: string, after: OpportunityHistoryCursor | undefined, limit: number, tx: Prisma.TransactionClient): Promise<OpportunityHistoryItemDto[]> {
     const rows = await tx.opportunityEvent.findMany({ where: { opportunityId: id, ...opportunityHistorySeek(after, 'EVENT') }, select: { id: true, type: true, previousStatus: true, newStatus: true, changes: true, createdAt: true, actor: { select: identitySelect } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: limit });
     return rows.map(row => ({ id: row.id, source: 'EVENT', kind: row.type, previousStatus: row.previousStatus, newStatus: row.newStatus, changes: row.changes as Record<string, unknown>, createdAt: row.createdAt.toISOString(), actor: publicUser(row.actor) }));
   }
   /** Frontera pública 4.5: paginación de hechos de dominio confirmados. No implementa notificaciones. */
+  recordedActivityUpperBound(): Promise<{ createdAt: Date; id: string } | null> {
+    return this.prisma.opportunityEvent.findFirst({ where: { type: { in: ['CREATED', 'STATUS_CHANGED', 'DISCARDED', 'FINISHED'] } },
+      select: { createdAt: true, id: true }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
+  }
   async recordedActivity(after?: {
     createdAt: Date;
     id: string;
-  }, limit = 100): Promise<{
+  }, limit = 100, through?: { createdAt: Date; id: string }): Promise<{
     items: OpportunityActivity[];
     next: {
       createdAt: Date;
       id: string;
     } | null;
   }> {
-    if (!Number.isInteger(limit) || limit < 1 || limit > 100 || (after && (!isUUID(after.id) || !Number.isFinite(+after.createdAt))))
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100 || [after, through].some(cursor => cursor && (!isUUID(cursor.id) || !Number.isFinite(+cursor.createdAt))))
       throw new OpportunityError('INVALID_OPPORTUNITY_CURSOR');
-    const rows = await this.prisma.opportunityEvent.findMany({ where: { type: { in: ['CREATED', 'STATUS_CHANGED', 'DISCARDED', 'FINISHED'] }, ...(after ? { OR: [{ createdAt: { gt: after.createdAt } }, { createdAt: after.createdAt, id: { gt: after.id } }] } : {}) },
+    const rows = await this.prisma.opportunityEvent.findMany({ where: { type: { in: ['CREATED', 'STATUS_CHANGED', 'DISCARDED', 'FINISHED'] }, AND: [
+      ...(after ? [{ OR: [{ createdAt: { gt: after.createdAt } }, { createdAt: after.createdAt, id: { gt: after.id } }] }] : []),
+      ...(through ? [{ OR: [{ createdAt: { lt: through.createdAt } }, { createdAt: through.createdAt, id: { lte: through.id } }] }] : []),
+    ] },
       select: { id: true, opportunityId: true, type: true, createdAt: true, actorUserId: true, previousStatus: true, newStatus: true, opportunity: { select: { name: true } } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: limit + 1 });
     const visible = rows.slice(0, limit), last = visible.at(-1);
     return { items: visible.map(row => ({ id: row.id, opportunityId: row.opportunityId, kind: row.type, createdAt: row.createdAt.toISOString(), actorUserId: row.actorUserId, previousStatus: row.previousStatus, newStatus: row.newStatus, name: row.opportunity.name })), next: rows.length > limit && last ? { createdAt: last.createdAt, id: last.id } : null };

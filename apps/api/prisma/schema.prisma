@@ -76,6 +76,7 @@ enum ContactCondition {
 }
 
 model User {
+  notifications Notification[]
   createdOpportunities Opportunity[]
   opportunityEvents OpportunityEvent[]
   fileUploads FileUpload[]
@@ -971,6 +972,7 @@ model OpportunityOrganization {
   @@index([organizationId])
 }
 model OpportunityEvent {
+  notificationDeliveries NotificationDelivery[]
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   opportunityId String @db.Uuid
   type OpportunityEventType
@@ -984,6 +986,48 @@ model OpportunityEvent {
   actor User @relation(fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   auditEvent AuditEvent?
   @@unique([opportunityId, version])
+  @@unique([id, opportunityId, type])
   @@index([opportunityId, createdAt, id])
   @@index([createdAt, id])
+}
+
+enum NotificationType {
+  OPPORTUNITY_CREATED
+}
+
+model NotificationDelivery {
+  sourceEventId String @id @db.Uuid
+  opportunityId String @db.Uuid
+  sourceType OpportunityEventType @default(CREATED)
+  processedAt DateTime @default(now()) @db.Timestamptz(3)
+  sourceEvent OpportunityEvent @relation(fields: [sourceEventId, opportunityId, sourceType], references: [id, opportunityId, type], map: "NotificationDelivery_sourceEventId_opportunityId_sourceType_fke", onDelete: Restrict, onUpdate: Restrict)
+  notifications Notification[]
+  @@unique([sourceEventId, opportunityId])
+  @@index([opportunityId])
+}
+
+model Notification {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recipientUserId String @db.Uuid
+  type NotificationType @default(OPPORTUNITY_CREATED)
+  sourceEventId String @db.Uuid
+  opportunityId String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  readAt DateTime? @db.Timestamptz(3)
+  recipient User @relation(fields: [recipientUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  delivery NotificationDelivery @relation(fields: [sourceEventId, opportunityId], references: [sourceEventId, opportunityId], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([recipientUserId, sourceEventId, type])
+  @@index([recipientUserId, createdAt, id])
+  @@index([recipientUserId, readAt])
+  @@index([sourceEventId, opportunityId])
+}
+
+model NotificationCheckpoint {
+  id String @id @db.VarChar(40)
+  afterCreatedAt DateTime? @db.Timestamptz(3)
+  afterEventId String? @db.Uuid
+  throughCreatedAt DateTime? @db.Timestamptz(3)
+  throughEventId String? @db.Uuid
+  completedSweeps Int @default(0)
+  updatedAt DateTime @default(now()) @db.Timestamptz(3)
 }

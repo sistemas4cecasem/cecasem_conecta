@@ -1,4 +1,5 @@
 import { OpportunitiesModule } from './modules/opportunities/opportunities.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { OpportunityHistoryModule } from './modules/opportunities/opportunity-history.module';
 import { Module } from '@nestjs/common';
 import { FilesModule } from './modules/files/files.module';
@@ -18,6 +19,7 @@ import { RelationshipTimelineModule } from './modules/relationships/relationship
 @Module({
   imports: [
     OpportunitiesModule, OpportunityHistoryModule,
+    NotificationsModule,
     FilesModule,
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnvironment }),
     HealthModule,

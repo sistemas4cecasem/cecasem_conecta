@@ -1,4 +1,6 @@
 export const PERMISSIONS = {
+  NOTIFICATION_READ: 'notifications.read',
+  NOTIFICATION_MARK_READ: 'notifications.mark_read',
   OPPORTUNITY_READ: 'opportunities.read',
   OPPORTUNITY_CREATE: 'opportunities.create',
   OPPORTUNITY_UPDATE: 'opportunities.update',

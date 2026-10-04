@@ -1,6 +1,8 @@
 import { clearForbiddenOpportunities } from '../../features/opportunities/queries';
+import { clearForbiddenNotifications } from '../../features/notifications/queries';
+import { NotificationIndicator } from '../../features/notifications/notifications-page';
 import { clearForbiddenFiles } from '../../features/files/queries';
-import { Navigate, NavLink, Outlet, useNavigate } from 'react-router';
+import { Navigate, NavLink, Outlet, useNavigate, useLocation } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { ApiError, apiRequest } from '../../lib/api/client';
@@ -22,6 +24,10 @@ export function AuthenticatedLayout() {
   const session = useSession();
   const client = useQueryClient();
   const navigate = useNavigate();
+  const location = useLocation();
+  const navigationState: unknown = location.state;
+  const notificationReadFailed = navigationState !== null && typeof navigationState === 'object' &&
+    'notificationReadFailed' in navigationState && navigationState.notificationReadFailed === true;
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -35,6 +41,7 @@ export function AuthenticatedLayout() {
       void clearForbiddenCommunications(client, session.data);
       void clearForbiddenTimeline(client, session.data);
       void clearForbiddenOpportunities(client, session.data);
+      void clearForbiddenNotifications(client, session.data);
       void clearForbiddenFiles(client, session.data);
     }
   }, [client, session.data]);
@@ -61,10 +68,11 @@ export function AuthenticatedLayout() {
       {visibleNavigationItems(AUTHENTICATED_NAVIGATION, session.data.permissions).map(item =>
         <NavLink key={item.to} to={item.to} end className="inline-flex min-h-11 items-center underline">{item.label}</NavLink>)}
     </nav>
+    {session.data.permissions.includes('notifications.read') && <NotificationIndicator identity={session.data} />}
     <span>{session.data.givenNames} {session.data.familyNames}</span>
     <span>{ROLE_LABELS[session.data.role]}</span>
     <button disabled={pending} onClick={() => void logout()} className="min-h-11 rounded border px-3 py-2">
       {pending ? 'Cerrando sesión…' : 'Cerrar sesión'}</button>
     {error && <p role="alert">{error}</p>}
-  </div>}><Outlet /></ApplicationFrame>;
+  </div>}>{notificationReadFailed && <p role="alert">No se pudo confirmar la lectura del aviso. Se actualizará al sincronizar las notificaciones.</p>}<Outlet /></ApplicationFrame>;
 }

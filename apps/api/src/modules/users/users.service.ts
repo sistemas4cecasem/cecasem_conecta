@@ -43,6 +43,12 @@ function uniqueConflict(error: unknown, fields: readonly string[], index: string
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
+  // Destinatarios actuales; los locks preservan esta selección hasta confirmar el lote.
+  opportunityNotificationRecipients(tx: Prisma.TransactionClient): Promise<{ id: string }[]> {
+    return tx.$queryRaw`SELECT id FROM "User" WHERE "isActive" = true
+      AND role IN ('ADMINISTRATOR', 'BOARD', 'PLANNING') ORDER BY id FOR SHARE`;
+  }
+
   // Interfaz interna; no crea credenciales ni expone administración HTTP.
   async createIdentity(input: CreateUserIdentity, transaction?: Prisma.TransactionClient): Promise<UserIdentity> {
     const givenNames = normalizeIdentityText(input.givenNames, 'Nombres');
