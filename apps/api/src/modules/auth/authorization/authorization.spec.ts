@@ -13,6 +13,7 @@ import { PermissionsGuard } from './permissions.guard';
 import { RequirePermissions } from './require-permissions.decorator';
 
 const both = [PERMISSIONS.FIRST_ACCESS_ISSUE, PERMISSIONS.PASSWORD_RESET_ISSUE];
+const filePermissions = [PERMISSIONS.FILE_READ, PERMISSIONS.FILE_UPLOAD];
 const communicationPermissions = [PERMISSIONS.COMMUNICATION_READ, PERMISSIONS.SENT_COMMUNICATION_CREATE, PERMISSIONS.RECEIVED_COMMUNICATION_CREATE, PERMISSIONS.COMMUNICATION_AMEND, PERMISSIONS.COMMUNICATION_INVALIDATE];
 const restrictionPermissions = [PERMISSIONS.RESTRICTION_READ, PERMISSIONS.RESTRICTION_CREATE];
 const processPermissions = [PERMISSIONS.PROCESS_READ, PERMISSIONS.PROCESS_CREATE, PERMISSIONS.PROCESS_STATE_CHANGE, PERMISSIONS.PROCESS_CLOSE, PERMISSIONS.PROCESS_REOPEN, PERMISSIONS.INTERNAL_NOTE_CREATE];
@@ -20,7 +21,7 @@ const intentPermissions = [PERMISSIONS.INTENT_READ, PERMISSIONS.INTENT_CREATE, P
 const directoryPermissions = [PERMISSIONS.DIRECTORY_READ, PERMISSIONS.DIRECTORY_WRITE, PERMISSIONS.DIRECTORY_HISTORY_READ, PERMISSIONS.DIRECTORY_VERIFY, PERMISSIONS.DIRECTORY_DUPLICATES_DISMISS];
 const allPermissions = [PERMISSIONS.FIRST_ACCESS_ISSUE, PERMISSIONS.PASSWORD_RESET_ISSUE, PERMISSIONS.USERS_READ,
   PERMISSIONS.USERS_DEACTIVATED_READ, PERMISSIONS.USERS_CREATE, PERMISSIONS.USERS_ROLE_UPDATE,
-  PERMISSIONS.USERS_STATUS_UPDATE, PERMISSIONS.USERS_MAILBOXES_MANAGE, ...directoryPermissions, PERMISSIONS.DIRECTORY_STATUS_UPDATE, PERMISSIONS.SETTINGS_VERIFICATION_UPDATE, PERMISSIONS.DIRECTORY_DUPLICATES_MANAGE, ...intentPermissions, ...processPermissions, ...restrictionPermissions, ...communicationPermissions, PERMISSIONS.RESTRICTION_LIFT];
+  PERMISSIONS.USERS_STATUS_UPDATE, PERMISSIONS.USERS_MAILBOXES_MANAGE, ...directoryPermissions, PERMISSIONS.DIRECTORY_STATUS_UPDATE, PERMISSIONS.SETTINGS_VERIFICATION_UPDATE, PERMISSIONS.DIRECTORY_DUPLICATES_MANAGE, ...intentPermissions, ...processPermissions, ...restrictionPermissions, ...communicationPermissions, PERMISSIONS.RESTRICTION_LIFT, ...filePermissions];
 const reflector = new Reflector();
 
 // Se inspecciona metadata del método original, sin invocarlo ni hacer bind.
@@ -32,7 +33,7 @@ function methodHandler(prototype: object, method: string): ReturnType<ExecutionC
 
 describe('RBAC explícito y sin bypass', () => {
   it.each([
-    [UserRole.ADMINISTRATOR, allPermissions], [UserRole.BOARD, [PERMISSIONS.USERS_READ, ...directoryPermissions, ...intentPermissions, ...processPermissions, ...restrictionPermissions, ...communicationPermissions, PERMISSIONS.RESTRICTION_LIFT]], [UserRole.RESEARCH, [...directoryPermissions, ...intentPermissions, ...processPermissions, ...restrictionPermissions, ...communicationPermissions]], [UserRole.PLANNING, [...directoryPermissions, ...intentPermissions, ...processPermissions, ...restrictionPermissions, ...communicationPermissions]],
+    [UserRole.ADMINISTRATOR, allPermissions], [UserRole.BOARD, [PERMISSIONS.USERS_READ, ...directoryPermissions, ...intentPermissions, ...processPermissions, ...restrictionPermissions, ...communicationPermissions, PERMISSIONS.RESTRICTION_LIFT, ...filePermissions]], [UserRole.RESEARCH, [...directoryPermissions, ...intentPermissions, ...processPermissions, ...restrictionPermissions, ...communicationPermissions, ...filePermissions]], [UserRole.PLANNING, [...directoryPermissions, ...intentPermissions, ...processPermissions, ...restrictionPermissions, ...communicationPermissions, ...filePermissions]],
   ])('%s conserva su lista explícita', (role, expected) => {
     expect(getRolePermissions(role)).toEqual(expected);
     expect(hasPermission(role, PERMISSIONS.FIRST_ACCESS_ISSUE)).toBe(role === UserRole.ADMINISTRATOR);

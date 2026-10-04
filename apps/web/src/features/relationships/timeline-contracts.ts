@@ -9,6 +9,7 @@ export const timelineItemSchema = z.discriminatedUnion('kind', [
   z.object({ ...base, kind: z.enum(['PROCESS_CREATED', 'PROCESS_STATE_CHANGED', 'PROCESS_CLOSED', 'PROCESS_REOPENED']), payload: z.object({ eventId: z.uuid(),
     previousState: processStateSchema.nullable(), newState: processStateSchema, result: processResultSchema.nullable(), observation: z.string().nullable() }) }),
   z.object({ ...base, kind: z.enum(['COMMUNICATION_CORRECTED', 'COMMUNICATION_ANNOTATED', 'COMMUNICATION_INVALIDATED']), payload: z.object({ amendmentId: z.uuid(), communicationId: z.uuid(), content: z.string() }) }),
+  z.object({ ...base, kind: z.literal('FILES_ATTACHED'), payload: z.object({ uploadId: z.uuid(), communicationId: z.uuid().nullable(), names: z.array(z.string()).min(1).max(10) }) }),
   z.object({ ...base, kind: z.literal('INTERNAL_NOTE'), payload: z.object({ noteId: z.uuid(), body: z.string() }) }),
 ]);
 export const timelinePageSchema = z.object({ items: z.array(timelineItemSchema).max(100), nextCursor: z.string().nullable() });

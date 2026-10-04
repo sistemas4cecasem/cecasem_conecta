@@ -33,7 +33,11 @@ services:
       PASSWORD_RESET_TOKEN_TTL_SECONDS: ${PASSWORD_RESET_TOKEN_TTL_SECONDS:-14400}
       SESSION_TTL_SECONDS: ${SESSION_TTL_SECONDS:-28800}
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      FILE_STORAGE_ROOT: ${FILE_STORAGE_ROOT:-/app/storage/private}
+      FILE_MAX_BYTES: ${FILE_MAX_BYTES:-20971520}
       DATABASE_URL: ${DATABASE_URL:?Configure DATABASE_URL con hostname db}
+    volumes:
+      - private_files:${FILE_STORAGE_ROOT:-/app/storage/private}
     depends_on:
       db:
         condition: service_healthy
@@ -69,3 +73,4 @@ services:
 
 volumes:
   postgres_data:
+  private_files:

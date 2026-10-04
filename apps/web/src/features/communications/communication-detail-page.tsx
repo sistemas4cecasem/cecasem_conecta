@@ -1,3 +1,4 @@
+import { Attachments } from '../files/attachments';
 import { Link, useParams } from 'react-router';
 import { useSession, type AuthIdentity } from '../auth/session';
 import { buttonClass, QueryState } from '../directory/directory-ui';
@@ -26,6 +27,7 @@ function CommunicationDetail({ identity, id }: { identity: AuthIdentity; id: str
       <h2 className="font-semibold">Cuerpo original</h2><pre className="whitespace-pre-wrap break-words font-sans">{row.bodyOriginal}</pre>
       <p>{row.direction === 'SENT' ? 'Fecha real de envío' : 'Fecha real de recepción'}: {new Date(communicationDate(row)).toLocaleString('es-BO')}</p><p>Fecha de registro: {new Date(row.createdAt).toLocaleString('es-BO')}</p>
       <p>Registrada por: {row.registeredBy.displayName}{!row.registeredBy.isActive && ' (cuenta inactiva)'}</p><p>El contenido original es histórico y no dispone de edición ordinaria.</p>
+      <Attachments identity={identity} resource='communications' resourceId={id} processId={row.processId} blocked={row.validity === 'INVALIDATED'} />
       <CommunicationAmendments identity={identity} row={row} />
     </>}
   </section>;

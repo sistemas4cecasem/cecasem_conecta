@@ -16,6 +16,7 @@ enum UserRole {
 }
 
 enum AuditAction {
+  FILES_ATTACHED
   COMMUNICATION_INVALIDATED
   RECEIVED_COMMUNICATION_REGISTERED
   SENT_COMMUNICATION_REGISTERED
@@ -70,6 +71,7 @@ enum ContactCondition {
 }
 
 model User {
+  fileUploads FileUpload[]
   communicationAmendments CommunicationAmendment[]
   internalNotes InternalNote[]
   registeredCommunications Communication[]
@@ -123,6 +125,8 @@ model PasswordResetToken {
 }
 
 model AuditEvent {
+  fileUploadId String? @unique @db.Uuid
+  fileUpload FileUpload? @relation(fields: [fileUploadId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   @@unique([communicationId, action])
   processId String? @db.Uuid
   process RelationshipProcess? @relation(fields: [processId], references: [id], onDelete: Restrict, onUpdate: Restrict)
@@ -662,6 +666,7 @@ enum ProcessAuthority {
 }
 
 model RelationshipProcess {
+  fileUploads FileUpload[]
   internalNotes InternalNote[]
   communicationAuditEvents AuditEvent[]
   communications Communication[]
@@ -776,6 +781,7 @@ enum RecipientType {
 }
 
 model Communication {
+  fileUploads FileUpload[]
   amendments CommunicationAmendment[]
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   processId String @db.Uuid
@@ -857,4 +863,37 @@ model CommunicationAmendment {
   @@index([communicationId, createdAt, id])
   @@index([authorUserId])
   @@index([createdAt, id])
+}
+
+// Cada lote conserva recurso, autor/fecha y comando idempotente; sus archivos comparten esa procedencia.
+model FileUpload {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  processId String? @db.Uuid
+  communicationId String? @db.Uuid
+  uploadedByUserId String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  requestKey String @db.Uuid
+  requestFingerprint String @db.VarChar(64)
+  process RelationshipProcess? @relation(fields: [processId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  communication Communication? @relation(fields: [communicationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  uploadedBy User @relation(fields: [uploadedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  files FileAttachment[]
+  auditEvent AuditEvent?
+  @@unique([uploadedByUserId, requestKey])
+  @@index([processId, createdAt, id])
+  @@index([communicationId, createdAt, id])
+}
+
+model FileAttachment {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  uploadId String @db.Uuid
+  storageKey String @unique @db.VarChar(36)
+  originalName String @db.VarChar(255)
+  declaredMimeType String @db.VarChar(150)
+  mimeType String @db.VarChar(150)
+  sizeBytes Int
+  sha256 String @db.VarChar(64)
+  position Int
+  upload FileUpload @relation(fields: [uploadId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([uploadId, position])
 }

@@ -7,6 +7,9 @@ type ResetAction = typeof AuditAction.PASSWORD_RESET_ISSUED | typeof AuditAction
 
 @Injectable()
 export class AuditService {
+  recordFilesAttached(fileUploadId: string, actorUserId: string, tx: Prisma.TransactionClient) {
+    return tx.auditEvent.create({ data: { action: AuditAction.FILES_ATTACHED, fileUploadId, actorUserId, operationId: fileUploadId } });
+  }
   recordCommunicationInvalidated(communicationId: string, processId: string, actorUserId: string, amendmentId: string, tx: Prisma.TransactionClient) {
     // operationId referencia el registro histórico que conserva el motivo sin duplicarlo.
     return tx.auditEvent.create({ data: { action: AuditAction.COMMUNICATION_INVALIDATED, communicationId, processId, actorUserId, operationId: amendmentId } });

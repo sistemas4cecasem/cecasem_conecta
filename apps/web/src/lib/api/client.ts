@@ -18,14 +18,14 @@ function httpErrorMessage(status: number): string {
 
 // T representa el contrato esperado. La validación del contenido corresponde a
 // cada consumidor cuando exista un contrato funcional que validar.
-export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'credentials'> = {}): Promise<T | undefined> {
+export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'credentials'> = {}, responseType: 'json' | 'blob' = 'json'): Promise<T | undefined> {
   if (/^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(path)) {
     throw new Error('El cliente API requiere una ruta relativa.');
   }
 
   const baseUrl = (import.meta.env.VITE_API_BASE_URL?.trim() || '/api/v1').replace(/\/+$/, '');
   const headers = new Headers(options.headers);
-  if (!headers.has('Accept')) headers.set('Accept', 'application/json');
+  if (!headers.has('Accept')) headers.set('Accept', responseType === 'blob' ? 'application/octet-stream' : 'application/json');
 
   let response: Response;
   try {
@@ -40,6 +40,19 @@ export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'cr
   }
 
   if (!response.ok) {
+    if (/^(files\/|(?:communications|relationship-processes)\/[^/]+\/attachments)/.test(path)) {
+      const payload: unknown = await response.clone().json().catch(() => null);
+      const messages: Record<string, string> = {
+        INVALID_UPLOAD: 'Selecciona de 1 a 10 archivos no vacíos con nombres válidos.',
+        FILE_TOO_LARGE: 'Un archivo supera el límite de tamaño permitido.',
+        UNSUPPORTED_FILE: 'Un archivo no coincide con un tipo permitido. Revisa su extensión y contenido.',
+        RESOURCE_CLOSED: 'El proceso está cerrado; no admite nuevas cargas directas.',
+        COMMUNICATION_INVALIDATED: 'La comunicación está invalidada; no admite nuevos adjuntos.',
+        FILE_UNAVAILABLE: 'El archivo no está disponible o no superó la comprobación de integridad.',
+        REQUEST_CONFLICT: 'Esta solicitud ya registró otra carga. Revisa los adjuntos existentes.',
+      };
+      if (typeof payload === 'object' && payload !== null && 'code' in payload && typeof payload.code === 'string' && Object.hasOwn(messages, payload.code)) throw new ApiError(messages[payload.code] ?? httpErrorMessage(response.status), response.status, payload.code);
+    }
     if (response.status === 409 && (path.startsWith('communications/') || /relationship-processes\/[^/]+\/communications/.test(path))) {
       const payload: unknown = await response.clone().json().catch(() => null);
       const messages: Record<string, string> = { MAILBOX_UNAVAILABLE: 'La cuenta ya no está habilitada y asignada a tu usuario. Recarga tus cuentas disponibles.',
@@ -151,6 +164,7 @@ export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'cr
   }
   if (response.status === 204) return undefined;
 
+  if (responseType === 'blob') return await response.blob() as T;
   try {
     return await response.json() as T;
   } catch {

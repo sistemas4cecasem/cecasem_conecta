@@ -5,12 +5,13 @@ import type { ProcessResult, ProcessState } from '../../generated/prisma/client'
 import { ProcessUserDto } from './relationship-process.dto';
 import type { AmendmentDto } from '../communications/communication-amendment.dto';
 
-export const TIMELINE_KINDS = ['SENT_COMMUNICATION', 'RECEIVED_COMMUNICATION', 'PROCESS_CREATED', 'PROCESS_STATE_CHANGED', 'PROCESS_CLOSED', 'PROCESS_REOPENED', 'INTERNAL_NOTE', 'COMMUNICATION_CORRECTED', 'COMMUNICATION_ANNOTATED', 'COMMUNICATION_INVALIDATED'] as const;
+export const TIMELINE_KINDS = ['FILES_ATTACHED', 'SENT_COMMUNICATION', 'RECEIVED_COMMUNICATION', 'PROCESS_CREATED', 'PROCESS_STATE_CHANGED', 'PROCESS_CLOSED', 'PROCESS_REOPENED', 'INTERNAL_NOTE', 'COMMUNICATION_CORRECTED', 'COMMUNICATION_ANNOTATED', 'COMMUNICATION_INVALIDATED'] as const;
 type BaseItem = { id: string; occurredAt: string; registeredAt: string; actor: ProcessUserDto; summary: string };
 export type TimelineItem = BaseItem & (
   { kind: 'SENT_COMMUNICATION' | 'RECEIVED_COMMUNICATION'; payload: { communicationId: string; sender: string; subject: string; recipients: { type: 'TO' | 'CC' | 'BCC'; addressOriginal: string; position: number }[]; recipientTotal: number; validity?: 'VALID' | 'INVALIDATED'; invalidation?: AmendmentDto | null } }
   | { kind: 'COMMUNICATION_CORRECTED' | 'COMMUNICATION_ANNOTATED' | 'COMMUNICATION_INVALIDATED'; payload: { amendmentId: string; communicationId: string; content: string } }
   | { kind: 'PROCESS_CREATED' | 'PROCESS_STATE_CHANGED' | 'PROCESS_CLOSED' | 'PROCESS_REOPENED'; payload: { eventId: string; previousState: ProcessState | null; newState: ProcessState; result: ProcessResult | null; observation: string | null } }
+  | { kind: 'FILES_ATTACHED'; payload: { uploadId: string; communicationId: string | null; names: string[] } }
   | { kind: 'INTERNAL_NOTE'; payload: { noteId: string; body: string } }
 );
 export class TimelineQueryDto {

@@ -6,7 +6,7 @@ import { buttonClass, Field, inputClass, MutationError } from '../directory/dire
 import { PROCESS_STATE_LABELS, PROCESS_RESULT_LABELS } from './process-contracts';
 import { noteFormSchema, type TimelineItem } from './timeline-contracts';
 import { canReadTimeline, useInternalNote, useTimeline } from './timeline-queries';
-const eventLabels = { PROCESS_CREATED: 'Proceso iniciado', PROCESS_STATE_CHANGED: 'Cambio de estado', PROCESS_CLOSED: 'Proceso cerrado', PROCESS_REOPENED: 'Proceso reabierto', COMMUNICATION_CORRECTED: 'Corrección añadida', COMMUNICATION_ANNOTATED: 'Observación añadida', COMMUNICATION_INVALIDATED: 'Comunicación invalidada' };
+const eventLabels = { FILES_ATTACHED: 'Adjuntos incorporados', PROCESS_CREATED: 'Proceso iniciado', PROCESS_STATE_CHANGED: 'Cambio de estado', PROCESS_CLOSED: 'Proceso cerrado', PROCESS_REOPENED: 'Proceso reabierto', COMMUNICATION_CORRECTED: 'Corrección añadida', COMMUNICATION_ANNOTATED: 'Observación añadida', COMMUNICATION_INVALIDATED: 'Comunicación invalidada' };
 function TimelineEntry({ item }: { item: TimelineItem }) {
   const sent = item.kind === 'SENT_COMMUNICATION', received = item.kind === 'RECEIVED_COMMUNICATION';
   const title = sent ? 'ENVIADA' : received ? 'RECIBIDA' : item.kind === 'INTERNAL_NOTE' ? 'NOTA INTERNA' : eventLabels[item.kind as keyof typeof eventLabels];
@@ -15,7 +15,7 @@ function TimelineEntry({ item }: { item: TimelineItem }) {
     <p>Fecha del hecho: {new Date(item.occurredAt).toLocaleString('es-BO')}</p>
     <p>{sent || received ? 'Registrador' : 'Autor'}: {item.actor.displayName}{!item.actor.isActive && ' (cuenta inactiva)'}</p>
     {sent || received ? <p>Registro en CECASEM Conecta: {new Date(item.registeredAt).toLocaleString('es-BO')}</p> : null}
-    {'amendmentId' in item.payload ? <><p className="whitespace-pre-wrap">{item.payload.content}</p><Link className={buttonClass} to={'/communications/' + item.payload.communicationId}>Ver comunicación original</Link></> : 'communicationId' in item.payload ? <>
+    {'uploadId' in item.payload ? <><p>{item.payload.communicationId ? 'Incorporación posterior; no forma parte del mensaje original registrado.' : 'Adjuntos del proceso.'}</p><ul>{item.payload.names.map((name, index) => <li key={index}>{name}</li>)}</ul>{item.payload.communicationId ? <Link className={buttonClass} to={'/communications/' + item.payload.communicationId}>Consultar adjuntos</Link> : <a className={buttonClass} href='#adjuntos'>Consultar adjuntos</a>}</> : 'amendmentId' in item.payload ? <><p className="whitespace-pre-wrap">{item.payload.content}</p><Link className={buttonClass} to={'/communications/' + item.payload.communicationId}>Ver comunicación original</Link></> : 'communicationId' in item.payload ? <>
       {item.payload.validity === 'INVALIDATED' && <aside><p className="font-semibold">INVALIDADA</p>{item.payload.invalidation && <><p>Invalidada posteriormente por {item.payload.invalidation.author.displayName} · {new Date(item.payload.invalidation.createdAt).toLocaleString('es-BO')}</p><p className="whitespace-pre-wrap">Motivo: {item.payload.invalidation.content}</p></>}</aside>}
       <p className="font-medium whitespace-pre-wrap">{item.payload.subject}</p><p>Remitente: {item.payload.sender}</p>
       <p>Destinatarios: {item.payload.recipients.map(recipient => (recipient.type === 'TO' ? 'Para' : recipient.type === 'BCC' ? 'CCO' : 'CC') + ': ' + recipient.addressOriginal).join(' · ')}</p>

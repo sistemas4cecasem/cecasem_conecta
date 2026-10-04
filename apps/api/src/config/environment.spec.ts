@@ -1,3 +1,4 @@
+import { fileEnvironment } from '../modules/files/file-config';
 import { validateEnvironment } from './environment';
 
 const databaseUrl = 'postgresql://test:example@localhost:5432/cecasem_test';
@@ -27,6 +28,7 @@ describe('Environment configuration', () => {
   });
   it('uses development defaults when variables are absent', () => {
     expect(validateEnvironment({ DATABASE_URL: databaseUrl })).toEqual({
+      ...fileEnvironment({}),
       NODE_ENV: 'development',
       APP_PORT: 3000,
       DATABASE_URL: databaseUrl,
@@ -41,6 +43,7 @@ describe('Environment configuration', () => {
     'accepts NODE_ENV=%s with a configured port',
     (nodeEnv) => {
       expect(validateEnvironment({ NODE_ENV: nodeEnv, APP_PORT: '4100', DATABASE_URL: databaseUrl })).toEqual({
+      ...fileEnvironment({}),
         NODE_ENV: nodeEnv,
         APP_PORT: 4100,
         DATABASE_URL: databaseUrl,

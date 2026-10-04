@@ -13,6 +13,8 @@ server {
     }
 
     location /api/ {
+        # 10 archivos de 20 MiB más overhead multipart; límite por archivo en API.
+        client_max_body_size 210m;
         proxy_pass http://cecasem_api;
         proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;

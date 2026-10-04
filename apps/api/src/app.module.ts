@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { FilesModule } from './modules/files/files.module';
 import { ConfigModule } from '@nestjs/config';
 import { validateEnvironment } from './config/environment';
 import { HealthModule } from './modules/health/health.module';
@@ -14,6 +15,7 @@ import { RelationshipTimelineModule } from './modules/relationships/relationship
 
 @Module({
   imports: [
+    FilesModule,
     ConfigModule.forRoot({ isGlobal: true, validate: validateEnvironment }),
     HealthModule,
     UsersModule,

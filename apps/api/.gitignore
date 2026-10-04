@@ -2,3 +2,5 @@ dist/
 coverage/
 *.tsbuildinfo
 src/generated/prisma/
+
+storage/

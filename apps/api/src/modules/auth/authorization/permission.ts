@@ -1,4 +1,6 @@
 export const PERMISSIONS = {
+  FILE_READ: 'files.read',
+  FILE_UPLOAD: 'files.upload',
   COMMUNICATION_AMEND: 'communications.amend',
   COMMUNICATION_INVALIDATE: 'communications.invalidate',
   INTERNAL_NOTE_CREATE: 'relationships.note.create',

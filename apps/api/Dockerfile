@@ -25,5 +25,6 @@ WORKDIR /app/apps/api
 COPY --from=production-dependencies /app/node_modules /app/node_modules
 COPY --from=production-dependencies /app/apps/api /app/apps/api
 COPY --from=build /app/apps/api/dist ./dist
+RUN mkdir -p /app/storage/private && chown node:node /app/storage/private && chmod 700 /app/storage/private
 USER node
 CMD ["node", "dist/main.js"]

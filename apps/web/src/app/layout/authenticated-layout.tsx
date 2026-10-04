@@ -1,3 +1,4 @@
+import { clearForbiddenFiles } from '../../features/files/queries';
 import { Navigate, NavLink, Outlet, useNavigate } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -32,6 +33,7 @@ export function AuthenticatedLayout() {
       void clearForbiddenContext(client, session.data);
       void clearForbiddenCommunications(client, session.data);
       void clearForbiddenTimeline(client, session.data);
+      void clearForbiddenFiles(client, session.data);
     }
   }, [client, session.data]);
 

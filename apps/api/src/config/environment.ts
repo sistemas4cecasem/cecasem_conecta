@@ -1,6 +1,9 @@
 import { validateDatabaseUrl } from './database-url';
+import { fileEnvironment } from '../modules/files/file-config';
 
 export interface AppEnvironment {
+  FILE_STORAGE_ROOT: string;
+  FILE_MAX_BYTES: number;
   NODE_ENV: 'development' | 'test' | 'production';
   APP_PORT: number;
   DATABASE_URL: string;
@@ -52,6 +55,7 @@ export function validateEnvironment(
   }
 
   return {
+    ...fileEnvironment(environment),
     NODE_ENV: nodeEnv,
     APP_PORT: port,
     DATABASE_URL: validateDatabaseUrl(environment.DATABASE_URL),
