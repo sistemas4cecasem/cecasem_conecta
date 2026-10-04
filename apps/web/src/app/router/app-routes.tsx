@@ -18,6 +18,15 @@ import { ContactDetailPage } from '../../features/directory/contact-detail-page'
 import { ContactIntentsPage } from '../../features/relationships/contact-intents-page';
 import { ContactIntentCreatePage } from '../../features/relationships/contact-intent-create-page';
 import { ContactIntentDetailPage } from '../../features/relationships/contact-intent-detail-page';
+import { RelationshipProcessesPage } from '../../features/relationships/relationship-processes-page';
+import { RelationshipProcessCreatePage } from '../../features/relationships/relationship-process-create-page';
+import { RelationshipProcessDetailPage } from '../../features/relationships/relationship-process-detail-page';
+import { ContactRestrictionsPage } from '../../features/relationships/contact-restrictions-page';
+import { ContactRestrictionCreatePage } from '../../features/relationships/contact-restriction-create-page';
+import { ContactRestrictionDetailPage } from '../../features/relationships/contact-restriction-detail-page';
+import { SentCommunicationPage } from '../../features/communications/sent-communication-page';
+import { ReceivedCommunicationPage } from '../../features/communications/received-communication-page';
+import { CommunicationDetailPage } from '../../features/communications/communication-detail-page';
 const DirectorySearchPage = lazy(() => import('../../features/directory/search-page'));
 
 export function AppRoutes() {
@@ -45,6 +54,15 @@ export function AppRoutes() {
         <Route path="contact-intents" element={<ContactIntentsPage />} />
         <Route path="contact-intents/new" element={<ContactIntentCreatePage />} />
         <Route path="contact-intents/:id" element={<ContactIntentDetailPage />} />
+        <Route path="relationship-processes" element={<RelationshipProcessesPage />} />
+        <Route path="relationship-processes/new" element={<RelationshipProcessCreatePage />} />
+        <Route path="relationship-processes/:id" element={<RelationshipProcessDetailPage />} />
+        <Route path="relationship-processes/:id/communications/sent" element={<SentCommunicationPage />} />
+        <Route path="relationship-processes/:id/communications/received" element={<ReceivedCommunicationPage />} />
+        <Route path="communications/:id" element={<CommunicationDetailPage />} />
+        <Route path="contact-restrictions" element={<ContactRestrictionsPage />} />
+        <Route path="contact-restrictions/new" element={<ContactRestrictionCreatePage />} />
+        <Route path="contact-restrictions/:id" element={<ContactRestrictionDetailPage />} />
       </Route>
     </Routes>
   );

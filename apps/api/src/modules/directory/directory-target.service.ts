@@ -11,6 +11,15 @@ export class UnavailableDirectoryTarget extends Error {}
 export class DirectoryTargetService {
   constructor(private readonly actors: DirectoryActorPolicy) {}
 
+  /** Organizaciones vigentes distintas, acotadas y sin los locks de validación de escritura. */
+  async currentOrganizationContext(personId: string, limit: number, tx: Prisma.TransactionClient): Promise<{ items: TargetSummary[]; total: number }> {
+    const where = { personRelations: { some: { personId, isCurrent: true } } };
+    const rows = await tx.organization.findMany({ where, select: { id: true, name: true, isActive: true },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }], take: limit });
+    const total = await tx.organization.count({ where });
+    return { items: rows.map(row => ({ kind: 'ORGANIZATION', id: row.id, label: row.name, isActive: row.isActive })), total };
+  }
+
   async summary(target: InstitutionalTarget, tx: Prisma.TransactionClient): Promise<TargetSummary> {
     if (target.organizationId) {
       const row = await tx.organization.findUnique({ where: { id: target.organizationId }, select: { id: true, name: true, isActive: true } });

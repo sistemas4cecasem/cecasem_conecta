@@ -22,3 +22,7 @@ export function requireActiveIntent(state: ContactIntentState, version: number, 
   if (version !== expectedVersion) throw new IntentError('VERSION_CONFLICT');
   if (state !== ContactIntentState.ACTIVE) throw new IntentError('INTENT_NOT_ACTIVE');
 }
+export function canConvertIntent(role: UserRole, userId: string, authorUserId: string): boolean {
+  return role === UserRole.ADMINISTRATOR || role === UserRole.BOARD ||
+    ((role === UserRole.RESEARCH || role === UserRole.PLANNING) && userId === authorUserId);
+}

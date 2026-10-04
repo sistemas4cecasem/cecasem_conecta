@@ -4,6 +4,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { HttpExceptionFilter } from '../common/filters/http-exception.filter';
 import { AppEnvironment } from './environment';
 import type { Request, Response, NextFunction } from 'express';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 
 export function createValidationPipe(): ValidationPipe {
   return new ValidationPipe({
@@ -15,6 +16,8 @@ export function createValidationPipe(): ValidationPipe {
 }
 
 export function configureApplication(app: INestApplication): void {
+  // Nest usa el adapter Express: admite el texto original y JSON escapado hasta el límite validado.
+  (app as NestExpressApplication).useBodyParser('json', { limit: '2mb' });
   app.setGlobalPrefix('api/v1');
   app.use('/api/v1/auth', (_request: Request, response: Response, next: NextFunction) => {
     response.setHeader('Cache-Control', 'no-store');

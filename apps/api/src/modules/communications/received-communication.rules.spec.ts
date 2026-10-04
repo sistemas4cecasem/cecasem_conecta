@@ -1,0 +1,8 @@
+import { randomUUID } from 'node:crypto';
+import { receivedRequestFingerprint, validateReceivedOriginal, type ReceivedOriginal } from './communication.rules';
+const original = (): ReceivedOriginal => ({ sender: 'Fundacion@Example.test', to: ['institucional@example.test'], cc: [], bcc: [], subject: '  Respuesta  original ', body: '  Hola\r\n\r\nFirma <script>literal</script>  ', receivedAt: '1999-01-01T12:00:00-04:00' });
+describe('Original recibido', () => {
+  it('preserva remitente, destinatarios, texto y fecha histórica', () => { const input = original(); expect(validateReceivedOriginal(input)).toBe(input); });
+  it.each([{ sender: '' }, { sender: 'bad' }, { sender: ' x@example.test' }, { sender: 'a'.repeat(255) }, { to: [] }, { to: ['bad'] }, { cc: null }, { bcc: ['bad'] }, { receivedAt: '2999-01-01T00:00:00Z' }, { receivedAt: '2020-02-30T00:00:00Z' }, { receivedAt: '2000-01-01T12:00:00' }, { subject: ' ' }, { body: ' ' }, { subject: 'a\nb' }, { body: 'a\0b' }])('rechaza original inválido %j', patch => { expect(() => validateReceivedOriginal({ ...original(), ...patch } as ReceivedOriginal)).toThrow('INVALID_COMMUNICATION'); });
+  it('huella incluye remitente, dirección, proceso y texto exacto', () => { const input = original(), id = randomUUID(), fingerprint = receivedRequestFingerprint(id, input); expect(receivedRequestFingerprint(id.toUpperCase(), { ...input, receivedAt: '1999-01-01T16:00:00Z' })).toBe(fingerprint); for (const patch of [{ sender: input.sender.toLowerCase() }, { subject: input.subject + ' ' }, { body: input.body + '\n' }, { bcc: ['otro@example.test'] }]) expect(receivedRequestFingerprint(id, { ...input, ...patch })).not.toBe(fingerprint); expect(receivedRequestFingerprint(randomUUID(), input)).not.toBe(fingerprint); });
+});

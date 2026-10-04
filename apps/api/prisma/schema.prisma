@@ -16,8 +16,18 @@ enum UserRole {
 }
 
 enum AuditAction {
+  COMMUNICATION_INVALIDATED
+  RECEIVED_COMMUNICATION_REGISTERED
+  SENT_COMMUNICATION_REGISTERED
+  CONTACT_RESTRICTION_CREATED
+  CONTACT_RESTRICTION_LIFTED
+  PROCESS_CREATED
+  PROCESS_STATE_CHANGED
+  PROCESS_CLOSED
+  PROCESS_REOPENED
   CONTACT_INTENT_CREATED
   CONTACT_INTENT_CANCELLED
+  CONTACT_INTENT_CONVERTED
   DUPLICATE_CONSOLIDATED
   VERIFICATION_SETTINGS_CHANGED
   PASSWORD_RESET_ISSUED
@@ -60,6 +70,15 @@ enum ContactCondition {
 }
 
 model User {
+  communicationAmendments CommunicationAmendment[]
+  internalNotes InternalNote[]
+  registeredCommunications Communication[]
+  registeredContactRestrictions ContactRestriction[] @relation("RestrictionRegistrar")
+  liftedContactRestrictions ContactRestriction[] @relation("RestrictionLifter")
+  createdProcesses RelationshipProcess[] @relation("ProcessCreator")
+  closedProcesses RelationshipProcess[] @relation("ProcessCloser")
+  processParticipations ProcessParticipant[]
+  processEvents RelationshipProcessEvent[]
   authoredContactIntents ContactIntent[] @relation("IntentAuthor")
   cancelledContactIntents ContactIntent[] @relation("IntentCanceller")
   resolvedDuplicateCandidates DuplicateCandidate[]
@@ -104,6 +123,16 @@ model PasswordResetToken {
 }
 
 model AuditEvent {
+  @@unique([communicationId, action])
+  processId String? @db.Uuid
+  process RelationshipProcess? @relation(fields: [processId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  communicationId String? @db.Uuid
+  communication Communication? @relation(fields: [communicationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  contactRestrictionId String? @db.Uuid
+  contactRestriction ContactRestriction? @relation(fields: [contactRestrictionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  @@index([contactRestrictionId, createdAt])
+  processEventId String? @unique @db.Uuid
+  processEvent RelationshipProcessEvent? @relation(fields: [processEventId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   contactIntentId String? @db.Uuid
   contactIntent ContactIntent? @relation(fields: [contactIntentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   @@index([contactIntentId, createdAt])
@@ -169,6 +198,8 @@ model AuditEvent {
 }
 
 model Organization {
+  contactRestrictions ContactRestriction[]
+  relationshipProcesses RelationshipProcess[]
   contactIntents ContactIntent[]
   duplicateOfId String? @db.Uuid
   duplicateOf Organization? @relation("OrganizationDuplicates",fields:[duplicateOfId],references:[id],onDelete:Restrict,onUpdate:Restrict)
@@ -266,6 +297,8 @@ model DirectoryChange {
 }
 
 model Person {
+  contactRestrictions ContactRestriction[]
+  relationshipProcesses RelationshipProcess[]
   contactIntents ContactIntent[]
   duplicateOfId String? @db.Uuid
   duplicateOf Person? @relation("PersonDuplicates",fields:[duplicateOfId],references:[id],onDelete:Restrict,onUpdate:Restrict)
@@ -422,6 +455,8 @@ model UserSession {
 }
 
 model EmailAccount {
+  communicationRecipients CommunicationRecipient[]
+  communications Communication[]
   id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   address     String             @unique @db.VarChar(254)
   provider    String?            @db.VarChar(150)
@@ -494,6 +529,7 @@ enum ContactIntentState {
 }
 
 model ContactIntent {
+  originatedProcess RelationshipProcess?
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   purpose String @db.VarChar(5000)
   authorUserId String @db.Uuid
@@ -588,4 +624,237 @@ model DuplicateReconciliation {
   @@index([targetPersonContactId])
   @@index([targetOrganizationContactId])
   @@index([targetRelationId])
+}
+
+enum ProcessState {
+  PREPARATION
+  IN_PROGRESS
+  WAITING_RESPONSE
+  NEGOTIATION
+  CLOSED
+}
+
+enum ProcessResult {
+  ACHIEVED
+  REJECTED
+  NO_RESPONSE
+  CECASEM_WITHDREW
+  OTHER
+}
+
+enum ParticipantOrigin {
+  PROCESS_CREATOR
+  SENT_COMMUNICATION
+  RECEIVED_COMMUNICATION
+}
+
+enum ProcessEventType {
+  CREATED
+  STATE_CHANGED
+  CLOSED
+  REOPENED
+}
+
+enum ProcessAuthority {
+  PARTICIPANT
+  BOARD
+  ADMINISTRATOR
+}
+
+model RelationshipProcess {
+  internalNotes InternalNote[]
+  communicationAuditEvents AuditEvent[]
+  communications Communication[]
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  purpose String @db.VarChar(5000)
+  organizationId String? @db.Uuid
+  personId String? @db.Uuid
+  sourceIntentId String? @unique @db.Uuid
+  createdByUserId String @db.Uuid
+  state ProcessState @default(PREPARATION)
+  version Int @default(1)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+  lastActivityAt DateTime @default(now()) @db.Timestamptz(3)
+  currentResult ProcessResult?
+  closureObservation String? @db.VarChar(5000)
+  closedAt DateTime? @db.Timestamptz(3)
+  closedByUserId String? @db.Uuid
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  person Person? @relation(fields: [personId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  sourceIntent ContactIntent? @relation(fields: [sourceIntentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy User @relation("ProcessCreator", fields: [createdByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  closedBy User? @relation("ProcessCloser", fields: [closedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  participants ProcessParticipant[]
+  events RelationshipProcessEvent[]
+
+  @@index([organizationId, state, createdAt, id])
+  @@index([personId, state, createdAt, id])
+  @@index([state, createdAt, id])
+  @@index([createdByUserId, createdAt, id])
+  @@index([createdAt, id])
+  @@index([closedByUserId])
+}
+
+model ProcessParticipant {
+  processId String @db.Uuid
+  userId String @db.Uuid
+  joinedAt DateTime @default(now()) @db.Timestamptz(3)
+  origin ParticipantOrigin
+  process RelationshipProcess @relation(fields: [processId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@id([processId, userId])
+  @@index([userId])
+}
+
+model RelationshipProcessEvent {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  processId String @db.Uuid
+  type ProcessEventType
+  previousState ProcessState?
+  newState ProcessState
+  result ProcessResult?
+  observation String? @db.VarChar(5000)
+  actorUserId String @db.Uuid
+  authority ProcessAuthority
+  version Int
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  process RelationshipProcess @relation(fields: [processId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  actor User @relation(fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  auditEvent AuditEvent?
+
+  @@unique([processId, version])
+  @@index([processId, createdAt, id])
+  @@index([actorUserId])
+}
+
+enum RestrictionState {
+  ACTIVE
+  LIFTED
+}
+
+model ContactRestriction {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String? @db.Uuid
+  personId String? @db.Uuid
+  reason String @db.VarChar(5000)
+  state RestrictionState @default(ACTIVE)
+  registeredByUserId String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+  liftedAt DateTime? @db.Timestamptz(3)
+  liftedByUserId String? @db.Uuid
+  liftReason String? @db.VarChar(5000)
+  version Int @default(1)
+  organization Organization? @relation(fields:[organizationId], references:[id], onDelete:Restrict, onUpdate:Restrict)
+  person Person? @relation(fields:[personId], references:[id], onDelete:Restrict, onUpdate:Restrict)
+  registeredBy User @relation("RestrictionRegistrar", fields:[registeredByUserId], references:[id], onDelete:Restrict, onUpdate:Restrict)
+  liftedBy User? @relation("RestrictionLifter", fields:[liftedByUserId], references:[id], onDelete:Restrict, onUpdate:Restrict)
+  auditEvents AuditEvent[]
+  @@index([organizationId, state, createdAt, id])
+  @@index([personId, state, createdAt, id])
+  @@index([state, createdAt, id])
+  @@index([registeredByUserId])
+  @@index([liftedByUserId])
+}
+
+enum CommunicationDirection {
+  SENT
+  RECEIVED
+}
+
+enum CommunicationValidity {
+  VALID
+  INVALIDATED
+}
+
+enum RecipientType {
+  TO
+  CC
+  BCC
+}
+
+model Communication {
+  amendments CommunicationAmendment[]
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  processId String @db.Uuid
+  direction CommunicationDirection @default(SENT)
+  validity CommunicationValidity @default(VALID)
+  version Int @default(1)
+  emailAccountId String? @db.Uuid
+  accountAddressSnapshot String? @db.VarChar(254)
+  accountDisplayNameSnapshot String? @db.VarChar(150)
+  senderSnapshot String @db.VarChar(254)
+  senderNormalizedAddress String @db.VarChar(254)
+  subject String @db.VarChar(998)
+  bodyOriginal String @db.Text
+  sentAt DateTime? @db.Timestamptz(3)
+  receivedAt DateTime? @db.Timestamptz(3)
+  occurredAt DateTime @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  registeredByUserId String @db.Uuid
+  requestKey String @db.Uuid
+  requestFingerprint String @db.VarChar(64)
+  process RelationshipProcess @relation(fields: [processId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  emailAccount EmailAccount? @relation(fields: [emailAccountId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  registeredBy User @relation(fields: [registeredByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  recipients CommunicationRecipient[]
+  auditEvents AuditEvent[]
+  @@unique([registeredByUserId, requestKey])
+  @@index([processId, occurredAt, id])
+  @@index([senderNormalizedAddress, occurredAt, id])
+  @@index([registeredByUserId, createdAt, id])
+  @@index([emailAccountId])
+}
+
+model CommunicationRecipient {
+  emailAccountId String? @db.Uuid
+  emailAccountDisplayNameSnapshot String? @db.VarChar(150)
+  emailAccount EmailAccount? @relation(fields: [emailAccountId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  communicationId String @db.Uuid
+  type RecipientType
+  addressOriginal String @db.VarChar(254)
+  normalizedAddress String @db.VarChar(254)
+  position Int
+  communication Communication @relation(fields: [communicationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([communicationId, type, position])
+  @@index([normalizedAddress, communicationId])
+  @@index([emailAccountId])
+}
+
+model InternalNote {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  processId String @db.Uuid
+  body String @db.VarChar(5000)
+  authorUserId String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  process RelationshipProcess @relation(fields: [processId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  author User @relation(fields: [authorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  @@index([processId, createdAt, id])
+  @@index([authorUserId])
+}
+
+enum CommunicationAmendmentType {
+  CORRECTION
+  ANNOTATION
+  INVALIDATION
+}
+
+model CommunicationAmendment {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  communicationId String @db.Uuid
+  type CommunicationAmendmentType
+  content String @db.VarChar(5000)
+  authorUserId String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  requestKey String @db.Uuid
+  requestFingerprint String @db.VarChar(64)
+  communication Communication @relation(fields: [communicationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  author User @relation(fields: [authorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([authorUserId, requestKey])
+  @@index([communicationId, createdAt, id])
+  @@index([authorUserId])
+  @@index([createdAt, id])
 }

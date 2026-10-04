@@ -3,11 +3,12 @@ import { ApiCookieAuth, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nest
 import type { AuthenticatedRequest } from '../auth/session.guard';
 import { RequirePermissions } from '../auth/authorization/require-permissions.decorator';
 import { PERMISSIONS } from '../auth/authorization/permission';
-import { CancelContactIntentDto, ContactIntentDto, ContactIntentPageDto, ContactIntentQueryDto, CreateContactIntentDto } from './contact-intent.dto';
+import { CancelContactIntentDto, ConvertContactIntentDto, ConvertedContactIntentDto, ContactIntentDto, ContactIntentPageDto, ContactIntentQueryDto, CreateContactIntentDto } from './contact-intent.dto';
 import { IntentErrorFilter } from './contact-intent-error.filter';
 import { ContactIntentsService } from './contact-intents.service';
+import { RestrictionErrorFilter } from './contact-restriction-error.filter';
 
-@ApiTags('contact-intents') @ApiCookieAuth('cecasem_session') @UseFilters(IntentErrorFilter) @Controller('contact-intents')
+@ApiTags('contact-intents') @ApiCookieAuth('cecasem_session') @UseFilters(IntentErrorFilter, RestrictionErrorFilter) @Controller('contact-intents')
 export class ContactIntentsController {
   constructor(private readonly intents: ContactIntentsService) {}
   @Get() @Header('Cache-Control', 'no-store') @RequirePermissions(PERMISSIONS.INTENT_READ) @ApiOkResponse({ type: ContactIntentPageDto })
@@ -19,5 +20,9 @@ export class ContactIntentsController {
   @Post(':id/cancel') @RequirePermissions(PERMISSIONS.INTENT_CANCEL) @ApiCreatedResponse({ type: ContactIntentDto })
   cancel(@Param('id', new ParseUUIDPipe()) id: string, @Body() body: CancelContactIntentDto, @Req() request: AuthenticatedRequest) {
     return this.intents.cancel(id, body.expectedVersion, request.authenticatedUser.id);
+  }
+  @Post(':id/convert') @RequirePermissions(PERMISSIONS.INTENT_CONVERT) @ApiCreatedResponse({ type: ConvertedContactIntentDto })
+  convert(@Param('id', new ParseUUIDPipe()) id: string, @Body() body: ConvertContactIntentDto, @Req() request: AuthenticatedRequest) {
+    return this.intents.convert(id, body.expectedVersion, request.authenticatedUser.id);
   }
 }

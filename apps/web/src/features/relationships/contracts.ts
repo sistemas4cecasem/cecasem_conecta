@@ -4,7 +4,8 @@ const authorSchema = z.object({ id: z.uuid(), displayName: z.string(), isActive:
 export const intentSchema = z.object({ id: z.uuid(), purpose: z.string(), state: z.enum(['ACTIVE', 'CONVERTED', 'CANCELLED', 'CLOSED']),
   version: z.number().int().positive(), createdAt: z.iso.datetime(), updatedAt: z.iso.datetime(), lastActivityAt: z.iso.datetime(),
   cancelledAt: z.iso.datetime().nullable(), author: authorSchema, cancelledBy: authorSchema.nullable(),
-  target: z.object({ kind: z.enum(['ORGANIZATION', 'PERSON']), id: z.uuid(), label: z.string(), isActive: z.boolean() }), canCancel: z.boolean() });
+  target: z.object({ kind: z.enum(['ORGANIZATION', 'PERSON']), id: z.uuid(), label: z.string(), isActive: z.boolean() }), canCancel: z.boolean(),
+  canConvert: z.boolean(), processId: z.uuid().nullable() });
 export const intentsPageSchema = pageSchema(intentSchema);
 export type ContactIntent = z.infer<typeof intentSchema>;
 export const intentFormSchema = z.object({ purpose: z.string().trim().min(1, 'Describe el propósito.').max(5000, 'Máximo 5000 caracteres.'),

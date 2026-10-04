@@ -22,7 +22,7 @@ function IntentsList({ identity }: { identity: AuthIdentity }) {
   return <section className="space-y-4"><h1 className="text-2xl font-semibold">Intenciones de contacto</h1>
     {identity.permissions.includes('relationships.intent.create') && <Link className={buttonClass} to="/contact-intents/new">Crear intención</Link>}
     <Field label="Estado de intenciones"><select className={inputClass} value={state} onChange={e => { setState(e.target.value); setPage(1); }}>
-      <option value="all">Todas</option><option value="ACTIVE">Activas</option><option value="CANCELLED">Canceladas</option></select></Field>
+      <option value="all">Todas</option><option value="ACTIVE">Activas</option><option value="CONVERTED">Convertidas</option><option value="CANCELLED">Canceladas</option></select></Field>
     <QueryState pending={list.isPending} error={list.isError} retry={list.refetch} />
     {list.data?.total === 0 && <p>No hay intenciones para estos filtros.</p>}
     <ul className="space-y-3">{list.data?.items.map(intent => <li key={intent.id} className="min-w-0 space-y-2 rounded border p-3 break-words">

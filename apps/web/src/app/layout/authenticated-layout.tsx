@@ -8,6 +8,11 @@ import { AUTHENTICATED_NAVIGATION, visibleNavigationItems } from '../router/navi
 import { clearForbiddenAdministration } from '../../features/users/administration-cache';
 import { clearForbiddenDirectory } from '../../features/directory/queries';
 import { clearForbiddenIntents } from '../../features/relationships/queries';
+import { clearForbiddenProcesses } from '../../features/relationships/process-queries';
+import { clearForbiddenRestrictions } from '../../features/relationships/restriction-queries';
+import { clearForbiddenContext } from '../../features/relationships/context-queries';
+import { clearForbiddenCommunications } from '../../features/communications/queries';
+import { clearForbiddenTimeline } from '../../features/relationships/timeline-queries';
 
 const ROLE_LABELS = { ADMINISTRATOR: 'Administrador', BOARD: 'Directorio', RESEARCH: 'Búsqueda', PLANNING: 'Planificación' };
 
@@ -22,6 +27,11 @@ export function AuthenticatedLayout() {
       void clearForbiddenAdministration(client, session.data);
       void clearForbiddenDirectory(client, session.data);
       void clearForbiddenIntents(client, session.data);
+      void clearForbiddenProcesses(client, session.data);
+      void clearForbiddenRestrictions(client, session.data);
+      void clearForbiddenContext(client, session.data);
+      void clearForbiddenCommunications(client, session.data);
+      void clearForbiddenTimeline(client, session.data);
     }
   }, [client, session.data]);
 

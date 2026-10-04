@@ -40,16 +40,51 @@ export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'cr
   }
 
   if (!response.ok) {
+    if (response.status === 409 && (path.startsWith('communications/') || /relationship-processes\/[^/]+\/communications/.test(path))) {
+      const payload: unknown = await response.clone().json().catch(() => null);
+      const messages: Record<string, string> = { MAILBOX_UNAVAILABLE: 'La cuenta ya no está habilitada y asignada a tu usuario. Recarga tus cuentas disponibles.',
+        PROCESS_CLOSED: 'El proceso está cerrado. Debe reabrirse mediante la acción autorizada antes de registrar otra comunicación.',
+        REQUEST_CONFLICT: 'Esta solicitud ya registró otro contenido. Revisa las comunicaciones del proceso antes de continuar.' };
+      if (typeof payload === 'object' && payload !== null && 'code' in payload && typeof payload.code === 'string' && Object.hasOwn(messages, payload.code)) throw new ApiError(messages[payload.code]!, 409, payload.code);
+    }
+    if (response.status === 409 && /^(contact-restrictions|contact-intents|relationship-processes)(?:\/|\?|$)/.test(path)) {
+      const payload: unknown = await response.clone().json().catch(() => null);
+      const messages: Record<string, string> = {
+        CONTACT_RESTRICTED: 'RESTRICCIÓN ACTIVA — NO CONTACTAR. No se puede iniciar este acercamiento. Revisa la restricción institucional.',
+        RESTRICTION_ALREADY_ACTIVE: 'Este objetivo ya tiene una restricción activa. Revisa su historial.',
+        RESTRICTION_ALREADY_LIFTED: 'La restricción ya fue levantada. Recarga y revisa su historial.',
+        RESTRICTION_TARGET_UNAVAILABLE: 'El objetivo no está disponible. Selecciona una ficha activa sin consolidar; para una persona con vínculo vigente, utiliza su organización.',
+      };
+      if (path.startsWith('contact-restrictions')) messages.VERSION_CONFLICT = 'La restricción cambió. Recarga y revisa su estado antes de continuar.';
+      if (typeof payload === 'object' && payload !== null && 'code' in payload && typeof payload.code === 'string' && Object.hasOwn(messages, payload.code)) {
+        throw new ApiError(messages[payload.code]!, 409, payload.code);
+      }
+    }
     if (response.status === 401 && (!/^\/?auth(?:\/|$)/.test(path) || /^auth\/(first-access-tokens|password-reset-tokens)$/.test(path))) {
       window.dispatchEvent(new Event('cecasem:unauthorized'));
     }
     if (response.status === 409 && path === 'settings/verification') {
       throw new ApiError('Los intervalos cambiaron. Recarga y revisa tu propuesta.', 409, 'VERSION_CONFLICT');
     }
+    if (response.status === 409 && /^relationship-processes(?:\/|$)/.test(path)) {
+      const messages: Record<string, string> = {
+        VERSION_CONFLICT: 'El proceso cambió. Recarga y revisa su estado antes de continuar.',
+        INVALID_TRANSITION: 'El cambio de estado no está permitido. Revisa el estado actual.',
+        PROCESS_ALREADY_CLOSED: 'El proceso ya está cerrado. Recarga y revisa su historial.',
+        PROCESS_NOT_CLOSED: 'Solo puede reabrirse un proceso cerrado. Recarga y revisa su estado.',
+        PROCESS_TARGET_UNAVAILABLE: 'Selecciona una ficha activa sin consolidar; para una persona con vínculo vigente, utiliza su organización.',
+      };
+      try {
+        const payload: unknown = await response.json();
+        if (typeof payload === 'object' && payload !== null && 'code' in payload && typeof payload.code === 'string' && Object.hasOwn(messages, payload.code)) {
+          throw new ApiError(messages[payload.code]!, 409, payload.code);
+        }
+      } catch (failure) { if (failure instanceof ApiError) throw failure; }
+    }
     if (response.status === 409 && /^contact-intents(?:\/|$)/.test(path)) {
       const messages: Record<string, string> = {
         VERSION_CONFLICT: 'La intención cambió. Recarga y revisa su estado antes de continuar.',
-        INTENT_NOT_ACTIVE: 'Solo puede cancelarse una intención activa.',
+        INTENT_NOT_ACTIVE: 'La intención ya no está activa. Recarga y revisa su estado.',
         INTENT_TARGET_UNAVAILABLE: 'El objetivo ya no está disponible. Selecciona una ficha activa sin consolidar; para una persona con vínculo vigente, utiliza su organización.',
       };
       try {

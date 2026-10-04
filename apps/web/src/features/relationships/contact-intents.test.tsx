@@ -9,13 +9,23 @@ import { AUTH_QUERY_KEY, type AuthIdentity } from '../auth/session';
 import type { DirectorySearchResponse } from '../directory/search.contracts';
 import { clearForbiddenIntents, intentIdentityKey } from './queries';
 import type { ContactIntent } from './contracts';
+import type { ProcessDetail } from './process-contracts';
+import { processIdentityKey } from './process-queries';
 const id = '11111111-1111-4111-8111-111111111111', goal = '22222222-2222-4222-8222-222222222222', ownerId = '33333333-3333-4333-8333-333333333333';
-const permissions = ['directory.read', 'relationships.intent.read', 'relationships.intent.create', 'relationships.intent.cancel'];
+const permissions = ['directory.read', 'relationships.intent.read', 'relationships.intent.create', 'relationships.intent.cancel', 'relationships.intent.convert', 'relationships.process.read'];
 const initialIdentity: AuthIdentity = { id: ownerId, givenNames: 'Ana', familyNames: 'Prueba', username: 'ana', email: 'qa@example.test', role: 'RESEARCH', permissions };
 function intent(): ContactIntent {
   return { id, purpose: 'Preparar cooperación', state: 'ACTIVE', version: 1, author: { id: ownerId, displayName: 'Ana Prueba', isActive: true },
     target: { kind: 'ORGANIZATION', id: goal, label: 'Fundación QA', isActive: true }, createdAt: '2026-10-03T12:00:00.000Z',
-    updatedAt: '2026-10-03T12:00:00.000Z', lastActivityAt: '2026-10-03T12:00:00.000Z', cancelledAt: null, cancelledBy: null, canCancel: true };
+    updatedAt: '2026-10-03T12:00:00.000Z', lastActivityAt: '2026-10-03T12:00:00.000Z', cancelledAt: null, cancelledBy: null, canCancel: true, canConvert: true, processId: null };
+}
+const processId = '44444444-4444-4444-8444-444444444444';
+function convertedProcess(row: ContactIntent): ProcessDetail {
+  return { id: processId, purpose: row.purpose, state: 'PREPARATION', version: 1, sourceIntentId: row.id, createdBy: row.author, target: row.target,
+    createdAt: row.createdAt, updatedAt: row.updatedAt, lastActivityAt: row.lastActivityAt, currentResult: null, closureObservation: null, closedAt: null, closedBy: null,
+    allowedStates: ['IN_PROGRESS', 'WAITING_RESPONSE'], canClose: true, canReopen: false, exceptionalAdministration: false,
+    participants: [{ user: row.author, joinedAt: row.createdAt, origin: 'PROCESS_CREATOR' }],
+    events: [{ id: goal, type: 'CREATED', previousState: null, newState: 'PREPARATION', result: null, observation: null, actor: row.author, authority: 'PARTICIPANT', version: 1, createdAt: row.createdAt }], eventsTotal: 1 };
 }
 describe('Intenciones de contacto', () => {
   let client = createQueryClient(), identity: AuthIdentity | null = initialIdentity, row = intent(), mode = 'ok', status = 201, total = 1;
@@ -32,18 +42,70 @@ describe('Intenciones de contacto', () => {
       if (options?.method === 'POST') {
         if (status !== 201) return Promise.resolve(Response.json({ code: status === 409 ? 'VERSION_CONFLICT' : 'FORBIDDEN' }, { status }));
         if (url.endsWith('/cancel')) row = { ...row, state: 'CANCELLED', version: 2, canCancel: false, cancelledAt: row.createdAt, cancelledBy: row.author };
+        if (url.endsWith('/convert')) { row = { ...row, state: 'CONVERTED', version: 2, canCancel: false, canConvert: false, processId }; return Promise.resolve(Response.json({ intent: row, process: convertedProcess(row) }, { status: 201 })); }
         return Promise.resolve(Response.json(row, { status: 201 }));
       }
       if (mode === 'pending') return new Promise<Response>(() => undefined);
       if (mode === 'error') return Promise.resolve(new Response(null, { status: 500 }));
       if (url.includes('/contact-intents?')) return Promise.resolve(Response.json({ items: total ? [row] : [], total, page: 1, pageSize: 25 }));
       if (url.endsWith('/contact-intents/' + id)) return Promise.resolve(Response.json(row));
+      if (url.endsWith('/relationship-processes/' + processId)) return Promise.resolve(Response.json(convertedProcess(row)));
       return Promise.resolve(new Response(null, { status: 404 }));
     }); vi.stubGlobal('fetch', fetchMock);
   });
   afterEach(() => { client.clear(); vi.unstubAllGlobals(); });
   function view(path = '/contact-intents') { return render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[path]}><AppRoutes /></MemoryRouter></QueryClientProvider>); }
   const writes = () => fetchMock.mock.calls.filter(([, options]) => options?.method === 'POST');
+  it.each(['capability', 'contexto', 'cancelada', 'convertida', 'cerrada'])('no muestra convertir sin %s', async reason => {
+    if (reason === 'capability') client.setQueryData(AUTH_QUERY_KEY, { ...identity, permissions: permissions.filter(p => !p.endsWith('.convert')) });
+    if (reason === 'contexto') row.canConvert = false;
+    if (reason === 'cancelada') row.state = 'CANCELLED';
+    if (reason === 'convertida') row.state = 'CONVERTED';
+    if (reason === 'cerrada') row.state = 'CLOSED';
+    view('/contact-intents/' + id); await screen.findByText(row.purpose); expect(screen.queryByRole('button', { name: 'Convertir en proceso' })).not.toBeInTheDocument();
+  });
+  it('confirmar conversión usa versión, invalida ambas familias y navega a participantes', async () => {
+    const invalidate = vi.spyOn(client, 'invalidateQueries'); view('/contact-intents/' + id);
+    await userEvent.click(await screen.findByRole('button', { name: 'Convertir en proceso' })); expect(writes()).toHaveLength(0);
+    await userEvent.click(screen.getByRole('button', { name: 'Volver sin convertir' })); expect(writes()).toHaveLength(0);
+    await userEvent.click(screen.getByRole('button', { name: 'Convertir en proceso' }));
+    expect(screen.getByText(/Tú serás su creador/)).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar conversión' }));
+    expect(await screen.findByRole('heading', { name: 'Proceso de relación' })).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Participantes' })).toHaveTextContent('Creador del proceso');
+    expect(JSON.parse(writes()[0]?.[1]?.body as string)).toEqual({ expectedVersion: 1 });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['relationships', ownerId] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['relationship-processes', ownerId] });
+    expect(client.getQueryData([...intentIdentityKey(initialIdentity), 'intent', id])).toMatchObject({ state: 'CONVERTED', processId });
+    expect(client.getQueryData([...processIdentityKey(initialIdentity), 'detail', processId])).toMatchObject({ sourceIntentId: id });
+  });
+  it.each([403, 409])('conversión %s mantiene contexto, bloquea reintento y permite recargar', async failure => {
+    status = failure; view('/contact-intents/' + id); await userEvent.click(await screen.findByRole('button', { name: 'Convertir en proceso' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar conversión' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(failure === 403 ? 'No tienes permiso' : 'La intención cambió');
+    expect(screen.getByText(row.purpose)).toBeVisible(); expect(screen.getByRole('link', { name: 'Fundación QA' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Confirmar conversión' })).toBeDisabled(); expect(writes()).toHaveLength(1);
+    await userEvent.click(screen.getByRole('button', { name: 'Recargar intención y revisar estado' }));
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+  });
+  it('intención convertida ofrece vínculo al proceso', async () => {
+    row = { ...row, state: 'CONVERTED', canConvert: false, canCancel: false, processId };
+    view('/contact-intents/' + id); expect(await screen.findByRole('link', { name: 'Ver proceso de relación' })).toHaveAttribute('href', '/relationship-processes/' + processId);
+  });
+  it.each(['logout', 'rol', 'capability'])('conversión tardía tras cambiar %s no repuebla datos ni navega', async change => {
+    let finish!: (response: Response) => void;
+    const original = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((url, options) => url.endsWith('/convert') ? new Promise(resolve => { finish = resolve; }) : original(url, options));
+    view('/contact-intents/' + id); await userEvent.click(await screen.findByRole('button', { name: 'Convertir en proceso' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar conversión' }));
+    if (change === 'logout') { await userEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' })); await screen.findByRole('heading', { name: 'Iniciar sesión' }); }
+    else await act(async () => { identity = { ...initialIdentity, ...(change === 'rol' ? { role: 'BOARD' } : { permissions: permissions.filter(p => p !== 'relationships.intent.convert') }) }; client.setQueryData(AUTH_QUERY_KEY, identity); });
+    await waitFor(() => expect(client.getQueryData([...intentIdentityKey(initialIdentity), 'intent', id])).toBeUndefined());
+    await act(async () => finish(Response.json({ intent: { ...row, state: 'CONVERTED', version: 2, canConvert: false, canCancel: false, processId }, process: convertedProcess(row) })));
+    expect(client.getQueryData([...intentIdentityKey(initialIdentity), 'intent', id])).toBeUndefined();
+    expect(client.getQueryData([...processIdentityKey(initialIdentity), 'detail', processId])).toBeUndefined();
+    expect(screen.queryByRole('heading', { name: 'Proceso de relación' })).not.toBeInTheDocument();
+  });
   it('lista cargando', () => { mode = 'pending'; view(); expect(screen.getByText('Cargando…')).toBeVisible(); });
   it('lista vacía', async () => { total = 0; view(); expect(await screen.findByText('No hay intenciones para estos filtros.')).toBeVisible(); });
   it('lista error con reintento', async () => { mode = 'error'; view(); await screen.findByRole('alert'); mode = 'ok'; await userEvent.click(screen.getByRole('button', { name: 'Reintentar' })); expect(await screen.findByRole('link', { name: row.purpose })).toBeVisible(); });

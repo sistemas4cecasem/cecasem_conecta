@@ -11,6 +11,7 @@ import { PersonForm } from './person-form';
 import { PersonRelations } from './person-relations';
 import { DirectoryHistory } from './directory-history';
 import { ContactSection } from './contact-section';
+import { RelationshipContextPanel } from '../relationships/relationship-context-panel';
 export function PersonDetailPage() {
   const {id=''}=useParams();const identity=useSession().data;const detail=usePerson(identity,id);const mutation=useDirectoryMutation(identity);
   const [editing,setEditing]=useState<Person|null>(null);
@@ -21,6 +22,7 @@ export function PersonDetailPage() {
     reload={async()=>{const response=await detail.refetch();if(!response.isSuccess)return;setEditing(response.data);return response.data;}}/></section>;
   return <section className="min-w-0 space-y-6 break-words"><Link className="inline-flex min-h-11 underline" to="/people">Volver a personas</Link>
     <h1 className="text-2xl font-semibold">{row.displayName}</h1><p>Estado: {row.isActive?'Activa':'Inactiva'}</p>
+    <RelationshipContextPanel identity={identity} target={{kind:'PERSON',id:row.id,label:row.displayName}} />
     {row.duplicateOf&&<p role="status" className="rounded border border-amber-500 p-3">Este registro fue consolidado en: <Link className="underline" to={'/people/'+row.duplicateOf.id}>{row.duplicateOf.displayName}</Link>. Su historial permanece disponible.</p>}
     {!!row.consolidatedRecords?.length&&<p>Fichas consolidadas: {row.consolidatedRecords.map(item=><Link key={item.id} className="inline-flex min-h-11 items-center px-2 underline" to={'/people/'+item.id}>{item.displayName}</Link>)}</p>}
     <DuplicatePanel key={'duplicates-'+id} identity={identity} actorPath={'people/'+id}/>

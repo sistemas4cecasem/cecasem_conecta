@@ -179,6 +179,26 @@ export class UsersService {
     return this.prisma.emailAccount.findMany({ where: { isActive: true }, orderBy: [{ address: 'asc' }, { id: 'asc' }] });
   }
 
+  /** Lectura operativa pública: solo buzones activos asignados; no expone datos administrativos. */
+  async availableCommunicationAccounts(userId: string, tx: Prisma.TransactionClient) {
+    const rows = await tx.userEmailAccount.findMany({ where: { userId, removedAt: null, emailAccount: { isActive: true } },
+      select: { emailAccount: { select: { id: true, address: true, displayName: true } } }, orderBy: { emailAccountId: 'asc' } });
+    return rows.map(row => row.emailAccount);
+  }
+  /** Vinculación auxiliar de destinatarios observados; no exige actividad ni asignación. */
+  matchingCommunicationAccounts(addresses: string[], tx: Prisma.TransactionClient) {
+    return tx.emailAccount.findMany({ where: { address: { in: addresses } }, select: { id: true, address: true, displayName: true } });
+  }
+
+  /** Después del lock de usuario: estabiliza cuenta/asignación hasta commit. */
+  async lockCommunicationAccount(userId: string, emailAccountId: string, tx: Prisma.TransactionClient) {
+    await tx.$queryRaw`SELECT id FROM "EmailAccount" WHERE id=${emailAccountId}::uuid FOR SHARE`;
+    await tx.$queryRaw`SELECT "userId" FROM "UserEmailAccount" WHERE "userId"=${userId}::uuid AND "emailAccountId"=${emailAccountId}::uuid FOR SHARE`;
+    const row = await tx.userEmailAccount.findUnique({ where: { userId_emailAccountId: { userId, emailAccountId } },
+      select: { removedAt: true, emailAccount: { select: { id: true, address: true, displayName: true, isActive: true } } } });
+    return row && row.removedAt === null && row.emailAccount.isActive ? row.emailAccount : null;
+  }
+
   async assignedEmailAccounts(userId: string) {
     if (!await this.findIdentityById(userId)) throw new AdministrationError('USER_NOT_FOUND');
     return this.prisma.userEmailAccount.findMany({ where: { userId, removedAt: null },

@@ -206,7 +206,7 @@ describe('Intenciones PostgreSQL/HTTP', () => {
     await expect(prisma.auditEvent.create({ data: { action: 'CONTACT_INTENT_CREATED', actorUserId: owner.id, operationId: randomUUID() } })).rejects.toThrow();
     await expect(prisma.auditEvent.create({ data: { action: 'CONTACT_INTENT_CANCELLED', actorUserId: owner.id, contactIntentId: row.id, operationId: randomUUID(), targetUserId: owner.id } })).rejects.toThrow();
     for (const method of ['delete', 'patch', 'put'] as const) await request(app.getHttpServer())[method]('/api/v1/contact-intents/' + row.id).set('Cookie', owner.cookie).send({}).expect(404);
-    await post(owner.cookie, {}, '/' + row.id + '/convert').expect(404);
+    await post(owner.cookie, {}, '/' + row.id + '/convert').expect(400);
     await post(owner.cookie, {}, '/' + row.id + '/close').expect(404);
   });
 });

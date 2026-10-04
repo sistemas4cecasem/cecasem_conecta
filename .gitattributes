@@ -1,0 +1,16 @@
+# Conservar los bytes de estas migraciones aplicadas para mantener sus checksums Prisma.
+/apps/api/prisma/migrations/20261003192200_process_audit_actions/migration.sql -text whitespace=cr-at-eol
+/apps/api/prisma/migrations/20261003192201_relationship_processes/migration.sql -text whitespace=cr-at-eol
+/apps/api/prisma/migrations/20261003213000_participation_conversion_actions/migration.sql -text whitespace=cr-at-eol
+/apps/api/prisma/migrations/20261003213001_intent_conversion_audit/migration.sql -text whitespace=cr-at-eol
+/apps/api/prisma/migrations/20261004003000_restriction_audit_actions/migration.sql -text whitespace=cr-at-eol
+/apps/api/prisma/migrations/20261004003001_contact_restrictions/migration.sql -text whitespace=cr-at-eol
+/apps/api/prisma/migrations/20261004013000_communication_audit_action/migration.sql -text whitespace=cr-at-eol
+/apps/api/prisma/migrations/20261004013001_sent_communications/migration.sql -text whitespace=cr-at-eol
+/apps/api/prisma/migrations/20261004023000_received_communication_enums/migration.sql -text whitespace=cr-at-eol
+/apps/api/prisma/migrations/20261004023001_received_communications/migration.sql -text whitespace=cr-at-eol
+/apps/api/prisma/migrations/20261004033000_internal_notes/migration.sql -text whitespace=cr-at-eol
+/apps/api/prisma/migrations/20261004043000_amendment_enums/migration.sql -text whitespace=cr-at-eol
+/apps/api/prisma/migrations/20261004043001_communication_amendments/migration.sql -text whitespace=cr-at-eol
+/apps/api/prisma/migrations/20261004043002_invalidation_audit/migration.sql -text whitespace=cr-at-eol
+/apps/api/prisma/migrations/20261004043003_invalidation_consistency/migration.sql -text whitespace=cr-at-eol

@@ -3,6 +3,7 @@ import { Transform, Type } from 'class-transformer';
 import { IsIn, IsInt, IsString, IsUUID, Length, Max, Min, ValidateIf } from 'class-validator';
 import { ContactIntentState } from '../../generated/prisma/client';
 import type { TargetSummary } from '../directory/directory-target.service';
+import { ProcessDetailDto } from './relationship-process.dto';
 
 export class CreateContactIntentDto {
   @ApiProperty({ maxLength: 5000 })
@@ -12,6 +13,9 @@ export class CreateContactIntentDto {
   @ApiPropertyOptional({ format: 'uuid' }) @ValidateIf((_o, v) => v !== undefined) @IsUUID() personId?: string;
 }
 export class CancelContactIntentDto {
+  @ApiProperty({ minimum: 1 }) @IsInt() @Min(1) expectedVersion!: number;
+}
+export class ConvertContactIntentDto {
   @ApiProperty({ minimum: 1 }) @IsInt() @Min(1) expectedVersion!: number;
 }
 export class ContactIntentQueryDto {
@@ -36,10 +40,16 @@ export class ContactIntentDto {
   @ApiProperty({ nullable: true, type: Object }) cancelledBy!: ContactIntentDto['author'] | null;
   @ApiProperty({ type: Object }) target!: TargetSummary;
   @ApiProperty() canCancel!: boolean;
+  @ApiProperty() canConvert!: boolean;
+  @ApiProperty({ nullable: true, format: 'uuid' }) processId!: string | null;
 }
 export class ContactIntentPageDto {
   @ApiProperty({ type: [ContactIntentDto] }) items!: ContactIntentDto[];
   @ApiProperty() total!: number;
   @ApiProperty() page!: number;
   @ApiProperty() pageSize!: number;
+}
+export class ConvertedContactIntentDto {
+  @ApiProperty({ type: ContactIntentDto }) intent!: ContactIntentDto;
+  @ApiProperty({ type: ProcessDetailDto }) process!: ProcessDetailDto;
 }

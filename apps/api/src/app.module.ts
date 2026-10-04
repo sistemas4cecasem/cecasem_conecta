@@ -8,6 +8,9 @@ import { UsersAdministrationModule } from './modules/users-administration/users-
 import { DirectoryModule } from './modules/directory/directory.module';
 import { SearchModule } from './modules/search/search.module';
 import { RelationshipsModule } from './modules/relationships/relationships.module';
+import { CommunicationsModule } from './modules/communications/communications.module';
+import { RelationshipContextModule } from './modules/relationships/relationship-context.module';
+import { RelationshipTimelineModule } from './modules/relationships/relationship-timeline.module';
 
 @Module({
   imports: [
@@ -19,6 +22,9 @@ import { RelationshipsModule } from './modules/relationships/relationships.modul
     DirectoryModule,
     SearchModule,
     RelationshipsModule,
+    CommunicationsModule,
+    RelationshipContextModule,
+    RelationshipTimelineModule,
   ],
 })
 export class AppModule {}

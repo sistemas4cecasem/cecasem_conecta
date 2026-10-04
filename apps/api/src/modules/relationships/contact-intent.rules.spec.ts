@@ -1,6 +1,9 @@
 import { ContactIntentState, UserRole } from '../../generated/prisma/client';
-import { canCancelIntent, intentPurpose, intentTarget, requireActiveIntent } from './contact-intent.rules';
+import { canCancelIntent, canConvertIntent, intentPurpose, intentTarget, requireActiveIntent } from './contact-intent.rules';
 describe('Reglas de intenciones', () => {
+  it.each(Object.values(UserRole))('%s convierte propia', role => expect(canConvertIntent(role, 'author', 'author')).toBe(true));
+  it.each(Object.values(UserRole))('%s conversión ajena depende del rol', role => expect(canConvertIntent(role, 'other', 'author')).toBe(role === UserRole.ADMINISTRATOR || role === UserRole.BOARD));
+  it('conversión deniega rol desconocido', () => expect(canConvertIntent('UNKNOWN' as UserRole, 'author', 'author')).toBe(false));
   it.each([UserRole.ADMINISTRATOR, UserRole.BOARD])('%s puede cancelar ajena', role => expect(canCancelIntent(role, 'reader', 'author')).toBe(true));
   it.each([UserRole.RESEARCH, UserRole.PLANNING])('%s solo cancela propia', role => {
     expect(canCancelIntent(role, 'author', 'author')).toBe(true); expect(canCancelIntent(role, 'other', 'author')).toBe(false);

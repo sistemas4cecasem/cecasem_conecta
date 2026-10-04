@@ -36,7 +36,7 @@ export function useDirectoryMutation(identity: AuthIdentity | null | undefined) 
   const client = useQueryClient();
   return useMutation({ mutationFn: async ({ path, method, body }: { path: string; method: 'POST' | 'PUT' | 'PATCH'; body: object }) =>
     apiRequest(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }), retry: false,
-    onSuccess: async () => { await client.invalidateQueries({ queryKey: ['directory', identity?.id] }); } });
+    onSuccess: async () => { await client.invalidateQueries({ queryKey: ['directory', identity?.id] }); await client.invalidateQueries({ queryKey: ['relationship-context', identity?.id] }); } });
 }
 export async function clearForbiddenDirectory(client: QueryClient, identity: AuthIdentity | null): Promise<void> {
   const predicate = (query: { queryKey: readonly unknown[] }) => query.queryKey[0] === 'directory' &&

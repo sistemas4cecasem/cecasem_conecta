@@ -7,7 +7,7 @@ const messages = {
   INTENT_NOT_FOUND: 'No se encontró la intención.',
   INTENT_TARGET_UNAVAILABLE: 'Selecciona una ficha activa sin consolidar. Si la persona tiene un vínculo vigente, selecciona su organización.',
   VERSION_CONFLICT: 'La intención cambió. Recarga y revisa su estado antes de continuar.',
-  INTENT_NOT_ACTIVE: 'Solo puede cancelarse una intención activa.',
+  INTENT_NOT_ACTIVE: 'La intención ya no está activa. Recarga y revisa su estado.',
 };
 @Catch(IntentError)
 export class IntentErrorFilter implements ExceptionFilter {

@@ -7,7 +7,26 @@ type ResetAction = typeof AuditAction.PASSWORD_RESET_ISSUED | typeof AuditAction
 
 @Injectable()
 export class AuditService {
-  recordContactIntent(action: typeof AuditAction.CONTACT_INTENT_CREATED | typeof AuditAction.CONTACT_INTENT_CANCELLED,
+  recordCommunicationInvalidated(communicationId: string, processId: string, actorUserId: string, amendmentId: string, tx: Prisma.TransactionClient) {
+    // operationId referencia el registro histórico que conserva el motivo sin duplicarlo.
+    return tx.auditEvent.create({ data: { action: AuditAction.COMMUNICATION_INVALIDATED, communicationId, processId, actorUserId, operationId: amendmentId } });
+  }
+  async recordReceivedCommunication(communicationId: string, processId: string, actorUserId: string, operationId: string, tx: Prisma.TransactionClient) {
+    return tx.auditEvent.create({ data: { action: AuditAction.RECEIVED_COMMUNICATION_REGISTERED, communicationId, processId, actorUserId, operationId } });
+  }
+  async recordSentCommunication(communicationId: string, actorUserId: string, operationId: string, tx: Prisma.TransactionClient) {
+    return tx.auditEvent.create({ data: { action: AuditAction.SENT_COMMUNICATION_REGISTERED, communicationId, actorUserId, operationId } });
+  }
+  async recordContactRestriction(action: typeof AuditAction.CONTACT_RESTRICTION_CREATED | typeof AuditAction.CONTACT_RESTRICTION_LIFTED,
+    contactRestrictionId: string, actorUserId: string, operationId: string, tx: Prisma.TransactionClient) {
+    return tx.auditEvent.create({ data: { action, contactRestrictionId, actorUserId, operationId } });
+  }
+  recordProcess(action: typeof AuditAction.PROCESS_CREATED | typeof AuditAction.PROCESS_STATE_CHANGED |
+    typeof AuditAction.PROCESS_CLOSED | typeof AuditAction.PROCESS_REOPENED,
+    processEventId: string, actorUserId: string, operationId: string, tx: Prisma.TransactionClient) {
+    return tx.auditEvent.create({ data: { action, processEventId, actorUserId, operationId } });
+  }
+  recordContactIntent(action: typeof AuditAction.CONTACT_INTENT_CREATED | typeof AuditAction.CONTACT_INTENT_CANCELLED | typeof AuditAction.CONTACT_INTENT_CONVERTED,
     contactIntentId: string, actorUserId: string, operationId: string, tx: Prisma.TransactionClient) {
     return tx.auditEvent.create({ data: { action, contactIntentId, actorUserId, operationId } });
   }
