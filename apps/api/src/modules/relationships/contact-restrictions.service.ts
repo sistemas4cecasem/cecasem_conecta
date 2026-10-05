@@ -19,6 +19,16 @@ function targetOf(row: { organizationId: string | null; personId: string | null 
 }
 @Injectable()
 export class ContactRestrictionsService {
+  /** Seguimiento automático: no espera a una actuación que ya está bloqueando el destino. */
+  async inactivityAllowedTargets(targets: InstitutionalTarget[], tx: Prisma.TransactionClient): Promise<Set<string>> {
+    const normalized = targets.map(restrictionTarget);
+    const keys = [...new Set(normalized.map(target => (target.organizationId ? 'organization:' + target.organizationId : 'person:' + target.personId).toLowerCase()))].sort();
+    if (!keys.length) return new Set();
+    const locks = await tx.$queryRaw<{ key: string; acquired: boolean }[]>`SELECT key, pg_try_advisory_xact_lock(1128612693,hashtext(key)) AS acquired FROM (SELECT unnest(${keys}::text[]) AS key ORDER BY key) targets`;
+    const active = await tx.contactRestriction.findMany({ where: { state: 'ACTIVE', OR: normalized }, select: { organizationId: true, personId: true } });
+    const blocked = new Set(active.map(target => target.organizationId ? 'organization:' + target.organizationId : 'person:' + target.personId));
+    return new Set(locks.filter(lock => lock.acquired && !blocked.has(lock.key)).map(lock => lock.key));
+  }
   constructor(private readonly prisma: PrismaService, private readonly users: UsersService,
     private readonly targets: DirectoryTargetService, private readonly audit: AuditService) {}
   private requirePermission(user: UserIdentity | null, permission: Permission): UserIdentity {

@@ -1,3 +1,4 @@
+import { ReminderSettingsPage } from '../../features/settings/reminder-settings-page';
 import { MeetingsPage, MeetingCreatePage, MeetingDetailPage } from '../../features/meetings/meetings-pages';
 import { OpportunitiesPage, OpportunityCreatePage, OpportunityDetailPage } from '../../features/opportunities/opportunities-pages';
 import { NotificationsPage } from '../../features/notifications/notifications-page';
@@ -50,6 +51,7 @@ export function AppRoutes() {
         <Route path="opportunities/new" element={<OpportunityCreatePage />} />
         <Route path="opportunities/:id" element={<OpportunityDetailPage />} />
         <Route index element={<HomePage />} />
+        <Route path="settings/reminders" element={<ReminderSettingsPage />} />
         <Route path="settings/verification" element={<VerificationSettingsPage />} />
         <Route path="users" element={<UsersPage />} />
         <Route path="organizations" element={<OrganizationsPage />} />

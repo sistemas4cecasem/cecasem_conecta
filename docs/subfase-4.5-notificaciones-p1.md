@@ -1,5 +1,13 @@
 # Subfase 4.5 — Notificaciones internas P1
 
+## Corrección vigente de audiencia — 5 de octubre de 2026
+
+La decisión oficial de la corrección final de Fase 4 reemplaza la interpretación de audiencia documentada en esta entrega: MEETING_CREATED, MEETING_CANCELLED, MEETING_COMPLETED y MEETING_RESCHEDULED incluyen Administradores y Directorio activos autorizados globalmente, además de participantes formales del proceso e internos de la reunión. La unión se deduplica y excluye al actor. MEETING_PARTICIPANT_ADDED sigue dirigido únicamente al usuario interno incorporado; asistencia, acuerdos y cambios menores siguen sin aviso.
+
+PROCESS_ACHIEVED incorpora Administradores y Directorio globales más participantes formales activos autorizados, excluyendo al actor. Proviene exclusivamente del evento histórico CLOSED/CLOSED/ACHIEVED, con recibo por hecho y audiencia fijada al primer procesamiento exitoso. Los avisos y recibos previos se conservan sin recalcularlos.
+
+El resto de este informe conserva la decisión y las evidencias históricas de la entrega original; no representa la matriz vigente de reuniones. Véase [la corrección final](fase-4-correcciones-finales.md) para contratos, migraciones y revalidación actuales.
+
 ## Baseline y alcance
 
 Rama `main`, HEAD `26db90788f0eb98ffdbbdd36377661d0c0184d70`, árbol inicial limpio. Estaban incorporadas las fases 0–3, 4.1, 4.2, P0 de 4.5, 4.3 y 4.4. Esta entrega amplía el sistema existente; no crea un segundo centro, scheduler, infraestructura ni dependencias. Sin commit ni push. No inicia 4.6.

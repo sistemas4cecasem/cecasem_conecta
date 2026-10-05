@@ -1,4 +1,5 @@
 import { MeetingsService } from '../meetings/meetings.service';
+import { RelationshipProcessesService } from '../relationships/relationship-processes.service';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { AppEnvironment } from '../../config/environment';
@@ -11,7 +12,7 @@ describe('Ejecución automática recuperable', () => {
   const result = { scanned: 0, delivered: 0, failed: 0, busy: false };
   function consumer(environment: AppEnvironment['NODE_ENV'] = 'production') {
     return new NotificationConsumer({} as PrismaService, {} as OpportunitiesService, {} as UsersService,
-      new ConfigService<AppEnvironment, true>({ NODE_ENV: environment }), {} as MeetingsService);
+      new ConfigService<AppEnvironment, true>({ NODE_ENV: environment }), {} as MeetingsService, {} as RelationshipProcessesService);
   }
   beforeEach(() => jest.useFakeTimers());
   afterEach(() => { jest.useRealTimers(); jest.restoreAllMocks(); });

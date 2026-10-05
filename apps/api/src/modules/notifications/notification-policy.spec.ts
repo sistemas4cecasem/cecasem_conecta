@@ -1,7 +1,19 @@
-import { UserRole } from '../../generated/prisma/client';
-import { canReceiveMeeting, excludeNotificationActor, materialMeetingChange, meetingNotificationType, opportunityNotificationType, MATERIAL_MEETING_FIELDS } from './notification-policy';
+import { UserRole, ProcessResult, ProcessEventType } from '../../generated/prisma/client';
+import { canReceiveMeeting, canReceiveProcess, processNotificationType, excludeNotificationActor, materialMeetingChange, meetingNotificationType, opportunityNotificationType, MATERIAL_MEETING_FIELDS } from './notification-policy';
 
 describe('Política P1 de avisos relevantes', () => {
+  it('solo el hecho cerrado ACHIEVED produce proceso concretado y excluye actor', () => {
+    expect(processNotificationType('CLOSED','CLOSED','ACHIEVED')).toBe('PROCESS_ACHIEVED');
+    expect(processNotificationType('CLOSED','IN_PROGRESS','ACHIEVED')).toBeNull();
+    expect(excludeNotificationActor('PROCESS_ACHIEVED')).toBe(true);
+  });
+  it.each(Object.values(ProcessResult).filter(result => result !== 'ACHIEVED'))('cierre %s no produce aviso concretado', result => {
+    expect(processNotificationType('CLOSED','CLOSED',result)).toBeNull();
+  });
+  it.each(Object.values(ProcessEventType).filter(kind => kind !== 'CLOSED'))('actuación %s no produce aviso concretado', kind => {
+    expect(processNotificationType(kind,'CLOSED','ACHIEVED')).toBeNull();
+  });
+  it.each(Object.values(UserRole))('%s conserva permiso de recepción de procesos', role => expect(canReceiveProcess(role)).toBe(true));
   it.each(['CREATED','DISCARDED','FINISHED'] as const)('clasifica oportunidad %s', kind => {
     expect(opportunityNotificationType(kind)).toBe('OPPORTUNITY_' + kind);
   });

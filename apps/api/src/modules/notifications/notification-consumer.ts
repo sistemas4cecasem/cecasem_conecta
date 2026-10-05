@@ -4,13 +4,15 @@ import type { AppEnvironment } from '../../config/environment';
 import { PrismaService } from '../../database/prisma.service';
 import { OpportunitiesService } from '../opportunities/opportunities.service';
 import { MeetingsService } from '../meetings/meetings.service';
-import { canReceiveMeeting, excludeNotificationActor, meetingNotificationType, opportunityNotificationType } from './notification-policy';
+import { canReceiveMeeting, canReceiveProcess, excludeNotificationActor, meetingNotificationType, opportunityNotificationType, processNotificationType } from './notification-policy';
 import { UsersService } from '../users/users.service';
+import { RelationshipProcessesService } from '../relationships/relationship-processes.service';
 
 export const NOTIFICATION_POLL_MS = 5000;
 export const NOTIFICATION_BATCH_SIZE = 25;
 export const NOTIFICATION_CHECKPOINT = 'opportunity-created';
 export const MEETING_NOTIFICATION_CHECKPOINT = 'meeting-activity';
+export const PROCESS_NOTIFICATION_CHECKPOINT = 'process-achieved';
 
 @Injectable()
 export class NotificationConsumer implements OnModuleInit, OnModuleDestroy {
@@ -20,7 +22,8 @@ export class NotificationConsumer implements OnModuleInit, OnModuleDestroy {
   private stopped = false;
 
   constructor(private readonly prisma: PrismaService, private readonly opportunities: OpportunitiesService,
-    private readonly users: UsersService, private readonly config: ConfigService<AppEnvironment, true>, private readonly meetings: MeetingsService) {}
+    private readonly users: UsersService, private readonly config: ConfigService<AppEnvironment, true>, private readonly meetings: MeetingsService,
+    private readonly processes: RelationshipProcessesService) {}
 
   onModuleInit(): void {
     if (this.config.get('NODE_ENV', { infer: true }) !== 'test') this.schedule(0);
@@ -42,40 +45,46 @@ export class NotificationConsumer implements OnModuleInit, OnModuleDestroy {
   /** Barridos repetidos + recibo por hecho: el cursor nunca es la única garantía de entrega. */
   async consumeBatch(): Promise<{ scanned: number; delivered: number; failed: number; busy: boolean }> {
     // Una frontera fallida no impide confirmar el lote de la otra fuente.
-    const results = await Promise.allSettled([this.consumeSource('opportunity'), this.consumeSource('meeting')]);
+    const results = await Promise.allSettled([this.consumeSource('opportunity'), this.consumeSource('meeting'), this.consumeSource('process')]);
     const failure = results.find(result => result.status === 'rejected');
     if (failure?.status === 'rejected') throw failure.reason;
-    const [opportunity, meeting] = results.map(result => {
+    const batches = results.map(result => {
       if (result.status !== 'fulfilled') throw new Error('Lote no confirmado.');
       return result.value;
     });
-    return { scanned: opportunity.scanned + meeting.scanned, delivered: opportunity.delivered + meeting.delivered,
-      failed: opportunity.failed + meeting.failed, busy: opportunity.busy || meeting.busy };
+    return batches.reduce((total, batch) => ({ scanned: total.scanned + batch.scanned, delivered: total.delivered + batch.delivered,
+      failed: total.failed + batch.failed, busy: total.busy || batch.busy }), { scanned: 0, delivered: 0, failed: 0, busy: false });
   }
-  private async consumeSource(source: 'opportunity' | 'meeting') {
+  private async consumeSource(source: 'opportunity' | 'meeting' | 'process') {
     return this.prisma.$transaction(async tx => {
-      const key = source === 'opportunity' ? 45 : 46;
+      const key = source === 'opportunity' ? 45 : source === 'meeting' ? 46 : 48;
       const [lock] = await tx.$queryRaw<{ acquired: boolean }[]>`SELECT pg_try_advisory_xact_lock(1128612691, ${key}) AS acquired`;
       if (!lock.acquired) return { scanned: 0, delivered: 0, failed: 0, busy: true };
-      const checkpointId = source === 'opportunity' ? NOTIFICATION_CHECKPOINT : MEETING_NOTIFICATION_CHECKPOINT;
+      const checkpointId = source === 'opportunity' ? NOTIFICATION_CHECKPOINT : source === 'meeting' ? MEETING_NOTIFICATION_CHECKPOINT : PROCESS_NOTIFICATION_CHECKPOINT;
       const checkpoint = await tx.notificationCheckpoint.upsert({ where: { id: checkpointId }, create: { id: checkpointId }, update: {} });
       const after = checkpoint.afterCreatedAt && checkpoint.afterEventId ? { createdAt: checkpoint.afterCreatedAt, id: checkpoint.afterEventId } : undefined;
-      const producer = source === 'opportunity' ? this.opportunities : this.meetings;
+      const producer = source === 'opportunity' ? this.opportunities : source === 'meeting' ? this.meetings : this.processes;
       const through = checkpoint.throughCreatedAt && checkpoint.throughEventId ? { createdAt: checkpoint.throughCreatedAt, id: checkpoint.throughEventId } : await producer.recordedActivityUpperBound();
       const page = through ? await producer.recordedActivity(after, NOTIFICATION_BATCH_SIZE, through) : { items: [], next: null };
       // Lectura de audiencia por lote; cada recibo fija la selección al primer éxito.
       const meetingIds = page.items.flatMap(event => 'meetingId' in event ? [event.meetingId] : []);
       const audiences = source === 'meeting' ? await this.meetings.notificationAudience([...new Set(meetingIds)], tx) : [];
-      const candidates = audiences.length ? await this.users.notificationCandidates([...new Set(audiences.flatMap(row => row.userIds))], tx) : [];
+      const processIds = page.items.flatMap(event => 'processId' in event && processNotificationType(event.kind, event.newState, event.result) ? [event.processId] : []);
+      const formal = processIds.length ? await this.processes.notificationParticipants([...new Set(processIds)], tx) : [];
+      const candidates = source === 'meeting' && meetingIds.length || processIds.length ? await this.users.institutionalNotificationCandidates(
+        [...new Set([...audiences.flatMap(row => row.userIds), ...formal.map(row => row.userId)])], tx) : [];
       let opportunityRecipients: { id: string }[] | undefined;
       let delivered = 0, failed = 0;
       for (const event of page.items) {
         const isMeeting = 'meetingId' in event;
-        const type = isMeeting ? meetingNotificationType(event.type, event.changes, event.internalUserId) : opportunityNotificationType(event.kind);
+        const isProcess = 'processId' in event;
+        const type = isMeeting ? meetingNotificationType(event.type, event.changes, event.internalUserId)
+          : isProcess ? processNotificationType(event.kind, event.newState, event.result) : opportunityNotificationType(event.kind);
         if (!type) continue;
         await tx.$executeRaw`SAVEPOINT notification_delivery`;
         try {
           const data = isMeeting ? { sourceEventId: event.id, meetingId: event.meetingId, meetingSourceType: event.type, sourceType: null }
+            : isProcess ? { sourceEventId: event.id, processId: event.processId, sourceType: null }
             : { sourceEventId: event.id, opportunityId: event.opportunityId, sourceType: event.kind };
           const receipt = await tx.notificationDelivery.createMany({ data: [data], skipDuplicates: true });
           if (receipt.count) {
@@ -84,11 +93,14 @@ export class NotificationConsumer implements OnModuleInit, OnModuleDestroy {
               const audience = audiences.find(row => row.id === event.meetingId);
               if (!audience) throw new Error('Contexto de reunión no disponible.');
               const ids = type === 'MEETING_PARTICIPANT_ADDED' ? [event.internalUserId!] : audience.userIds;
-              recipients = candidates.filter(user => ids.includes(user.id) && canReceiveMeeting(user.role, audience));
+              recipients = candidates.filter(user => (ids.includes(user.id) || type !== 'MEETING_PARTICIPANT_ADDED' && ['ADMINISTRATOR', 'BOARD'].includes(user.role)) && canReceiveMeeting(user.role, audience));
+            } else if (isProcess) {
+              const ids = formal.filter(row => row.processId === event.processId).map(row => row.userId);
+              recipients = candidates.filter(user => (ids.includes(user.id) || ['ADMINISTRATOR', 'BOARD'].includes(user.role)) && canReceiveProcess(user.role));
             } else recipients = opportunityRecipients ??= await this.users.opportunityNotificationRecipients(tx);
             if (excludeNotificationActor(type)) recipients = recipients.filter(user => user.id !== event.actorUserId);
             await tx.notification.createMany({ data: recipients.map(user => ({ recipientUserId: user.id, type,
-              sourceEventId: event.id, ...(isMeeting ? { meetingId: event.meetingId } : { opportunityId: event.opportunityId }) })), skipDuplicates: true });
+              sourceEventId: event.id, ...(isMeeting ? { meetingId: event.meetingId } : isProcess ? { processId: event.processId } : { opportunityId: event.opportunityId }) })), skipDuplicates: true });
             delivered++;
           }
           await tx.$executeRaw`RELEASE SAVEPOINT notification_delivery`;

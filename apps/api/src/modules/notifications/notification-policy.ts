@@ -1,4 +1,4 @@
-import type { MeetingEventType, NotificationType, OpportunityEventType, Prisma, UserRole } from '../../generated/prisma/client';
+import type { MeetingEventType, NotificationType, OpportunityEventType, Prisma, UserRole, ProcessEventType, ProcessState, ProcessResult } from '../../generated/prisma/client';
 import { hasPermission } from '../auth/authorization/role-permissions';
 import { PERMISSIONS } from '../auth/authorization/permission';
 
@@ -26,6 +26,12 @@ export function canReceiveMeeting(role: UserRole, context: { processId: string |
   return hasPermission(role, PERMISSIONS.NOTIFICATION_READ) && hasPermission(role, PERMISSIONS.MEETING_READ) &&
     (!context.processId || hasPermission(role, PERMISSIONS.PROCESS_READ)) &&
     (!context.opportunityId || hasPermission(role, PERMISSIONS.OPPORTUNITY_READ));
+}
+export function processNotificationType(kind: ProcessEventType, state: ProcessState, result: ProcessResult | null): NotificationType | null {
+  return kind === 'CLOSED' && state === 'CLOSED' && result === 'ACHIEVED' ? 'PROCESS_ACHIEVED' : null;
+}
+export function canReceiveProcess(role: UserRole): boolean {
+  return hasPermission(role, PERMISSIONS.NOTIFICATION_READ) && hasPermission(role, PERMISSIONS.PROCESS_READ);
 }
 /** P0 conserva al actor institucional; P1 evita avisos por la propia acción. */
 export function excludeNotificationActor(type: NotificationType): boolean { return type !== 'OPPORTUNITY_CREATED'; }

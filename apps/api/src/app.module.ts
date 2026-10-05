@@ -1,3 +1,5 @@
+import { RemindersModule } from './modules/reminders/reminders.module';
+import { TranslationModule } from './modules/translation/translation.module';
 import { OpportunitiesModule } from './modules/opportunities/opportunities.module';
 import { ReferralsModule } from './modules/referrals/referrals.module';
 import { MeetingsModule } from './modules/meetings/meetings.module';
@@ -19,7 +21,7 @@ import { RelationshipContextModule } from './modules/relationships/relationship-
 import { RelationshipTimelineModule } from './modules/relationships/relationship-timeline.module';
 
 @Module({
-  imports: [
+  imports: [TranslationModule, RemindersModule,
     ReferralsModule,
     MeetingsModule,
     OpportunitiesModule, OpportunityHistoryModule,

@@ -84,11 +84,11 @@ describe('P1 notificaciones PostgreSQL/HTTP', () => {
   async function audience(meetingId:string,type?:'MEETING_CREATED'|'MEETING_CANCELLED'|'MEETING_COMPLETED'|'MEETING_PARTICIPANT_ADDED'|'MEETING_RESCHEDULED') {
     return (await prisma.notification.findMany({where:{meetingId,...type?{type}:{}},select:{recipientUserId:true}})).map(row=>row.recipientUserId).sort();
   }
-  it('creación avisa a participantes reales; incorporación solo al invitado; sin globalidad',async()=>{
+  it('creación avisa a participantes reales; incorporación solo al invitado; con globalidad institucional',async()=>{
     const f=await fixture();await consumer.consumeBatch();
-    expect(await audience(f.meeting.id,'MEETING_CREATED')).toEqual([f.formal.id,f.internal.id].sort());
+    expect(await audience(f.meeting.id,'MEETING_CREATED')).toEqual([f.formal.id,f.internal.id,f.board.id,f.admin.id].sort());
     expect(await audience(f.meeting.id,'MEETING_PARTICIPANT_ADDED')).toEqual([f.internal.id]);
-    for(const user of [f.owner,f.outsider,f.board,f.admin])expect(await notifications.unreadCount(user.id)).toEqual({count:0});
+    for(const user of [f.owner,f.outsider])expect(await notifications.unreadCount(user.id)).toEqual({count:0});
   });
   it('referencias externas/textuales no crean cuentas ni notificaciones',async()=>{
     const f=await fixture(),before=await prisma.user.count();
@@ -100,12 +100,12 @@ describe('P1 notificaciones PostgreSQL/HTTP', () => {
   it('cancelación informa a ambos grupos y excluye al actor aunque sea participante',async()=>{
     const f=await fixture();await consumer.consumeBatch();
     await f.service.cancel(f.meeting.id,{reason:'Cambio institucional',expectedVersion:f.meeting.version},f.formal.id,randomUUID());
-    await consumer.consumeBatch();expect(await audience(f.meeting.id,'MEETING_CANCELLED')).toEqual([f.owner.id,f.internal.id].sort());
+    await consumer.consumeBatch();expect(await audience(f.meeting.id,'MEETING_CANCELLED')).toEqual([f.owner.id,f.internal.id,f.board.id,f.admin.id].sort());
   });
   it('realización informa continuidad; asistencia/acuerdo no agregan avisos ni recibos',async()=>{
     const f=await fixture(true);await consumer.consumeBatch();
     let row=await f.service.complete(f.meeting.id,{expectedVersion:f.meeting.version},f.owner.id,randomUUID());
-    await consumer.consumeBatch();expect(await audience(row.id,'MEETING_COMPLETED')).toEqual([f.formal.id,f.internal.id].sort());
+    await consumer.consumeBatch();expect(await audience(row.id,'MEETING_COMPLETED')).toEqual([f.formal.id,f.internal.id,f.board.id,f.admin.id].sort());
     const before=await prisma.notification.count({where:{meetingId:row.id}}),receipts=await prisma.notificationDelivery.count({where:{meetingId:row.id}});
     const participant=await prisma.meetingParticipant.findFirstOrThrow({where:{meetingId:row.id,userId:f.internal.id}});
     row=await f.service.attendance(row.id,participant.id,{attendance:'ATTENDED',expectedVersion:row.version},f.owner.id,randomUUID());
@@ -117,7 +117,7 @@ describe('P1 notificaciones PostgreSQL/HTTP', () => {
     const f=await fixture();await consumer.consumeBatch();
     const changes={scheduledLocal:'2099-10-16T10:00',timezone:'UTC',modality:'HYBRID' as const,meetingUrl:'https://example.test/reunion',location:'Sala institucional'};
     await f.service.update(f.meeting.id,{...future,...field==='location'?{modality:'HYBRID' as const}:{},[field]:changes[field],expectedVersion:f.meeting.version},f.owner.id,randomUUID());
-    await consumer.consumeBatch();expect(await audience(f.meeting.id,'MEETING_RESCHEDULED')).toEqual([f.formal.id,f.internal.id].sort());
+    await consumer.consumeBatch();expect(await audience(f.meeting.id,'MEETING_RESCHEDULED')).toEqual([f.formal.id,f.internal.id,f.board.id,f.admin.id].sort());
   });
   it('propósito menor e incorporación externa no producen avisos',async()=>{
     const f=await fixture();await consumer.consumeBatch();const before=await prisma.notification.count();
@@ -146,7 +146,7 @@ describe('P1 notificaciones PostgreSQL/HTTP', () => {
     const f=await fixture();await consumer.consumeBatch();const before=await notifications.unreadCount(f.internal.id);
     await prisma.user.update({where:{id:f.internal.id},data:{isActive:false,deactivatedAt:new Date()}});
     await f.service.cancel(f.meeting.id,{reason:'Cancelada',expectedVersion:f.meeting.version},f.owner.id,randomUUID());await consumer.consumeBatch();
-    expect(await audience(f.meeting.id,'MEETING_CANCELLED')).toEqual([f.formal.id]);
+    expect(await audience(f.meeting.id,'MEETING_CANCELLED')).toEqual([f.formal.id,f.board.id,f.admin.id].sort());
     await prisma.user.update({where:{id:f.internal.id},data:{isActive:true,deactivatedAt:null}});await consumer.consumeBatch();expect(await notifications.unreadCount(f.internal.id)).toEqual(before);
   });
   it('mezcla fuentes con orden/cursor global, filtros y lectura propia sin alterar dominios',async()=>{
@@ -166,14 +166,14 @@ describe('P1 notificaciones PostgreSQL/HTTP', () => {
   it('concurrente/reinicio/reprocesamientos no duplican ni recalculan destinatarios',async()=>{
     const f=await fixture();await Promise.all([consumer.consumeBatch(),consumer.consumeBatch()]);
     const before=await prisma.notification.count();await prisma.user.update({where:{id:f.outsider.id},data:{role:UserRole.PLANNING}});
-    const restarted=new NotificationConsumer(prisma,opportunities,app.get(UsersService),app.get(ConfigService),f.service);
+    const restarted=new NotificationConsumer(prisma,opportunities,app.get(UsersService),app.get(ConfigService),f.service,app.get(RelationshipProcessesService));
     for(let i=0;i<10;i++)await restarted.consumeBatch();expect(await prisma.notification.count()).toBe(before);expect(await notifications.unreadCount(f.outsider.id)).toEqual({count:0});
-    expect(await prisma.notificationCheckpoint.count()).toBe(2);
+    expect(await prisma.notificationCheckpoint.count()).toBe(3);
   });
   it('recibo sin destinatarios impide retroactividad al incorporar luego nuevos usuarios',async()=>{
-    const f=await fixture();await prisma.user.updateMany({where:{id:{in:[f.formal.id,f.internal.id]}},data:{isActive:false,deactivatedAt:new Date()}});await consumer.consumeBatch();
+    const f=await fixture();await prisma.user.updateMany({where:{id:{in:[f.formal.id,f.internal.id,f.board.id,f.admin.id]}},data:{isActive:false,deactivatedAt:new Date()}});await consumer.consumeBatch();
     expect(await audience(f.meeting.id)).toHaveLength(0);expect(await prisma.notificationDelivery.count({where:{meetingId:f.meeting.id}})).toBe(2);
-    await prisma.user.updateMany({where:{id:{in:[f.formal.id,f.internal.id]}},data:{isActive:true,deactivatedAt:null}});await consumer.consumeBatch();expect(await audience(f.meeting.id)).toHaveLength(0);
+    await prisma.user.updateMany({where:{id:{in:[f.formal.id,f.internal.id,f.board.id,f.admin.id]}},data:{isActive:true,deactivatedAt:null}});await consumer.consumeBatch();expect(await audience(f.meeting.id)).toHaveLength(0);
   });
   it('FKs, tipo/contexto, invitado y procedencia inmutable protegen inserciones directas',async()=>{
     const f=await fixture();await consumer.consumeBatch();const row=await prisma.notification.findFirstOrThrow({where:{meetingId:f.meeting.id,type:'MEETING_CREATED'}});
@@ -183,7 +183,7 @@ describe('P1 notificaciones PostgreSQL/HTTP', () => {
     await expect(prisma.notification.create({data:{...data,opportunityId:randomUUID()}})).rejects.toThrow();
     await expect(prisma.notification.update({where:{id:row.id},data:{meetingId:randomUUID()}})).rejects.toThrow();
     await expect(prisma.notificationDelivery.create({data:{sourceEventId:randomUUID(),meetingId:f.meeting.id,meetingSourceType:'CREATED',sourceType:null}})).rejects.toThrow();
-    await expect(prisma.notificationDelivery.update({where:{sourceEventId:row.sourceEventId},data:{processedAt:new Date(0)}})).rejects.toThrow();
+    await expect(prisma.notificationDelivery.update({where:{sourceEventId:row.sourceEventId!},data:{processedAt:new Date(0)}})).rejects.toThrow();
     const invitation=await prisma.notification.findFirstOrThrow({where:{meetingId:f.meeting.id,type:'MEETING_PARTICIPANT_ADDED'}});
     await expect(prisma.notification.create({data:{...data,sourceEventId:invitation.sourceEventId,type:'MEETING_PARTICIPANT_ADDED'}})).rejects.toThrow();
     await expect(prisma.notification.create({data:{sourceEventId:row.sourceEventId,meetingId:f.meeting.id,recipientUserId:row.recipientUserId,type:'MEETING_CREATED'}})).rejects.toThrow();
@@ -199,12 +199,12 @@ describe('P1 notificaciones PostgreSQL/HTTP', () => {
     jest.spyOn(app.get(AuditService),'recordMeeting').mockRejectedValueOnce(new Error('fallo controlado'));
     await expect(f.service.complete(f.meeting.id,{expectedVersion:f.meeting.version},f.owner.id,randomUUID())).rejects.toThrow();expect((await f.service.get(f.meeting.id,f.owner.id)).status).toBe('SCHEDULED');
     await f.service.complete(f.meeting.id,{expectedVersion:f.meeting.version},f.owner.id,randomUUID());jest.spyOn(f.service,'recordedActivity').mockRejectedValueOnce(new Error('consumidor'));
-    await expect(consumer.consumeBatch()).rejects.toThrow();expect((await f.service.get(f.meeting.id,f.owner.id)).status).toBe('COMPLETED');await consumer.consumeBatch();expect(await audience(f.meeting.id,'MEETING_COMPLETED')).toHaveLength(2);
+    await expect(consumer.consumeBatch()).rejects.toThrow();expect((await f.service.get(f.meeting.id,f.owner.id)).status).toBe('COMPLETED');await consumer.consumeBatch();expect(await audience(f.meeting.id,'MEETING_COMPLETED')).toHaveLength(4);
   });
   it('límite superior termina barrido aun con altas nuevas y reinicio',async()=>{
     const f=await fixture();for(let i=0;i<25;i++)await f.service.create({...future,processId:f.process.id},f.owner.id,randomUUID());
     await consumer.consumeBatch();const first=await prisma.notificationCheckpoint.findUniqueOrThrow({where:{id:'meeting-activity'}});expect(first.afterEventId).not.toBeNull();expect(first.throughEventId).not.toBeNull();
-    await f.service.create({...future,processId:f.process.id},f.owner.id,randomUUID());const restarted=new NotificationConsumer(prisma,opportunities,app.get(UsersService),app.get(ConfigService),f.service);await restarted.consumeBatch();
+    await f.service.create({...future,processId:f.process.id},f.owner.id,randomUUID());const restarted=new NotificationConsumer(prisma,opportunities,app.get(UsersService),app.get(ConfigService),f.service,app.get(RelationshipProcessesService));await restarted.consumeBatch();
     expect((await prisma.notificationCheckpoint.findUniqueOrThrow({where:{id:'meeting-activity'}})).completedSweeps).toBe(1);await restarted.consumeBatch();await restarted.consumeBatch();
     expect(await prisma.notificationDelivery.count({where:{meetingId:{not:null}}})).toBe(28);
   });
@@ -223,7 +223,7 @@ describe('P1 notificaciones PostgreSQL/HTTP', () => {
       expect((await consumer.consumeBatch()).failed).toBe(1);expect(await audience(f.meeting.id,'MEETING_CREATED')).toHaveLength(0);
       expect(await prisma.notificationDelivery.count({where:{sourceEventId:source.id}})).toBe(0);expect(await audience(f.meeting.id,'MEETING_PARTICIPANT_ADDED')).toEqual([f.internal.id]);
     } finally {await prisma.$executeRawUnsafe('DROP TRIGGER p1_test_delivery_failure ON "Notification"');await prisma.$executeRawUnsafe('DROP FUNCTION p1_test_delivery_failure()');}
-    await consumer.consumeBatch();expect(await audience(f.meeting.id,'MEETING_CREATED')).toHaveLength(2);expect(await prisma.notificationDelivery.count({where:{sourceEventId:source.id}})).toBe(1);
+    await consumer.consumeBatch();expect(await audience(f.meeting.id,'MEETING_CREATED')).toHaveLength(4);expect(await prisma.notificationDelivery.count({where:{sourceEventId:source.id}})).toBe(1);
   });
   it('commit tardío de reunión detrás del cursor se recupera con barrido repetido',async()=>{
     const f=await fixture(),lateActor=await actor(),opportunity=await create(lateActor.id);
@@ -239,7 +239,7 @@ describe('P1 notificaciones PostgreSQL/HTTP', () => {
   });
   it('audiencia y proyecciones usan consultas por lote, no por cada reunión',async()=>{
     const f=await fixture();for(let i=0;i<8;i++)await f.service.create({...future,processId:f.process.id},f.owner.id,randomUUID());
-    const audience=jest.spyOn(f.service,'notificationAudience'),candidates=jest.spyOn(app.get(UsersService),'notificationCandidates'),formal=jest.spyOn(app.get(RelationshipProcessesService),'notificationParticipants');
+    const audience=jest.spyOn(f.service,'notificationAudience'),candidates=jest.spyOn(app.get(UsersService),'institutionalNotificationCandidates'),formal=jest.spyOn(app.get(RelationshipProcessesService),'notificationParticipants');
     await consumer.consumeBatch();expect(audience).toHaveBeenCalledTimes(1);expect(candidates).toHaveBeenCalledTimes(1);expect(formal).toHaveBeenCalledTimes(1);
     const summaries=jest.spyOn(f.service,'notificationSummaries');await notifications.list(f.formal.id,{pageSize:100});expect(summaries).toHaveBeenCalledTimes(1);expect(summaries.mock.calls[0][0]).toHaveLength(9);
   });
@@ -247,9 +247,9 @@ describe('P1 notificaciones PostgreSQL/HTTP', () => {
   it('fallo total de Opportunities no impide confirmar y recuperar Meetings',async()=>{
     const f=await fixture();await create(f.owner.id);
     jest.spyOn(opportunities,'recordedActivity').mockRejectedValueOnce(new Error('frontera no disponible'));
-    await expect(consumer.consumeBatch()).rejects.toThrow();expect(await audience(f.meeting.id,'MEETING_CREATED')).toHaveLength(2);
+    await expect(consumer.consumeBatch()).rejects.toThrow();expect(await audience(f.meeting.id,'MEETING_CREATED')).toHaveLength(4);
     expect(await prisma.notificationCheckpoint.count({where:{id:'meeting-activity'}})).toBe(1);
-    await consumer.consumeBatch();expect(await audience(f.meeting.id,'MEETING_CREATED')).toHaveLength(2);
+    await consumer.consumeBatch();expect(await audience(f.meeting.id,'MEETING_CREATED')).toHaveLength(4);
     expect((await notifications.list(f.internal.id,{})).items.some(row=>row.type==='OPPORTUNITY_CREATED')).toBe(true);
   });
 });

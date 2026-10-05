@@ -6,6 +6,8 @@ import { notificationIdentityKey, useNotificationCount, useNotifications, useRea
 import type { Notification } from './contracts';
 
 const notificationLabels: Record<Notification['type'], string> = {
+  PROCESS_ACHIEVED:'Proceso concretado',
+  INTENT_INACTIVITY_REMINDER:'Intención sin actividad', PROCESS_INACTIVITY_REMINDER:'Proceso sin actividad',
   OPPORTUNITY_CREATED:'Nueva oportunidad', OPPORTUNITY_DISCARDED:'Oportunidad descartada', OPPORTUNITY_FINISHED:'Oportunidad finalizada',
   MEETING_CREATED:'Nueva reunión', MEETING_CANCELLED:'Reunión cancelada', MEETING_COMPLETED:'Reunión realizada',
   MEETING_PARTICIPANT_ADDED:'Fuiste incorporado a una reunión', MEETING_RESCHEDULED:'Cambio de planificación de reunión',
@@ -42,7 +44,8 @@ function NotificationCenter({ identity }: { identity: AuthIdentity }) {
     finally { setOpening(null); }
     const current = client.getQueryData<AuthIdentity | null>(AUTH_QUERY_KEY);
     if (!current || notificationIdentityKey(identity).some((value, index) => value !== notificationIdentityKey(current)[index])) return;
-    navigate(row.meeting ? '/meetings/' + row.meeting.id : '/opportunities/' + row.opportunity.id, { state: { notificationReadFailed: failed } });
+    navigate(row.process ? '/relationship-processes/' + row.process.id : row.reminder ? (row.reminder.intentId ? '/contact-intents/' + row.reminder.intentId : '/relationship-processes/' + row.reminder.processId)
+      : row.meeting ? '/meetings/' + row.meeting.id : '/opportunities/' + row.opportunity!.id, { state: { notificationReadFailed: failed } });
   }
 
   const items = query.data?.pages.flatMap(page => page.items) ?? [];
@@ -64,11 +67,13 @@ function NotificationCenter({ identity }: { identity: AuthIdentity }) {
       {items.map(row => <li key={row.id} className="space-y-2 break-words rounded border p-4">
         <div className="flex flex-wrap justify-between gap-2"><strong>{notificationLabels[row.type]}</strong>
           <span>{row.readAt ? 'Leída' : 'No leída'}</span></div>
-        <p>{row.meeting ? row.meeting.purpose : row.opportunity.name}</p>
+        <p>{row.process ? row.process.purpose : row.reminder ? row.reminder.purpose : row.meeting ? row.meeting.purpose : row.opportunity!.name}</p>
+        {row.process && <><p>{row.process.context}</p><p>Concretado el {new Date(row.process.occurredAt).toLocaleString('es-BO')}</p></>}
+        {row.reminder && <><p>{row.reminder.context}</p><p>Sin actividad desde {new Intl.DateTimeFormat('es-BO',{dateStyle:'medium',timeStyle:'short',timeZone:'UTC'}).format(new Date(row.reminder.inactivityAnchorAt))} UTC · Intervalo: {row.reminder.intervalDays} días</p></>}
         {row.meeting && <p>{new Intl.DateTimeFormat('es-BO',{dateStyle:'medium',timeStyle:'short',timeZone:row.meeting.timezone}).format(new Date(row.meeting.scheduledAt))} · {row.meeting.timezone}</p>}
         <time dateTime={row.createdAt}>{new Date(row.createdAt).toLocaleString('es-BO')}</time>
         <div><button disabled={opening !== null} className="min-h-11 rounded border px-3 py-2"
-          onClick={() => void open(row)}>{opening === row.id ? 'Abriendo…' : row.meeting ? 'Abrir reunión' : 'Abrir oportunidad'}</button></div>
+          onClick={() => void open(row)}>{opening === row.id ? 'Abriendo…' : row.process ? 'Abrir proceso' : row.reminder ? row.reminder.intentId ? 'Abrir intención' : 'Abrir proceso' : row.meeting ? 'Abrir reunión' : 'Abrir oportunidad'}</button></div>
       </li>)}
     </ul>
     {query.hasNextPage && <button disabled={query.isFetchingNextPage} className="min-h-11 rounded border px-3 py-2"

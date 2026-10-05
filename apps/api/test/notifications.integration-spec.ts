@@ -1,3 +1,4 @@
+import { RelationshipProcessesService } from '../src/modules/relationships/relationship-processes.service';
 import { MeetingsService } from '../src/modules/meetings/meetings.service';
 import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
@@ -189,7 +190,7 @@ describe('P0 notificaciones PostgreSQL/HTTP', () => {
     expect((await consumer.consumeBatch()).scanned).toBe(25);
     expect((await prisma.notificationCheckpoint.findUniqueOrThrow({ where: { id: NOTIFICATION_CHECKPOINT } })).afterEventId).not.toBeNull();
     for (let i = 0; i < 3; i++) await create(owner.id);
-    const restarted = new NotificationConsumer(prisma, opportunities, app.get(UsersService), app.get(ConfigService), app.get(MeetingsService));
+    const restarted = new NotificationConsumer(prisma, opportunities, app.get(UsersService), app.get(ConfigService), app.get(MeetingsService), app.get(RelationshipProcessesService));
     expect((await restarted.consumeBatch()).scanned).toBe(2); expect(await notifications.unreadCount(planning.id)).toEqual({ count: 27 });
     expect((await prisma.notificationCheckpoint.findUniqueOrThrow({ where: { id: NOTIFICATION_CHECKPOINT } })).throughEventId).toBeNull();
     await restarted.consumeBatch(); await restarted.consumeBatch();

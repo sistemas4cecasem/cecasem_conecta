@@ -9,31 +9,45 @@ import { PERMISSIONS, type Permission } from '../auth/authorization/permission';
 import type { UserIdentity } from '../users/user-projections';
 import { encodeNotificationCursor, notificationCursor } from './notification-cursor';
 import type { NotificationDto, NotificationPageDto, NotificationQueryDto } from './notification.dto';
+import { ReminderRecordsService } from '../reminders/reminder-records.service';
+import { RelationshipProcessesService } from '../relationships/relationship-processes.service';
 
-const notificationSelect = { id: true, type: true, opportunityId: true, meetingId: true, createdAt: true, readAt: true } as const;
+const notificationSelect = { id: true, type: true, opportunityId: true, meetingId: true, processId: true, sourceEventId: true, reminderId: true, createdAt: true, readAt: true } as const;
 type NotificationRow = Prisma.NotificationGetPayload<{ select: typeof notificationSelect }>;
 
 @Injectable()
 export class NotificationsService {
   constructor(private readonly prisma: PrismaService, private readonly users: UsersService,
-    private readonly opportunities: OpportunitiesService, private readonly meetings: MeetingsService) {}
+    private readonly opportunities: OpportunitiesService, private readonly meetings: MeetingsService, private readonly reminders: ReminderRecordsService,
+    private readonly processes: RelationshipProcessesService) {}
+
+  deliverReminder(reminderId: string, type: 'INTENT_INACTIVITY_REMINDER' | 'PROCESS_INACTIVITY_REMINDER', recipientIds: string[], tx: Prisma.TransactionClient) {
+    return tx.notification.createMany({ data: [...new Set(recipientIds)].map(recipientUserId => ({ recipientUserId, type, reminderId })), skipDuplicates: true });
+  }
 
   private authorize(user: UserIdentity | null, permission: Permission): void {
     if (!user?.isActive || !hasPermission(user.role, permission)) throw new ForbiddenException('No tienes acceso a estas notificaciones.');
   }
 
   private async contracts(rows: NotificationRow[]): Promise<NotificationDto[]> {
-    const [opportunities, meetings] = await Promise.all([
+    const [opportunities, meetings, reminders, processes] = await Promise.all([
       this.opportunities.notificationSummaries([...new Set(rows.flatMap(row => row.opportunityId ? [row.opportunityId] : []))]),
       this.meetings.notificationSummaries([...new Set(rows.flatMap(row => row.meetingId ? [row.meetingId] : []))]),
+      this.reminders.summaries([...new Set(rows.flatMap(row => row.reminderId ? [row.reminderId] : []))]),
+      this.processes.achievedNotificationSummaries([...new Set(rows.flatMap(row => row.processId && row.sourceEventId ? [row.sourceEventId] : []))]),
     ]);
     const byOpportunity = new Map(opportunities.map(row => [row.id, row])), byMeeting = new Map(meetings.map(row => [row.id, row]));
+    const byReminder = new Map(reminders.map(row => [row.id, row]));
+    const byProcessEvent = new Map(processes.map(row => [row.sourceEventId, row]));
     return rows.map(row => {
       const opportunity = row.opportunityId ? byOpportunity.get(row.opportunityId) : null;
       const meeting = row.meetingId ? byMeeting.get(row.meetingId) : null;
-      if (row.opportunityId && !opportunity || row.meetingId && !meeting) throw new NotFoundException('El recurso no está disponible.');
+      const reminder = row.reminderId ? byReminder.get(row.reminderId) : null;
+      const process = row.processId && row.sourceEventId ? byProcessEvent.get(row.sourceEventId) : null;
+      if (row.opportunityId && !opportunity || row.meetingId && !meeting || row.reminderId && !reminder || row.processId && !process) throw new NotFoundException('El recurso no está disponible.');
       return { id: row.id, type: row.type, createdAt: row.createdAt.toISOString(), readAt: row.readAt?.toISOString() ?? null,
-        opportunity: opportunity ?? null, meeting: meeting ? { ...meeting, scheduledAt: meeting.scheduledAt.toISOString(), purpose: meeting.purpose.slice(0,160) } : null };
+        opportunity: opportunity ?? null, meeting: meeting ? { ...meeting, scheduledAt: meeting.scheduledAt.toISOString(), purpose: meeting.purpose.slice(0,160) } : null, reminder: reminder ?? null,
+        process: process ? { id: process.id, purpose: process.purpose, context: process.context, occurredAt: process.occurredAt } : null };
     });
   }
 

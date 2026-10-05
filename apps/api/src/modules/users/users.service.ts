@@ -63,6 +63,12 @@ export class UsersService {
       AND id = ANY(${ids}::uuid[]) ORDER BY id FOR SHARE`;
   }
 
+  /** Unión institucional/contextual en un único orden de locks; nunca concede acceso. */
+  institutionalNotificationCandidates(ids: string[], tx: Prisma.TransactionClient): Promise<{ id: string; role: UserRole }[]> {
+    return tx.$queryRaw`SELECT id, role FROM "User" WHERE "isActive" = true
+      AND (role IN ('ADMINISTRATOR', 'BOARD') OR id = ANY(${ids}::uuid[])) ORDER BY id FOR SHARE`;
+  }
+
   // Interfaz interna; no crea credenciales ni expone administración HTTP.
   async createIdentity(input: CreateUserIdentity, transaction?: Prisma.TransactionClient): Promise<UserIdentity> {
     const givenNames = normalizeIdentityText(input.givenNames, 'Nombres');
@@ -119,7 +125,10 @@ export class UsersService {
     return this.prisma.$transaction(async (tx) => {
       if (locks.administrators) await this.lockAdministration(tx);
       const ids = [...new Set([id, ...(locks.actorId ? [locks.actorId] : [])])].sort();
-      for (const lockedId of ids) await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${lockedId}::uuid FOR UPDATE`;
+      // No se modifica la PK. NO KEY UPDATE serializa credenciales/roles y sigue
+      // incompatible con FOR SHARE de destinatarios, pero permite FK KEY SHARE
+      // de historial: evita User → Directory → FK User sin relajar autorización.
+      for (const lockedId of ids) await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${lockedId}::uuid FOR NO KEY UPDATE`;
       const user = await tx.user.findUnique({ where: { id }, select: userCredentialsSelect });
       return operation(user, tx);
     });

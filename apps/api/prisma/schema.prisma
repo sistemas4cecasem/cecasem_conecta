@@ -45,6 +45,7 @@ enum UserRole {
 }
 
 enum AuditAction {
+  REMINDER_INTERVAL_UPDATED
   MEETING_RECORDED
   REFERRAL_CREATED
   OPPORTUNITY_CREATED
@@ -107,6 +108,7 @@ enum ContactCondition {
 }
 
 model User {
+  requestedTranslations CommunicationTranslation[]
   createdMeetings Meeting[] @relation("MeetingCreator")
   meetingParticipations MeetingParticipant[] @relation("MeetingInternalUser")
   addedMeetingParticipants MeetingParticipant[] @relation("MeetingParticipantAuthor")
@@ -170,6 +172,8 @@ model PasswordResetToken {
 }
 
 model AuditEvent {
+  previousReminderIntervalDays Int?
+  newReminderIntervalDays Int?
   meetingEventId String? @unique @db.Uuid
   meetingEvent MeetingEvent? @relation(fields: [meetingEventId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   referralId String? @unique @db.Uuid
@@ -589,6 +593,7 @@ enum ContactIntentState {
 }
 
 model ContactIntent {
+  reminders ReminderOccurrence[]
   originatedProcess RelationshipProcess?
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   purpose String @db.VarChar(5000)
@@ -609,6 +614,7 @@ model ContactIntent {
   auditEvents AuditEvent[]
 
   @@index([state, createdAt, id])
+  @@index([state, lastActivityAt, id])
   @@index([authorUserId, createdAt, id])
   @@index([organizationId, state, createdAt, id])
   @@index([personId, state, createdAt, id])
@@ -723,6 +729,8 @@ enum ProcessAuthority {
 }
 
 model RelationshipProcess {
+  achievedNotifications Notification[]
+  reminders ReminderOccurrence[]
   meetings Meeting[]
   opportunities Opportunity[]
   fileUploads FileUpload[]
@@ -755,6 +763,7 @@ model RelationshipProcess {
   @@index([organizationId, state, createdAt, id])
   @@index([personId, state, createdAt, id])
   @@index([state, createdAt, id])
+  @@index([state, lastActivityAt, id])
   @@index([createdByUserId, createdAt, id])
   @@index([createdAt, id])
   @@index([closedByUserId])
@@ -773,6 +782,7 @@ model ProcessParticipant {
 }
 
 model RelationshipProcessEvent {
+  notificationDeliveries NotificationDelivery[]
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   processId String @db.Uuid
   type ProcessEventType
@@ -789,6 +799,8 @@ model RelationshipProcessEvent {
   auditEvent AuditEvent?
 
   @@unique([processId, version])
+  @@unique([id, processId])
+  @@index([createdAt, id])
   @@index([processId, createdAt, id])
   @@index([actorUserId])
 }
@@ -840,6 +852,7 @@ enum RecipientType {
 }
 
 model Communication {
+  translations CommunicationTranslation[]
   referrals Referral[]
   coherentOpportunities Opportunity[] @relation("OpportunityCoherentCommunication")
   opportunities Opportunity[]
@@ -1044,6 +1057,9 @@ model OpportunityEvent {
 }
 
 enum NotificationType {
+  PROCESS_ACHIEVED
+  INTENT_INACTIVITY_REMINDER
+  PROCESS_INACTIVITY_REMINDER
   OPPORTUNITY_CREATED
   OPPORTUNITY_DISCARDED
   OPPORTUNITY_FINISHED
@@ -1055,6 +1071,8 @@ enum NotificationType {
 }
 
 model NotificationDelivery {
+  processId String? @db.Uuid
+  processSourceEvent RelationshipProcessEvent? @relation(fields: [sourceEventId, processId], references: [id, processId], onDelete: Restrict, onUpdate: Restrict)
   sourceEventId String @id @db.Uuid
   opportunityId String? @db.Uuid
   sourceType OpportunityEventType? @default(CREATED)
@@ -1067,24 +1085,54 @@ model NotificationDelivery {
   @@unique([sourceEventId, opportunityId])
   @@index([opportunityId])
   @@index([meetingId])
+  @@index([processId])
 }
 
 model Notification {
+  processId String? @db.Uuid
+  process RelationshipProcess? @relation(fields: [processId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  reminderId String? @db.Uuid
+  reminder ReminderOccurrence? @relation(fields: [reminderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   recipientUserId String @db.Uuid
   type NotificationType @default(OPPORTUNITY_CREATED)
-  sourceEventId String @db.Uuid
+  sourceEventId String? @db.Uuid
   opportunityId String? @db.Uuid
   meetingId String? @db.Uuid
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   readAt DateTime? @db.Timestamptz(3)
   recipient User @relation(fields: [recipientUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  delivery NotificationDelivery @relation(fields: [sourceEventId], references: [sourceEventId], onDelete: Restrict, onUpdate: Restrict)
+  delivery NotificationDelivery? @relation(fields: [sourceEventId], references: [sourceEventId], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([recipientUserId, reminderId, type])
   @@unique([recipientUserId, sourceEventId, type])
   @@index([recipientUserId, createdAt, id])
   @@index([recipientUserId, readAt])
   @@index([sourceEventId, opportunityId])
   @@index([meetingId])
+  @@index([processId])
+}
+
+model ReminderSettings {
+  id Int @id @default(1)
+  intervalDays Int @default(7)
+  version Int @default(1)
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+}
+
+model ReminderOccurrence {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  intentId String? @db.Uuid
+  processId String? @db.Uuid
+  inactivityAnchorAt DateTime @db.Timestamptz(3)
+  intervalDaysSnapshot Int
+  settingsVersionSnapshot Int
+  dueAt DateTime @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  intent ContactIntent? @relation(fields: [intentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  process RelationshipProcess? @relation(fields: [processId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  notifications Notification[]
+  @@unique([intentId, inactivityAnchorAt])
+  @@unique([processId, inactivityAnchorAt])
 }
 
 model NotificationCheckpoint {
@@ -1213,4 +1261,20 @@ model MeetingEvent {
   @@index([createdAt, id])
   @@index([participantId])
   @@index([agreementId])
+}
+
+model CommunicationTranslation {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  communicationId String @db.Uuid
+  targetLanguage String @db.VarChar(10)
+  sourceFingerprint String @db.VarChar(64)
+  translatedText String @db.Text
+  detectedSourceLanguage String? @db.VarChar(20)
+  provider String @db.VarChar(40)
+  requestedByUserId String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  communication Communication @relation(fields: [communicationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  requestedBy User @relation(fields: [requestedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([communicationId, targetLanguage, sourceFingerprint])
+  @@index([requestedByUserId])
 }

@@ -30,6 +30,8 @@ export class NotificationMeetingDto {
   @ApiProperty({type:String,nullable:true}) opportunityId!: string | null;
 }
 export class NotificationDto {
+  @ApiProperty({ type: Object, nullable: true }) process!: { id: string; purpose: string; context: string; occurredAt: string } | null;
+  @ApiProperty({ type: Object, nullable: true }) reminder!: { id: string; intentId: string | null; processId: string | null; inactivityAnchorAt: string; dueAt: string; intervalDays: number; purpose: string; context: string } | null;
   @ApiProperty() id!: string;
   @ApiProperty({ enum: NotificationType }) type!: NotificationType;
   @ApiProperty() createdAt!: string;

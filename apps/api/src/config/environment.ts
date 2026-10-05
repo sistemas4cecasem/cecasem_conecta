@@ -1,7 +1,8 @@
 import { validateDatabaseUrl } from './database-url';
 import { fileEnvironment } from '../modules/files/file-config';
+import { translationEnvironment, type TranslationEnvironment } from '../modules/translation/translation-config';
 
-export interface AppEnvironment {
+export interface AppEnvironment extends TranslationEnvironment {
   FILE_STORAGE_ROOT: string;
   FILE_MAX_BYTES: number;
   NODE_ENV: 'development' | 'test' | 'production';
@@ -56,6 +57,7 @@ export function validateEnvironment(
 
   return {
     ...fileEnvironment(environment),
+    ...translationEnvironment(environment),
     NODE_ENV: nodeEnv,
     APP_PORT: port,
     DATABASE_URL: validateDatabaseUrl(environment.DATABASE_URL),

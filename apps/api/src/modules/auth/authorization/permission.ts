@@ -1,4 +1,7 @@
 export const PERMISSIONS = {
+  TRANSLATION_READ: 'translations.read',
+  TRANSLATION_REQUEST: 'translations.request',
+  SETTINGS_REMINDERS_UPDATE: 'settings.reminders.update',
   MEETING_READ: 'meetings.read',
   MEETING_CREATE: 'meetings.create',
   MEETING_UPDATE: 'meetings.update',

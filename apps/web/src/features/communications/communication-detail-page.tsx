@@ -1,4 +1,5 @@
 import { Attachments } from '../files/attachments';
+import { CommunicationTranslation } from './communication-translation';
 import { ReferralsPanel } from '../referrals/referrals-panel';
 import { Link, useParams } from 'react-router';
 import { useSession, type AuthIdentity } from '../auth/session';
@@ -27,6 +28,7 @@ function CommunicationDetail({ identity, id }: { identity: AuthIdentity; id: str
       {(['TO', 'CC', 'BCC'] as const).map(type => <div key={type}><h2 className="font-semibold">{type === 'TO' ? 'Para' : type === 'CC' ? 'CC' : 'CCO'}</h2><ul>{row.recipients.filter(item => item.type === type).map(item => <li key={item.position}>{item.addressOriginal}{item.emailAccount && ' · Cuenta CECASEM: ' + item.emailAccount.displayName}</li>)}</ul>{!row.recipients.some(item => item.type === type) && <p>Sin destinatarios</p>}</div>)}
       <h2 className="font-semibold">Asunto</h2><p className="whitespace-pre-wrap">{row.subject}</p>
       <h2 className="font-semibold">Cuerpo original</h2><pre className="whitespace-pre-wrap break-words font-sans">{row.bodyOriginal}</pre>
+      <CommunicationTranslation identity={identity} id={id} body={row.bodyOriginal} />
       <p>{row.direction === 'SENT' ? 'Fecha real de envío' : 'Fecha real de recepción'}: {new Date(communicationDate(row)).toLocaleString('es-BO')}</p><p>Fecha de registro: {new Date(row.createdAt).toLocaleString('es-BO')}</p>
       <p>Registrada por: {row.registeredBy.displayName}{!row.registeredBy.isActive && ' (cuenta inactiva)'}</p><p>El contenido original es histórico y no dispone de edición ordinaria.</p>
       <Attachments identity={identity} resource='communications' resourceId={id} processId={row.processId} blocked={row.validity === 'INVALIDATED'} />

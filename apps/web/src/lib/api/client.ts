@@ -40,6 +40,16 @@ export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'cr
   }
 
   if (!response.ok) {
+    if (/^communications\/[^/]+\/translations\/spanish$/.test(path)) {
+      const payload: unknown = await response.clone().json().catch(() => null);
+      const messages: Record<string,string> = {
+        TRANSLATION_UNAVAILABLE:'El servicio de traducción no está disponible en este momento. El contenido original continúa disponible.',
+        TRANSLATION_TIMEOUT:'La traducción tardó demasiado en responder. El original continúa disponible; puedes volver a intentarlo.',
+        TRANSLATION_PROVIDER_ERROR:'No se pudo obtener una traducción válida. El original continúa disponible; puedes volver a intentarlo.',
+        TRANSLATION_EMPTY_BODY:'Este registro no tiene texto para traducir.',
+      };
+      if (payload && typeof payload === 'object' && 'code' in payload && typeof payload.code === 'string' && Object.hasOwn(messages,payload.code)) throw new ApiError(messages[payload.code]!,response.status,payload.code);
+    }
     if (/^meetings(?:\/|\?|$)/.test(path)) {
       const payload: unknown = await response.clone().json().catch(() => null);
       const messages: Record<string, string> = {
@@ -109,7 +119,7 @@ export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'cr
     if (response.status === 401 && (!/^\/?auth(?:\/|$)/.test(path) || /^auth\/(first-access-tokens|password-reset-tokens)$/.test(path))) {
       window.dispatchEvent(new Event('cecasem:unauthorized'));
     }
-    if (response.status === 409 && path === 'settings/verification') {
+    if (response.status === 409 && (path === 'settings/verification' || path === 'settings/reminders')) {
       throw new ApiError('Los intervalos cambiaron. Recarga y revisa tu propuesta.', 409, 'VERSION_CONFLICT');
     }
     if (response.status === 409 && /^relationship-processes(?:\/|$)/.test(path)) {

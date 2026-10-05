@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { isUUID } from 'class-validator';
 import { PrismaService } from '../../database/prisma.service';
 import { AuditAction, ParticipantOrigin, Prisma, ProcessAuthority, ProcessEventType, ProcessState } from '../../generated/prisma/client';
 import { UsersService } from '../users/users.service';
@@ -172,6 +173,30 @@ export class RelationshipProcessesService {
   }
   async requireCommunicationProcess(id: string, tx: Prisma.TransactionClient): Promise<void> {
     if (!await tx.relationshipProcess.findUnique({ where: { id }, select: { id: true } })) throw new ProcessError('PROCESS_NOT_FOUND');
+  }
+  /** Hechos formales confirmados: el consumidor no depende del estado actual del proceso. */
+  recordedActivityUpperBound() {
+    return this.prisma.relationshipProcessEvent.findFirst({ select: { createdAt: true, id: true }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] });
+  }
+  async recordedActivity(after?: { createdAt: Date; id: string }, limit = 100, through?: { createdAt: Date; id: string }) {
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100 || [after, through].some(cursor => cursor && (!isUUID(cursor.id) || !Number.isFinite(+cursor.createdAt)))) throw new ProcessError('INVALID_PROCESS');
+    const rows = await this.prisma.relationshipProcessEvent.findMany({ where: { AND: [
+      ...(after ? [{ OR: [{ createdAt: { gt: after.createdAt } }, { createdAt: after.createdAt, id: { gt: after.id } }] }] : []),
+      ...(through ? [{ OR: [{ createdAt: { lt: through.createdAt } }, { createdAt: through.createdAt, id: { lte: through.id } }] }] : []),
+    ] }, select: { id: true, processId: true, type: true, newState: true, result: true, actorUserId: true, createdAt: true },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: limit + 1 });
+    const visible = rows.slice(0, limit), last = visible.at(-1);
+    return { items: visible.map(row => ({ ...row, kind: row.type, createdAt: row.createdAt.toISOString() })),
+      next: rows.length > limit && last ? { createdAt: last.createdAt, id: last.id } : null };
+  }
+  /** Proyección mínima de la actuación ACHIEVED, aunque el proceso haya sido reabierto. */
+  async achievedNotificationSummaries(sourceIds: string[]) {
+    if (sourceIds.length > 100 || sourceIds.some(id => !isUUID(id))) throw new ProcessError('INVALID_PROCESS');
+    const rows = await this.prisma.relationshipProcessEvent.findMany({ where: { id: { in: sourceIds }, type: 'CLOSED', newState: 'CLOSED', result: 'ACHIEVED' },
+      select: { id: true, processId: true, createdAt: true, process: { select: { purpose: true, organization: { select: { name: true } }, person: { select: { givenNames: true, familyNames: true } } } } } });
+    return rows.map(row => ({ sourceEventId: row.id, id: row.processId, purpose: row.process.purpose.slice(0, 160),
+      context: (row.process.organization?.name ?? (row.process.person ? row.process.person.givenNames + ' ' + row.process.person.familyNames : '')).slice(0, 160),
+      occurredAt: row.createdAt.toISOString() }));
   }
   close(id: string, input: CloseProcessDto, actorId: string) { return this.mutate(id, { kind: 'close', input }, actorId); }
   reopen(id: string, input: ReopenProcessDto, actorId: string) { return this.mutate(id, { kind: 'reopen', input }, actorId); }

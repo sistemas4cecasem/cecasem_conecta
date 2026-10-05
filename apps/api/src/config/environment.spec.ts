@@ -1,3 +1,4 @@
+import { translationEnvironment } from '../modules/translation/translation-config';
 import { fileEnvironment } from '../modules/files/file-config';
 import { validateEnvironment } from './environment';
 
@@ -29,6 +30,7 @@ describe('Environment configuration', () => {
   it('uses development defaults when variables are absent', () => {
     expect(validateEnvironment({ DATABASE_URL: databaseUrl })).toEqual({
       ...fileEnvironment({}),
+      ...translationEnvironment({}),
       NODE_ENV: 'development',
       APP_PORT: 3000,
       DATABASE_URL: databaseUrl,
@@ -44,6 +46,7 @@ describe('Environment configuration', () => {
     (nodeEnv) => {
       expect(validateEnvironment({ NODE_ENV: nodeEnv, APP_PORT: '4100', DATABASE_URL: databaseUrl })).toEqual({
       ...fileEnvironment({}),
+      ...translationEnvironment({}),
         NODE_ENV: nodeEnv,
         APP_PORT: 4100,
         DATABASE_URL: databaseUrl,

@@ -33,6 +33,14 @@ function contract(row: Row): CommunicationDto {
 }
 @Injectable()
 export class CommunicationsService {
+  /** Lectura histórica autorizada, incluso invalidada; sin participación ni actividad. */
+  async translationSource(id: string, user: UserIdentity | null, permission: Permission, tx: Prisma.TransactionClient) {
+    this.authorize(user, permission);
+    this.authorize(user, PERMISSIONS.COMMUNICATION_READ);
+    const row = await tx.communication.findUnique({ where: { id }, select: { id: true, bodyOriginal: true, requestFingerprint: true, direction: true } });
+    if (!row) throw new CommunicationError('COMMUNICATION_NOT_FOUND');
+    return row;
+  }
   /** Origen de recomendaciones: mismo lock que invalidación, sin tocar proceso ni original. */
   async requireReferralSource(id: string, tx: Prisma.TransactionClient, registering = false) {
     if (registering) await tx.$queryRaw`SELECT id FROM "Communication" WHERE id=${id}::uuid FOR UPDATE`;

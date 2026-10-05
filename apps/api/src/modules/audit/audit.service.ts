@@ -7,6 +7,9 @@ type ResetAction = typeof AuditAction.PASSWORD_RESET_ISSUED | typeof AuditAction
 
 @Injectable()
 export class AuditService {
+  recordReminderSettings(actorUserId: string, operationId: string, previousReminderIntervalDays: number, newReminderIntervalDays: number, tx: Prisma.TransactionClient) {
+    return tx.auditEvent.create({ data: { action: 'REMINDER_INTERVAL_UPDATED', actorUserId, operationId, previousReminderIntervalDays, newReminderIntervalDays } });
+  }
   recordMeeting(meetingEventId: string, actorUserId: string, tx: Prisma.TransactionClient) {
     return tx.auditEvent.create({ data: { action: 'MEETING_RECORDED', meetingEventId, actorUserId, operationId: meetingEventId } });
   }
