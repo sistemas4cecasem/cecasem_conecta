@@ -56,6 +56,13 @@ export class UsersService {
       AND role IN ('ADMINISTRATOR', 'BOARD', 'PLANNING') ORDER BY id FOR SHARE`;
   }
 
+  /** Solo identidades candidatas; fija actividad/rol hasta confirmar la entrega. */
+  notificationCandidates(ids: string[], tx: Prisma.TransactionClient): Promise<{ id: string; role: UserRole }[]> {
+    if (!ids.length) return Promise.resolve([]);
+    return tx.$queryRaw`SELECT id, role FROM "User" WHERE "isActive" = true
+      AND id = ANY(${ids}::uuid[]) ORDER BY id FOR SHARE`;
+  }
+
   // Interfaz interna; no crea credenciales ni expone administración HTTP.
   async createIdentity(input: CreateUserIdentity, transaction?: Prisma.TransactionClient): Promise<UserIdentity> {
     const givenNames = normalizeIdentityText(input.givenNames, 'Nombres');

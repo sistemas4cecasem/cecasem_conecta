@@ -1045,17 +1045,28 @@ model OpportunityEvent {
 
 enum NotificationType {
   OPPORTUNITY_CREATED
+  OPPORTUNITY_DISCARDED
+  OPPORTUNITY_FINISHED
+  MEETING_CREATED
+  MEETING_CANCELLED
+  MEETING_COMPLETED
+  MEETING_PARTICIPANT_ADDED
+  MEETING_RESCHEDULED
 }
 
 model NotificationDelivery {
   sourceEventId String @id @db.Uuid
-  opportunityId String @db.Uuid
-  sourceType OpportunityEventType @default(CREATED)
+  opportunityId String? @db.Uuid
+  sourceType OpportunityEventType? @default(CREATED)
+  meetingId String? @db.Uuid
+  meetingSourceType MeetingEventType?
   processedAt DateTime @default(now()) @db.Timestamptz(3)
-  sourceEvent OpportunityEvent @relation(fields: [sourceEventId, opportunityId, sourceType], references: [id, opportunityId, type], map: "NotificationDelivery_sourceEventId_opportunityId_sourceType_fke", onDelete: Restrict, onUpdate: Restrict)
+  sourceEvent OpportunityEvent? @relation(fields: [sourceEventId, opportunityId, sourceType], references: [id, opportunityId, type], map: "NotificationDelivery_sourceEventId_opportunityId_sourceType_fke", onDelete: Restrict, onUpdate: Restrict)
+  meetingSourceEvent MeetingEvent? @relation(fields: [sourceEventId, meetingId, meetingSourceType], references: [id, meetingId, type], map: "NotificationDelivery_sourceEventId_meetingId_meetingSourceType_", onDelete: Restrict, onUpdate: Restrict)
   notifications Notification[]
   @@unique([sourceEventId, opportunityId])
   @@index([opportunityId])
+  @@index([meetingId])
 }
 
 model Notification {
@@ -1063,15 +1074,17 @@ model Notification {
   recipientUserId String @db.Uuid
   type NotificationType @default(OPPORTUNITY_CREATED)
   sourceEventId String @db.Uuid
-  opportunityId String @db.Uuid
+  opportunityId String? @db.Uuid
+  meetingId String? @db.Uuid
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   readAt DateTime? @db.Timestamptz(3)
   recipient User @relation(fields: [recipientUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  delivery NotificationDelivery @relation(fields: [sourceEventId, opportunityId], references: [sourceEventId, opportunityId], onDelete: Restrict, onUpdate: Restrict)
+  delivery NotificationDelivery @relation(fields: [sourceEventId], references: [sourceEventId], onDelete: Restrict, onUpdate: Restrict)
   @@unique([recipientUserId, sourceEventId, type])
   @@index([recipientUserId, createdAt, id])
   @@index([recipientUserId, readAt])
   @@index([sourceEventId, opportunityId])
+  @@index([meetingId])
 }
 
 model NotificationCheckpoint {
@@ -1175,6 +1188,7 @@ model MeetingAgreement {
   @@index([createdByUserId])
 }
 model MeetingEvent {
+  notificationDeliveries NotificationDelivery[]
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   meetingId String @db.Uuid
   type MeetingEventType
@@ -1193,6 +1207,7 @@ model MeetingEvent {
   actor User @relation(fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   auditEvent AuditEvent?
   @@unique([meetingId, version])
+  @@unique([id, meetingId, type])
   @@unique([actorUserId, requestKey])
   @@index([meetingId, createdAt, id])
   @@index([createdAt, id])

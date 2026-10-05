@@ -36,6 +36,11 @@ function publicEvent(row: EventRow): ProcessEventDto {
 
 @Injectable()
 export class RelationshipProcessesService {
+  /** Frontera de destinatarios: únicamente participación formal persistida. */
+  notificationParticipants(processIds: string[], tx: Prisma.TransactionClient) {
+    if (processIds.length > 100) throw new ProcessError('INVALID_PROCESS');
+    return tx.processParticipant.findMany({ where: { processId: { in: processIds } }, select: { processId: true, userId: true } });
+  }
   constructor(private readonly prisma: PrismaService, private readonly users: UsersService,
     private readonly targets: DirectoryTargetService, private readonly audit: AuditService,
     private readonly participation: ProcessParticipationService, private readonly restrictions: ContactRestrictionsService) {}

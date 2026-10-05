@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { isUUID } from 'class-validator';
 import { PrismaService } from '../../database/prisma.service';
 import { Prisma, type MeetingEventType } from '../../generated/prisma/client';
 import { UsersService } from '../users/users.service';
@@ -165,10 +166,29 @@ export class MeetingsService {
     const rows=await tx.meetingEvent.findMany({where:{id:{in:positions.map(row=>row.id)}},select:eventSelect,orderBy:[{createdAt:'asc'},{id:'asc'}]});
     return rows.map(row=>({id:row.id,kind:'MEETING_ACTIVITY',occurredAt:row.createdAt.toISOString(),registeredAt:row.createdAt.toISOString(),actor:publicUser(row.actor),summary:'Actuación de reunión',payload:{meetingId:row.meetingId,type:row.type,snapshot:row.snapshot as Record<string,unknown>,changes:row.changes as Record<string,unknown>}}));
   }
-  /** Hechos confirmados paginados para consumidores futuros; no depende de Notifications. */
-  async recordedActivity(after?:{createdAt:Date;id:string},limit=100) {
-    if(!Number.isInteger(limit)||limit<1||limit>100)throw new MeetingError('INVALID_MEETING');
-    const rows=await this.prisma.meetingEvent.findMany({where:after?{OR:[{createdAt:{gt:after.createdAt}},{createdAt:after.createdAt,id:{gt:after.id}}]}:{},select:{id:true,meetingId:true,type:true,createdAt:true,actorUserId:true},orderBy:[{createdAt:'asc'},{id:'asc'}],take:limit+1});
-    const items=rows.slice(0,limit),last=items[items.length-1];return {items,next:rows.length>limit?{createdAt:last.createdAt,id:last.id}:null};
+  /** Proyección mínima, acotada y sin acuerdos ni identidades externas. */
+  notificationSummaries(ids:string[]) {
+    if(ids.length>100||ids.some(id=>!isUUID(id)))throw new MeetingError('INVALID_MEETING');
+    return this.prisma.meeting.findMany({where:{id:{in:ids}},select:{id:true,scheduledAt:true,timezone:true,purpose:true,processId:true,opportunityId:true}});
+  }
+  async notificationAudience(ids:string[],tx:Prisma.TransactionClient) {
+    if(ids.length>100||ids.some(id=>!isUUID(id)))throw new MeetingError('INVALID_MEETING');
+    const meetings=await tx.meeting.findMany({where:{id:{in:ids}},select:{id:true,processId:true,opportunityId:true,participants:{where:{userId:{not:null}},select:{userId:true}}}});
+    const formal=await this.processes.notificationParticipants([...new Set(meetings.flatMap(row=>row.processId?[row.processId]:[]))],tx);
+    return meetings.map(row=>({id:row.id,processId:row.processId,opportunityId:row.opportunityId,
+      userIds:[...new Set([...row.participants.flatMap(p=>p.userId?[p.userId]:[]),...formal.filter(p=>p.processId===row.processId).map(p=>p.userId)])]}));
+  }
+  /** Hechos confirmados con barrido finito; conserva los dos argumentos originales. */
+  recordedActivityUpperBound() {
+    return this.prisma.meetingEvent.findFirst({select:{createdAt:true,id:true},orderBy:[{createdAt:'desc'},{id:'desc'}]});
+  }
+  async recordedActivity(after?:{createdAt:Date;id:string},limit=100,through?:{createdAt:Date;id:string}) {
+    if(!Number.isInteger(limit)||limit<1||limit>100||[after,through].some(cursor=>cursor&&(!isUUID(cursor.id)||!Number.isFinite(+cursor.createdAt))))throw new MeetingError('INVALID_MEETING');
+    const rows=await this.prisma.meetingEvent.findMany({where:{AND:[
+      ...(after?[{OR:[{createdAt:{gt:after.createdAt}},{createdAt:after.createdAt,id:{gt:after.id}}]}]:[]),
+      ...(through?[{OR:[{createdAt:{lt:through.createdAt}},{createdAt:through.createdAt,id:{lte:through.id}}]}]:[]),
+    ]},select:{id:true,meetingId:true,type:true,createdAt:true,actorUserId:true,changes:true,participant:{select:{userId:true}}},orderBy:[{createdAt:'asc'},{id:'asc'}],take:limit+1});
+    const items=rows.slice(0,limit),last=items.at(-1);return {items:items.map(row=>({id:row.id,meetingId:row.meetingId,type:row.type,createdAt:row.createdAt,
+      actorUserId:row.actorUserId,changes:row.type==='UPDATED'?row.changes:{},internalUserId:row.participant?.userId??null})),next:rows.length>limit&&last?{createdAt:last.createdAt,id:last.id}:null};
   }
 }

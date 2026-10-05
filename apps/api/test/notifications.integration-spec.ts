@@ -1,3 +1,4 @@
+import { MeetingsService } from '../src/modules/meetings/meetings.service';
 import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import type { INestApplication } from '@nestjs/common';
@@ -75,7 +76,7 @@ describe('P0 notificaciones PostgreSQL/HTTP', () => {
     expect(await notifications.unreadCount(research.id)).toEqual({ count: 0 });
     expect(await notifications.unreadCount(other.id)).toEqual({ count: 0 });
     const response = await request(app.getHttpServer()).get('/api/v1/me/notifications').set('Cookie', planning.cookie).expect(200);
-    expect((response.body as NotificationPageDto).items[0].opportunity.id).toBe(row.id);
+    expect((response.body as NotificationPageDto).items[0].opportunity!.id).toBe(row.id);
     expect(response.headers['cache-control']).toBe('no-store');
     const id = await ownedId(planning.id, row.id);
     await request(app.getHttpServer()).patch('/api/v1/me/notifications/' + id + '/read').set('Cookie', planning.cookie).send({}).expect(200);
@@ -148,15 +149,15 @@ describe('P0 notificaciones PostgreSQL/HTTP', () => {
     await expect(prisma.notification.update({ where: { id: source.id }, data: { recipientUserId: research.id } })).rejects.toThrow();
     await expect(prisma.notification.update({ where: { id: source.id }, data: { readAt: new Date(0) } })).rejects.toThrow();
   });
-  it('edición, descarte y estado no generan ruido ni modifican historial de oportunidad al leer', async () => {
+  it('edición no notifica; descarte relevante notifica sin modificar historial al leer', async () => {
     const { planning, research, row } = await setup();
     await opportunities.update(row.id, { name: 'Nueva descripción', expectedVersion: 1 }, research.id);
     await opportunities.discard(row.id, { reason: 'No corresponde', expectedVersion: 2 }, research.id); await consumer.consumeBatch();
-    expect(await prisma.notification.count({ where: { opportunityId: row.id } })).toBe(3);
+    expect(await prisma.notification.count({ where: { opportunityId: row.id } })).toBe(6);
     const before = await prisma.opportunityEvent.count({ where: { opportunityId: row.id } });
     await notifications.markRead(planning.id, await ownedId(planning.id, row.id));
     expect(await prisma.opportunityEvent.count({ where: { opportunityId: row.id } })).toBe(before);
-    expect((await notifications.list(planning.id, {})).items[0].opportunity.status).toBe('DISCARDED');
+    expect((await notifications.list(planning.id, {})).items[0].opportunity!.status).toBe('DISCARDED');
   });
   it('rollback del productor no genera avisos y fallo del consumidor no invalida oportunidad', async () => {
     const owner = await actor(), planning = await actor(UserRole.PLANNING);
@@ -188,7 +189,7 @@ describe('P0 notificaciones PostgreSQL/HTTP', () => {
     expect((await consumer.consumeBatch()).scanned).toBe(25);
     expect((await prisma.notificationCheckpoint.findUniqueOrThrow({ where: { id: NOTIFICATION_CHECKPOINT } })).afterEventId).not.toBeNull();
     for (let i = 0; i < 3; i++) await create(owner.id);
-    const restarted = new NotificationConsumer(prisma, opportunities, app.get(UsersService), app.get(ConfigService));
+    const restarted = new NotificationConsumer(prisma, opportunities, app.get(UsersService), app.get(ConfigService), app.get(MeetingsService));
     expect((await restarted.consumeBatch()).scanned).toBe(2); expect(await notifications.unreadCount(planning.id)).toEqual({ count: 27 });
     expect((await prisma.notificationCheckpoint.findUniqueOrThrow({ where: { id: NOTIFICATION_CHECKPOINT } })).throughEventId).toBeNull();
     await restarted.consumeBatch(); await restarted.consumeBatch();

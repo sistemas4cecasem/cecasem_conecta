@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { PrismaService } from '../../database/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
 import { UsersService } from '../users/users.service';
+import { MeetingsService } from '../meetings/meetings.service';
 import { OpportunitiesService } from '../opportunities/opportunities.service';
 import { hasPermission } from '../auth/authorization/role-permissions';
 import { PERMISSIONS, type Permission } from '../auth/authorization/permission';
@@ -9,25 +10,30 @@ import type { UserIdentity } from '../users/user-projections';
 import { encodeNotificationCursor, notificationCursor } from './notification-cursor';
 import type { NotificationDto, NotificationPageDto, NotificationQueryDto } from './notification.dto';
 
-const notificationSelect = { id: true, type: true, opportunityId: true, createdAt: true, readAt: true } as const;
+const notificationSelect = { id: true, type: true, opportunityId: true, meetingId: true, createdAt: true, readAt: true } as const;
 type NotificationRow = Prisma.NotificationGetPayload<{ select: typeof notificationSelect }>;
 
 @Injectable()
 export class NotificationsService {
   constructor(private readonly prisma: PrismaService, private readonly users: UsersService,
-    private readonly opportunities: OpportunitiesService) {}
+    private readonly opportunities: OpportunitiesService, private readonly meetings: MeetingsService) {}
 
   private authorize(user: UserIdentity | null, permission: Permission): void {
     if (!user?.isActive || !hasPermission(user.role, permission)) throw new ForbiddenException('No tienes acceso a estas notificaciones.');
   }
 
   private async contracts(rows: NotificationRow[]): Promise<NotificationDto[]> {
-    const summaries = await this.opportunities.notificationSummaries(rows.map(row => row.opportunityId));
-    const byId = new Map(summaries.map(row => [row.id, row]));
+    const [opportunities, meetings] = await Promise.all([
+      this.opportunities.notificationSummaries([...new Set(rows.flatMap(row => row.opportunityId ? [row.opportunityId] : []))]),
+      this.meetings.notificationSummaries([...new Set(rows.flatMap(row => row.meetingId ? [row.meetingId] : []))]),
+    ]);
+    const byOpportunity = new Map(opportunities.map(row => [row.id, row])), byMeeting = new Map(meetings.map(row => [row.id, row]));
     return rows.map(row => {
-      const opportunity = byId.get(row.opportunityId);
-      if (!opportunity) throw new NotFoundException('La oportunidad no está disponible.');
-      return { id: row.id, type: row.type, createdAt: row.createdAt.toISOString(), readAt: row.readAt?.toISOString() ?? null, opportunity };
+      const opportunity = row.opportunityId ? byOpportunity.get(row.opportunityId) : null;
+      const meeting = row.meetingId ? byMeeting.get(row.meetingId) : null;
+      if (row.opportunityId && !opportunity || row.meetingId && !meeting) throw new NotFoundException('El recurso no está disponible.');
+      return { id: row.id, type: row.type, createdAt: row.createdAt.toISOString(), readAt: row.readAt?.toISOString() ?? null,
+        opportunity: opportunity ?? null, meeting: meeting ? { ...meeting, scheduledAt: meeting.scheduledAt.toISOString(), purpose: meeting.purpose.slice(0,160) } : null };
     });
   }
 

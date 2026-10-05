@@ -1,7 +1,7 @@
 import { Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { OpportunityStatus } from '../../generated/prisma/client';
+import { NotificationType, OpportunityStatus } from '../../generated/prisma/client';
 
 export class NotificationQueryDto {
   @ApiPropertyOptional({ minimum: 1, maximum: 100, default: 25 })
@@ -21,12 +21,21 @@ export class NotificationOpportunityDto {
   @ApiProperty() name!: string;
   @ApiProperty({ enum: OpportunityStatus }) status!: OpportunityStatus;
 }
+export class NotificationMeetingDto {
+  @ApiProperty() id!: string;
+  @ApiProperty() scheduledAt!: string;
+  @ApiProperty() timezone!: string;
+  @ApiProperty() purpose!: string;
+  @ApiProperty({type:String,nullable:true}) processId!: string | null;
+  @ApiProperty({type:String,nullable:true}) opportunityId!: string | null;
+}
 export class NotificationDto {
   @ApiProperty() id!: string;
-  @ApiProperty({ enum: ['OPPORTUNITY_CREATED'] }) type!: 'OPPORTUNITY_CREATED';
+  @ApiProperty({ enum: NotificationType }) type!: NotificationType;
   @ApiProperty() createdAt!: string;
   @ApiProperty({ type: String, nullable: true }) readAt!: string | null;
-  @ApiProperty({ type: NotificationOpportunityDto }) opportunity!: NotificationOpportunityDto;
+  @ApiProperty({ type: NotificationOpportunityDto, nullable: true }) opportunity!: NotificationOpportunityDto | null;
+  @ApiProperty({ type: NotificationMeetingDto, nullable: true }) meeting!: NotificationMeetingDto | null;
 }
 export class NotificationPageDto {
   @ApiProperty({ type: [NotificationDto] }) items!: NotificationDto[];

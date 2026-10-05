@@ -5,6 +5,11 @@ import { AUTH_QUERY_KEY, useSession, type AuthIdentity } from '../auth/session';
 import { notificationIdentityKey, useNotificationCount, useNotifications, useReadNotification } from './queries';
 import type { Notification } from './contracts';
 
+const notificationLabels: Record<Notification['type'], string> = {
+  OPPORTUNITY_CREATED:'Nueva oportunidad', OPPORTUNITY_DISCARDED:'Oportunidad descartada', OPPORTUNITY_FINISHED:'Oportunidad finalizada',
+  MEETING_CREATED:'Nueva reunión', MEETING_CANCELLED:'Reunión cancelada', MEETING_COMPLETED:'Reunión realizada',
+  MEETING_PARTICIPANT_ADDED:'Fuiste incorporado a una reunión', MEETING_RESCHEDULED:'Cambio de planificación de reunión',
+};
 export function NotificationIndicator({ identity }: { identity: AuthIdentity }) {
   const count = useNotificationCount(identity);
   if (!identity.permissions.includes('notifications.read')) return null;
@@ -37,7 +42,7 @@ function NotificationCenter({ identity }: { identity: AuthIdentity }) {
     finally { setOpening(null); }
     const current = client.getQueryData<AuthIdentity | null>(AUTH_QUERY_KEY);
     if (!current || notificationIdentityKey(identity).some((value, index) => value !== notificationIdentityKey(current)[index])) return;
-    navigate('/opportunities/' + row.opportunity.id, { state: { notificationReadFailed: failed } });
+    navigate(row.meeting ? '/meetings/' + row.meeting.id : '/opportunities/' + row.opportunity.id, { state: { notificationReadFailed: failed } });
   }
 
   const items = query.data?.pages.flatMap(page => page.items) ?? [];
@@ -57,12 +62,13 @@ function NotificationCenter({ identity }: { identity: AuthIdentity }) {
     {query.isSuccess && !items.length && <p>No tienes notificaciones en este listado.</p>}
     <ul className="space-y-3">
       {items.map(row => <li key={row.id} className="space-y-2 break-words rounded border p-4">
-        <div className="flex flex-wrap justify-between gap-2"><strong>Nueva oportunidad</strong>
+        <div className="flex flex-wrap justify-between gap-2"><strong>{notificationLabels[row.type]}</strong>
           <span>{row.readAt ? 'Leída' : 'No leída'}</span></div>
-        <p>{row.opportunity.name}</p>
+        <p>{row.meeting ? row.meeting.purpose : row.opportunity.name}</p>
+        {row.meeting && <p>{new Intl.DateTimeFormat('es-BO',{dateStyle:'medium',timeStyle:'short',timeZone:row.meeting.timezone}).format(new Date(row.meeting.scheduledAt))} · {row.meeting.timezone}</p>}
         <time dateTime={row.createdAt}>{new Date(row.createdAt).toLocaleString('es-BO')}</time>
         <div><button disabled={opening !== null} className="min-h-11 rounded border px-3 py-2"
-          onClick={() => void open(row)}>{opening === row.id ? 'Abriendo…' : 'Abrir oportunidad'}</button></div>
+          onClick={() => void open(row)}>{opening === row.id ? 'Abriendo…' : row.meeting ? 'Abrir reunión' : 'Abrir oportunidad'}</button></div>
       </li>)}
     </ul>
     {query.hasNextPage && <button disabled={query.isFetchingNextPage} className="min-h-11 rounded border px-3 py-2"
