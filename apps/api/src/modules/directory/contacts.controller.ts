@@ -21,7 +21,7 @@ export class ContactMethodsController {
   create(@Body() input:ContactInputDto,@Req() req:AuthenticatedRequest) {return this.contacts.create(input,req.authenticatedUser.id);}
   @Put(':id') @RequirePermissions(PERMISSIONS.DIRECTORY_WRITE)
   correct(@Param('id',new ParseUUIDPipe()) id:string,@Body() input:ContactCorrectionDto,@Req() req:AuthenticatedRequest) {return this.contacts.correct(id,input,req.authenticatedUser.id);}
-  @Patch(':id/condition') @RequirePermissions(PERMISSIONS.DIRECTORY_STATUS_UPDATE)
+  @Patch(':id/condition') @RequirePermissions(PERMISSIONS.DIRECTORY_WRITE)
   condition(@Param('id',new ParseUUIDPipe()) id:string,@Body() input:ContactConditionDto,@Req() req:AuthenticatedRequest) {return this.contacts.condition(id,input,req.authenticatedUser.id);}
   @Get(':id/history') @Header('Cache-Control','no-store') @RequirePermissions(PERMISSIONS.DIRECTORY_HISTORY_READ)
   history(@Param('id',new ParseUUIDPipe()) id:string,@Query() query:PageQueryDto) {return this.contacts.methodHistory(id,query);}
@@ -49,7 +49,7 @@ export class PersonContactsActionsController {
   context(@Param('id',new ParseUUIDPipe()) id:string,@Body() input:ContactContextEditDto,@Req() req:AuthenticatedRequest) {return this.contacts.editContext('person',id,input,req.authenticatedUser.id);}
   @Patch(':id/end') @RequirePermissions(PERMISSIONS.DIRECTORY_WRITE)
   end(@Param('id',new ParseUUIDPipe()) id:string,@Body() input:ContactEndDto,@Req() req:AuthenticatedRequest) {return this.contacts.end('person',id,input,req.authenticatedUser.id);}
-  @Patch(':id/status') @RequirePermissions(PERMISSIONS.DIRECTORY_STATUS_UPDATE)
+  @Patch(':id/status') @RequirePermissions(PERMISSIONS.DIRECTORY_WRITE)
   status(@Param('id',new ParseUUIDPipe()) id:string,@Body() input:DirectoryStatusDto,@Req() req:AuthenticatedRequest) {return this.contacts.status('person',id,input,req.authenticatedUser.id);}
   @Post(':id/replace') @HttpCode(200) @RequirePermissions(PERMISSIONS.DIRECTORY_WRITE)
   replace(@Param('id',new ParseUUIDPipe()) id:string,@Body() input:ContactReplacementDto,@Req() req:AuthenticatedRequest) {return this.contacts.replace('person',id,input,req.authenticatedUser.id);}
@@ -75,7 +75,7 @@ export class OrganizationContactsActionsController {
   context(@Param('id',new ParseUUIDPipe()) id:string,@Body() input:ContactContextEditDto,@Req() req:AuthenticatedRequest) {return this.contacts.editContext('organization',id,input,req.authenticatedUser.id);}
   @Patch(':id/end') @RequirePermissions(PERMISSIONS.DIRECTORY_WRITE)
   end(@Param('id',new ParseUUIDPipe()) id:string,@Body() input:ContactEndDto,@Req() req:AuthenticatedRequest) {return this.contacts.end('organization',id,input,req.authenticatedUser.id);}
-  @Patch(':id/status') @RequirePermissions(PERMISSIONS.DIRECTORY_STATUS_UPDATE)
+  @Patch(':id/status') @RequirePermissions(PERMISSIONS.DIRECTORY_WRITE)
   status(@Param('id',new ParseUUIDPipe()) id:string,@Body() input:DirectoryStatusDto,@Req() req:AuthenticatedRequest) {return this.contacts.status('organization',id,input,req.authenticatedUser.id);}
   @Post(':id/replace') @HttpCode(200) @RequirePermissions(PERMISSIONS.DIRECTORY_WRITE)
   replace(@Param('id',new ParseUUIDPipe()) id:string,@Body() input:ContactReplacementDto,@Req() req:AuthenticatedRequest) {return this.contacts.replace('organization',id,input,req.authenticatedUser.id);}

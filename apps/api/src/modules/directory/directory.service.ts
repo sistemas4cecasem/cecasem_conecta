@@ -1,4 +1,5 @@
 import { DirectoryActorPolicy } from './directory-actor.policy';
+import { OrganizationFilterService } from './organization-filter.service';
 import { Injectable } from '@nestjs/common';
 import { AuditAction, Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../database/prisma.service';
@@ -15,6 +16,7 @@ const categorySelect = { id: true, name: true, isActive: true, version: true, cr
 const organizationSelect = {
   id: true, name: true, country: true, alias: true, description: true, officialWebsite: true, isActive: true,
   duplicateOfId: true, duplicateOf: { select: { id: true, name: true } }, consolidatedRecords: { select: { id: true, name: true } }, version: true, parentId: true, createdAt: true, updatedAt: true, lastVerifiedAt: true,
+  dataImportBatchId: true, dataImportBatch: { select: { id: true, originalFilename: true, createdAt: true } },
   parent: { select: { id: true, name: true, isActive: true } },
   categories: { select: { category: { select: categorySelect } }, orderBy: { categoryId: 'asc' } },
 } satisfies Prisma.OrganizationSelect;
@@ -30,7 +32,7 @@ function paging(query: PageQueryDto) { return { skip: (query.page - 1) * query.p
 @Injectable()
 export class DirectoryService {
   constructor(private readonly actors: DirectoryActorPolicy, private readonly prisma: PrismaService, private readonly users: UsersService,
-    private readonly history: DirectoryHistoryService, private readonly audit: AuditService) {}
+    private readonly history: DirectoryHistoryService, private readonly audit: AuditService, private readonly filters: OrganizationFilterService) {}
 
   private async authorize(actorId: string, permission: Permission, tx: Prisma.TransactionClient): Promise<void> {
     const actor = await this.users.findIdentityById(actorId, tx);
@@ -44,7 +46,21 @@ export class DirectoryService {
   }
   async getOrganization(id: string) { return organizationContract(await this.organization(id)); }
 
-  async listOrganizations(query: OrganizationQueryDto) {
+  async listOrganizations(query: OrganizationQueryDto, actorId?: string) {
+    if (query.country !== undefined || query.verificationStatus !== undefined || query.withCommunications !== undefined) {
+      return this.prisma.$transaction(async tx => {
+        const filter = await this.filters.predicate(query, tx, actorId);
+        const [result] = await tx.$queryRaw<{ ids: string[]; total: number }[]>(Prisma.sql`
+          WITH matches AS (SELECT o.id, o.name FROM "Organization" o WHERE (${filter})
+            ${query.parentId ? Prisma.sql`AND o."parentId" = ${query.parentId}::uuid` : Prisma.empty}
+            ${query.name ? Prisma.sql`AND o.name ILIKE ${'%' + query.name + '%'}` : Prisma.empty})
+          SELECT ARRAY(SELECT id::text FROM matches ORDER BY name, id LIMIT ${query.pageSize} OFFSET ${(query.page - 1) * query.pageSize}) AS ids,
+            (SELECT count(*)::int FROM matches) AS total`);
+        const rows = await tx.organization.findMany({ where: { id: { in: result.ids } }, select: organizationSelect });
+        const byId = new Map(rows.map(row => [row.id, row]));
+        return { items: result.ids.map(id => organizationContract(byId.get(id)!)), total: result.total, page: query.page, pageSize: query.pageSize };
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+    }
     const where: Prisma.OrganizationWhereInput = { ...(query.status === 'all' ? {} : { isActive: query.status === 'active' }),
       ...(query.parentId ? { parentId: query.parentId } : {}), ...(query.name ? { name: { contains: query.name, mode: 'insensitive' } } : {}),
       ...(query.categoryId ? { categories: { some: { categoryId: query.categoryId } } } : {}) };

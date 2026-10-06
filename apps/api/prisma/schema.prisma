@@ -45,6 +45,8 @@ enum UserRole {
 }
 
 enum AuditAction {
+  DATA_IMPORT_BATCH_APPLIED
+  DATA_IMPORT_BATCH_FAILED
   REMINDER_INTERVAL_UPDATED
   MEETING_RECORDED
   REFERRAL_CREATED
@@ -93,6 +95,34 @@ enum AuditAction {
   CONTACT_ASSOCIATION_STATUS_CHANGED
 }
 
+enum DataImportBatchStatus {
+  ANALYZED
+  IMPORTED
+  FAILED
+}
+
+enum DataImportRecordKind {
+  ORGANIZATION
+  PERSON
+  CONTACT
+  HISTORICAL_RECORD
+}
+
+enum DataImportRowStatus {
+  READY
+  NEEDS_REVIEW
+  INVALID
+  IMPORTED
+  IGNORED
+}
+
+enum ImportedHistoryKind {
+  SENT
+  RECEIVED
+  OTHER
+  UNKNOWN
+}
+
 enum ContactType {
   EMAIL
   PHONE
@@ -131,6 +161,7 @@ model User {
   authoredContactIntents ContactIntent[] @relation("IntentAuthor")
   cancelledContactIntents ContactIntent[] @relation("IntentCanceller")
   resolvedDuplicateCandidates DuplicateCandidate[]
+  initiatedDataImports DataImportBatch[]
   id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   givenNames    String             @db.VarChar(150)
   familyNames   String             @db.VarChar(150)
@@ -172,6 +203,8 @@ model PasswordResetToken {
 }
 
 model AuditEvent {
+  dataImportBatchId String? @unique @db.Uuid
+  dataImportBatch DataImportBatch? @relation(fields:[dataImportBatchId],references:[id],onDelete:Restrict,onUpdate:Restrict)
   previousReminderIntervalDays Int?
   newReminderIntervalDays Int?
   meetingEventId String? @unique @db.Uuid
@@ -257,6 +290,10 @@ model AuditEvent {
 }
 
 model Organization {
+  dataImportBatchId String? @db.Uuid
+  dataImportBatch DataImportBatch? @relation(fields:[dataImportBatchId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  importedRows DataImportRow[] @relation("ImportedRowOrganization")
+  importedHistoryRecords ImportedHistoricalRecord[]
   referrals Referral[]
   opportunityLinks OpportunityOrganization[]
   contactRestrictions ContactRestriction[]
@@ -358,6 +395,10 @@ model DirectoryChange {
 }
 
 model Person {
+  dataImportBatchId String? @db.Uuid
+  dataImportBatch DataImportBatch? @relation(fields:[dataImportBatchId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  importedRows DataImportRow[] @relation("ImportedRowPerson")
+  importedHistoryRecords ImportedHistoricalRecord[]
   meetingParticipations MeetingParticipant[]
   referrals Referral[]
   contactRestrictions ContactRestriction[]
@@ -391,6 +432,8 @@ model Person {
 }
 
 model PersonOrganizationRelation {
+  dataImportBatchId String? @db.Uuid
+  dataImportBatch DataImportBatch? @relation(fields:[dataImportBatchId],references:[id],onDelete:Restrict,onUpdate:Restrict)
   reconciliationSources DuplicateReconciliation[] @relation("ReconciliationSourceRelation")
   reconciliationTargets DuplicateReconciliation[] @relation("ReconciliationTargetRelation")
   id                String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -419,6 +462,9 @@ model PersonOrganizationRelation {
 }
 
 model ContactMethod {
+  dataImportBatchId String? @db.Uuid
+  dataImportBatch DataImportBatch? @relation(fields:[dataImportBatchId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  importedRows DataImportRow[] @relation("ImportedRowContactMethod")
   referrals Referral[]
   valueVersion Int @default(1)
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -440,6 +486,9 @@ model ContactMethod {
 }
 
 model PersonContact {
+  dataImportBatchId String? @db.Uuid
+  dataImportBatch DataImportBatch? @relation(fields:[dataImportBatchId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  importedRows DataImportRow[] @relation("ImportedRowPersonContact")
   reconciliationSources DuplicateReconciliation[] @relation("ReconciliationSourcePersonContact")
   reconciliationTargets DuplicateReconciliation[] @relation("ReconciliationTargetPersonContact")
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -465,6 +514,9 @@ model PersonContact {
 }
 
 model OrganizationContact {
+  dataImportBatchId String? @db.Uuid
+  dataImportBatch DataImportBatch? @relation(fields:[dataImportBatchId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  importedRows DataImportRow[] @relation("ImportedRowOrganizationContact")
   reconciliationSources DuplicateReconciliation[] @relation("ReconciliationSourceOrganizationContact")
   reconciliationTargets DuplicateReconciliation[] @relation("ReconciliationTargetOrganizationContact")
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -559,6 +611,7 @@ model Verification {
   personRelationId String? @db.Uuid
   personContactId String? @db.Uuid
   organizationContactId String? @db.Uuid
+  importedHistoryId String? @db.Uuid
   actorUserId String @db.Uuid
   verifiedAt DateTime @default(now()) @db.Timestamptz(3)
   objectVersion Int
@@ -571,6 +624,7 @@ model Verification {
   relation PersonOrganizationRelation? @relation(fields:[personRelationId],references:[id],onDelete:Restrict,onUpdate:Restrict)
   personContact PersonContact? @relation(fields:[personContactId],references:[id],onDelete:Restrict,onUpdate:Restrict)
   organizationContact OrganizationContact? @relation(fields:[organizationContactId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  importedHistory ImportedHistoricalRecord? @relation(fields:[importedHistoryId],references:[id],onDelete:Restrict,onUpdate:Restrict)
   @@index([organizationId,verifiedAt,id])
   @@index([personId,verifiedAt,id])
   @@index([personRelationId,verifiedAt,id])
@@ -578,6 +632,7 @@ model Verification {
   @@index([organizationContactId,verifiedAt,id])
   @@index([actorUserId])
 }
+
 
 enum DuplicateState {
   PENDING
@@ -1277,4 +1332,89 @@ model CommunicationTranslation {
   requestedBy User @relation(fields: [requestedByUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   @@unique([communicationId, targetLanguage, sourceFingerprint])
   @@index([requestedByUserId])
+}
+
+model DataImportBatch {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  originalFilename String @db.VarChar(255)
+  sha256 String @db.VarChar(64)
+  worksheetName String @db.VarChar(100)
+  headerRow Int
+  recordKind DataImportRecordKind
+  columnMapping Json
+  status DataImportBatchStatus @default(ANALYZED)
+  analyzedRows Int
+  readyRows Int
+  reviewRows Int
+  invalidRows Int
+  importedRows Int @default(0)
+  initiatedByUserId String @db.Uuid
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  confirmedAt DateTime? @db.Timestamptz(3)
+  failureCode String? @db.VarChar(80)
+  initiatedBy User @relation(fields:[initiatedByUserId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  rows DataImportRow[]
+  auditEvent AuditEvent?
+  organizations Organization[]
+  people Person[]
+  relations PersonOrganizationRelation[]
+  contactMethods ContactMethod[]
+  personContacts PersonContact[]
+  organizationContacts OrganizationContact[]
+  historicalRecords ImportedHistoricalRecord[]
+  @@index([initiatedByUserId,createdAt,id])
+  @@index([status,createdAt,id])
+}
+
+model DataImportRow {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  batchId String @db.Uuid
+  rowNumber Int
+  status DataImportRowStatus
+  sourceValues Json
+  normalizedValues Json?
+  errors Json
+  warnings Json
+  matches Json
+  organizationId String? @db.Uuid
+  personId String? @db.Uuid
+  contactMethodId String? @db.Uuid
+  personContactId String? @db.Uuid
+  organizationContactId String? @db.Uuid
+  historicalRecordId String? @unique @db.Uuid
+  batch DataImportBatch @relation(fields:[batchId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  organization Organization? @relation("ImportedRowOrganization",fields:[organizationId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  person Person? @relation("ImportedRowPerson",fields:[personId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  contactMethod ContactMethod? @relation("ImportedRowContactMethod",fields:[contactMethodId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  personContact PersonContact? @relation("ImportedRowPersonContact",fields:[personContactId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  organizationContact OrganizationContact? @relation("ImportedRowOrganizationContact",fields:[organizationContactId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  historicalRecord ImportedHistoricalRecord? @relation(fields:[historicalRecordId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  @@unique([batchId,rowNumber])
+  @@index([batchId,status,rowNumber])
+}
+
+model ImportedHistoricalRecord {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  batchId String @db.Uuid
+  rowNumber Int
+  kind ImportedHistoryKind
+  occurredOn DateTime? @db.Date
+  email String? @db.VarChar(254)
+  subject String? @db.VarChar(998)
+  body String? @db.Text
+  originalObservation String? @db.VarChar(5000)
+  organizationId String? @db.Uuid
+  personId String? @db.Uuid
+  version Int @default(1)
+  lastVerifiedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  batch DataImportBatch @relation(fields:[batchId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  organization Organization? @relation(fields:[organizationId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  person Person? @relation(fields:[personId],references:[id],onDelete:Restrict,onUpdate:Restrict)
+  sourceRow DataImportRow?
+  verifications Verification[]
+  @@unique([batchId,rowNumber])
+  @@index([email,occurredOn,id])
+  @@index([organizationId,occurredOn,id])
+  @@index([personId,occurredOn,id])
 }

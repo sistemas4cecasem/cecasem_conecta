@@ -3,6 +3,7 @@ import { AUTH_QUERY_KEY, type AuthIdentity } from '../auth/session';
 import { apiRequest } from '../../lib/api/client';
 import type { z } from 'zod';
 import { historySchema, opportunityPageSchema, opportunitySchema } from './contracts';
+import { invalidateDashboard } from '../home/dashboard-queries';
 export const opportunityIdentityKey = (identity: AuthIdentity) => [identity.id, identity.role, [...identity.permissions].sort().join(',')] as const;
 function assertIdentity(client: QueryClient, identity: AuthIdentity) { const current = client.getQueryData<AuthIdentity | null>(AUTH_QUERY_KEY); if (!current || opportunityIdentityKey(current).some((value, index) => value !== opportunityIdentityKey(identity)[index]))
   throw new DOMException('La identidad cambió.', 'AbortError'); }
@@ -13,7 +14,7 @@ export function useOpportunityMutation(identity: AuthIdentity, path: string, met
     body: object;
     key?: string;
   }) => { assertIdentity(client, identity); if (!identity.permissions.includes(permission))
-    throw new DOMException('Sin permiso.', 'AbortError'); const data = await apiRequest(path, { method, headers: { 'Content-Type': 'application/json', ...(key ? { 'Idempotency-Key': key } : {}) }, body: JSON.stringify(body) }); assertIdentity(client, identity); return opportunitySchema.parse(data); }, onSuccess: async (data) => { assertIdentity(client, identity); client.setQueryData(['opportunities', ...opportunityIdentityKey(identity), data.id], data); await Promise.all([client.invalidateQueries({ queryKey: ['opportunities'] }), client.invalidateQueries({ queryKey: ['opportunity-history'] })]); } }); }
+    throw new DOMException('Sin permiso.', 'AbortError'); const data = await apiRequest(path, { method, headers: { 'Content-Type': 'application/json', ...(key ? { 'Idempotency-Key': key } : {}) }, body: JSON.stringify(body) }); assertIdentity(client, identity); return opportunitySchema.parse(data); }, onSuccess: async (data) => { assertIdentity(client, identity); client.setQueryData(['opportunities', ...opportunityIdentityKey(identity), data.id], data); await Promise.all([client.invalidateQueries({ queryKey: ['opportunities'] }), client.invalidateQueries({ queryKey: ['opportunity-history'] }), invalidateDashboard(client, identity)]); } }); }
 export async function clearForbiddenOpportunities(client: QueryClient, identity: AuthIdentity | null) { const prefix = identity ? opportunityIdentityKey(identity) : null; const predicate = (query: {
   queryKey: readonly unknown[];
 }) => ['opportunities', 'opportunity-history'].includes(String(query.queryKey[0])) && (!identity?.permissions.includes('opportunities.read') || !prefix || prefix.some((value, index) => value !== query.queryKey[index + 1])); await client.cancelQueries({ predicate }); client.removeQueries({ predicate }); }

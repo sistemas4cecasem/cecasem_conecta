@@ -17,7 +17,9 @@ export function OpportunitiesPage() { const identity = useSession().data; if (!i
 function OpportunityList({ identity }: {
   identity: AuthIdentity;
 }) {
-  const [page, setPage] = useState(1), [status, setStatus] = useState('all'), [params] = useSearchParams();
+  const [page, setPage] = useState(1), [params, setParams] = useSearchParams();
+  const requestedStatus = params.get('status') ?? 'all';
+  const status = requestedStatus === 'all' || Object.hasOwn(STATUS_LABELS, requestedStatus) ? requestedStatus : 'all';
   const filters = new URLSearchParams({ page: String(page), status });
   for (const key of ['processId', 'communicationId', 'organizationId']) {
     const value = params.get(key);
@@ -25,7 +27,7 @@ function OpportunityList({ identity }: {
       filters.set(key, value);
   }
   const query = useOpportunities(identity, 'opportunities?' + filters);
-  return <section className="min-w-0 space-y-4 break-words"><h1 className="text-2xl font-semibold">Oportunidades</h1>{identity.permissions.includes('opportunities.create') && <Link className={buttonClass} to="/opportunities/new">Crear oportunidad</Link>}<Field label="Filtrar por estado"><select aria-label="Filtrar por estado" className={inputClass} value={status} onChange={event => { setStatus(event.target.value); setPage(1); }}><option value="all">Todos</option>{Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><QueryState pending={query.isPending} error={query.isError} retry={query.refetch}/>{query.data && !query.data.total && <p>No hay oportunidades para estos filtros.</p>}<ul className="space-y-3">{query.data?.items.map(row => <li key={row.id} className="rounded border p-4"><Link className="font-semibold underline" to={'/opportunities/' + row.id}>{row.name}</Link><p>{STATUS_LABELS[row.status]} · {deadlineLabel(row.deadline)}</p><p>{row.organizations.map(org => org.name).join(' · ')}</p><Origin row={row}/></li>)}</ul>{query.data && <Pagination page={page} total={query.data.total} onPage={setPage}/>}</section>;
+  return <section className="min-w-0 space-y-4 break-words"><h1 className="text-2xl font-semibold">Oportunidades</h1>{identity.permissions.includes('opportunities.create') && <Link className={buttonClass} to="/opportunities/new">Crear oportunidad</Link>}<Field label="Filtrar por estado"><select aria-label="Filtrar por estado" className={inputClass} value={status} onChange={event => { const next = new URLSearchParams(params); if (event.target.value === 'all') next.delete('status'); else next.set('status', event.target.value); next.delete('page'); setParams(next); setPage(1); }}><option value="all">Todos</option>{Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field><QueryState pending={query.isPending} error={query.isError} retry={query.refetch}/>{query.data && !query.data.total && <p>No hay oportunidades para estos filtros.</p>}<ul className="space-y-3">{query.data?.items.map(row => <li key={row.id} className="rounded border p-4"><Link className="font-semibold underline" to={'/opportunities/' + row.id}>{row.name}</Link><p>{STATUS_LABELS[row.status]} · {deadlineLabel(row.deadline)}</p><p>{row.organizations.map(org => org.name).join(' · ')}</p><Origin row={row}/></li>)}</ul>{query.data && <Pagination page={page} total={query.data.total} onPage={setPage}/>}</section>;
 }
 function Origin({ row }: {
   row: Pick<Opportunity, 'process' | 'communication'>;

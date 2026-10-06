@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { useSession, type AuthIdentity } from '../auth/session';
 import { buttonClass, Field, inputClass, Pagination, QueryState } from '../directory/directory-ui';
 import { INTENT_LABELS, type ContactIntent } from './contracts';
@@ -17,11 +17,13 @@ export function ContactIntentsPage() {
   return <IntentsList key={intentIdentityKey(identity).join(':')} identity={identity} />;
 }
 function IntentsList({ identity }: { identity: AuthIdentity }) {
-  const [page, setPage] = useState(1), [state, setState] = useState('all');
+  const [page, setPage] = useState(1), [params, setParams] = useSearchParams();
+  const requestedState = params.get('state') ?? 'all';
+  const state = ['all', 'ACTIVE', 'CONVERTED', 'CANCELLED', 'CLOSED'].includes(requestedState) ? requestedState : 'all';
   const list = useIntents(identity, page, state);
   return <section className="space-y-4"><h1 className="text-2xl font-semibold">Intenciones de contacto</h1>
     {identity.permissions.includes('relationships.intent.create') && <Link className={buttonClass} to="/contact-intents/new">Crear intención</Link>}
-    <Field label="Estado de intenciones"><select className={inputClass} value={state} onChange={e => { setState(e.target.value); setPage(1); }}>
+    <Field label="Estado de intenciones"><select className={inputClass} value={state} onChange={e => { const next = new URLSearchParams(params); if (e.target.value === 'all') next.delete('state'); else next.set('state', e.target.value); next.delete('page'); setParams(next); setPage(1); }}>
       <option value="all">Todas</option><option value="ACTIVE">Activas</option><option value="CONVERTED">Convertidas</option><option value="CANCELLED">Canceladas</option></select></Field>
     <QueryState pending={list.isPending} error={list.isError} retry={list.refetch} />
     {list.data?.total === 0 && <p>No hay intenciones para estos filtros.</p>}

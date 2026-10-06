@@ -29,6 +29,6 @@ describe('Verificación y meses calendario UTC', () => {
     expect(verificationCondition(latest, current, 4, now).verificationStatus).toBe('REVIEW_DUE'); expect(latest).toEqual(before);
   });
   it.each(Object.entries(verificationTargets))('%s tiene clasificación explícita y objetivo con FK', (kind, target) => {
-    expect(target.classification).toBe(['organization','organizationContact'].includes(kind) ? 'institutional' : 'personal'); expect(target.column.endsWith('Id')).toBe(true);
+    expect(target.classification).toBe(['organization','organizationContact','importedHistory'].includes(kind) ? 'institutional' : 'personal'); expect(target.column.endsWith('Id')).toBe(true);
   });
 });

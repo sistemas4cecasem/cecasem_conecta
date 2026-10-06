@@ -1,4 +1,5 @@
 export const PERMISSIONS = {
+  DATA_IMPORT_EXECUTE: 'data_exchange.import.execute',
   TRANSLATION_READ: 'translations.read',
   TRANSLATION_REQUEST: 'translations.request',
   SETTINGS_REMINDERS_UPDATE: 'settings.reminders.update',

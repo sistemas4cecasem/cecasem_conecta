@@ -1,4 +1,5 @@
 import { InactivitySourcesService } from './inactivity-sources.service';
+import { RelationshipSearchService } from './relationship-search.service';
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../database/database.module';
 import { AuthModule } from '../auth/auth.module';
@@ -15,6 +16,6 @@ import { ContactRestrictionsController } from './contact-restrictions.controller
 import { InternalNotesService } from './internal-notes.service';
 import { InternalNotesController } from './internal-notes.controller';
 @Module({ imports: [DatabaseModule, AuthModule, UsersModule, DirectoryModule, AuditModule],
-  controllers: [ContactIntentsController, RelationshipProcessesController, ContactRestrictionsController, InternalNotesController], providers: [InactivitySourcesService, ContactIntentsService, RelationshipProcessesService, ProcessParticipationService, ContactRestrictionsService, InternalNotesService],
-  exports: [InactivitySourcesService, ProcessParticipationService, ContactRestrictionsService, RelationshipProcessesService, InternalNotesService] })
+  controllers: [ContactIntentsController, RelationshipProcessesController, ContactRestrictionsController, InternalNotesController], providers: [RelationshipSearchService, InactivitySourcesService, ContactIntentsService, RelationshipProcessesService, ProcessParticipationService, ContactRestrictionsService, InternalNotesService],
+  exports: [RelationshipSearchService, InactivitySourcesService, ProcessParticipationService, ContactRestrictionsService, RelationshipProcessesService, InternalNotesService] })
 export class RelationshipsModule {}

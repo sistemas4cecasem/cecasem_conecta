@@ -14,7 +14,12 @@ const orgId = '11111111-1111-4111-8111-111111111111', personId = '22222222-2222-
 const identity: AuthIdentity = { id: 'qa-search', email: 'qa@example.test', givenNames: 'QA', familyNames: 'Búsqueda', username: 'qa-search', role: 'RESEARCH', permissions: ['directory.read', 'directory.write'] };
 const org = { type: 'ORGANIZATION' as const, id: orgId, name: 'Fundación Esperanza', alias: 'FE', country: 'Bolivia', isActive: true, parent: null, duplicateOf: null };
 const person = { type: 'PERSON' as const, id: personId, displayName: 'María Fernanda Pérez', isActive: true, duplicateOf: null, currentRelations: [], currentRelationsTotal: 0 };
-function response(q = 'esperanza'): DirectorySearchResponse { return { query: q, organizations: { items: [], total: 0, page: 1, pageSize: 25 }, people: { items: [], total: 0, page: 1, pageSize: 25 }, email: null }; }
+const processId = '44444444-4444-4444-8444-444444444444';
+const process = { type: 'PROCESS' as const, id: processId, purpose: 'Cooperación educativa', state: 'WAITING_RESPONSE' as const,
+  target: { kind: 'ORGANIZATION' as const, id: orgId, label: org.name, isActive: true } };
+const historical = { type: 'COMMUNICATION' as const, id: emailId, matchedAddress: 'Antiguo+Red@Example.test', direction: 'RECEIVED' as const, validity: 'VALID' as const,
+  occurredAt: '2025-01-02T12:00:00.000Z', registeredBy: { id: personId, displayName: 'Usuario registrador original', isActive: false }, process };
+function response(q = 'esperanza'): DirectorySearchResponse { return { query: q, organizations: { items: [], total: 0, page: 1, pageSize: 25 }, people: { items: [], total: 0, page: 1, pageSize: 25 }, email: null, processes: null, emailHistory: null }; }
 describe('Búsqueda inicial del Directorio', () => {
   let client = createQueryClient(), data = response(), mode = 'ok', currentIdentity: AuthIdentity | null = identity;
   const fetchMock = vi.fn<(url: string, options?: RequestInit) => Promise<Response>>();
@@ -25,6 +30,7 @@ describe('Búsqueda inicial del Directorio', () => {
       if (url.endsWith('auth/me')) return Promise.resolve(Response.json(currentIdentity ?? {}, { status: currentIdentity ? 200 : 401 }));
       if (url.endsWith('auth/logout')) { currentIdentity = null; return Promise.resolve(new Response(null, { status: 204 })); }
       if (options?.method && options.method !== 'GET') { data = { ...data, organizations: { ...data.organizations, items: [{ ...org, name: 'Ficha actualizada' }], total: 1 } }; return Promise.resolve(Response.json({})); }
+      if (url.includes('/categories?')) return Promise.resolve(Response.json({ items: [], total: 0, page: 1, pageSize: 25 }));
       if (url.includes('/search?')) {
         if (mode === 'pending') return new Promise<Response>(() => undefined);
         if (mode === 'error') return Promise.resolve(new Response(null, { status: 500 }));
@@ -38,7 +44,8 @@ describe('Búsqueda inicial del Directorio', () => {
     return render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[route]}>
       {extra}{full ? <AppRoutes /> : <Routes><Route path="directory/search" element={<DirectorySearchPage />} />
         <Route path="organizations/:id" element={<h1>Ficha abierta de organización</h1>} /><Route path="people/:id" element={<h1>Ficha abierta de persona</h1>} />
-        <Route path="contact-methods/:id" element={<h1>Ficha abierta del correo</h1>} /></Routes>}
+        <Route path="contact-methods/:id" element={<h1>Ficha abierta del correo</h1>} />
+        <Route path="relationship-processes/:id" element={<h1>Proceso abierto</h1>} /><Route path="communications/:id" element={<h1>Comunicación abierta</h1>} /></Routes>}
     </MemoryRouter></QueryClientProvider>);
   }
   const searchCalls = () => fetchMock.mock.calls.filter(([url]) => url.includes('/search?'));
@@ -121,5 +128,49 @@ describe('Búsqueda inicial del Directorio', () => {
   it('cambio de identidad cancela y elimina la caché anterior', async () => {
     view('/directory/search?q=maria'); await screen.findByText('No se encontraron resultados.'); await clearForbiddenDirectory(client, { ...identity, id: 'otra-identidad' });
     expect(client.getQueriesData({ queryKey: ['directory', identity.id, 'search'] })).toHaveLength(0);
+  });
+  it('muestra procesos con contexto/estado y navega al detalle', async () => {
+    data.processes = { items: [process], total: 1, page: 1, pageSize: 25 };
+    view('/directory/search?q=cooperacion'); const link = await screen.findByRole('link', { name: process.purpose });
+    expect(screen.getByText('Estado del proceso: Esperando respuesta')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: org.name })).toHaveAttribute('href', '/organizations/' + orgId);
+    await userEvent.click(link); expect(screen.getByRole('heading', { name: 'Proceso abierto' })).toBeInTheDocument();
+  });
+  it('correo histórico sin ContactMethod muestra fecha real/registrador/proceso y permite navegar', async () => {
+    data.emailHistory = { address: 'antiguo+red@example.test', items: [historical], total: 1, page: 1, pageSize: 25, lastValidContact: historical, importedRecords: { items: [], total: 0, page: 1, pageSize: 25 } };
+    view('/directory/search?q=antiguo%2Bred%40example.test'); await screen.findByRole('heading', { name: 'Último contacto válido registrado' });
+    expect(screen.getByText(/no tiene un medio de contacto actual/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Usuario registrador original \(cuenta inactiva\)/)).toHaveLength(2);
+    const dates = document.querySelectorAll('time'); expect(dates[0]).toHaveAttribute('dateTime', historical.occurredAt);
+    expect(screen.getAllByRole('link', { name: process.purpose })[0]).toHaveAttribute('href', '/relationship-processes/' + processId);
+    await userEvent.click(screen.getAllByRole('link', { name: 'Abrir comunicación' })[0]!); expect(screen.getByRole('heading', { name: 'Comunicación abierta' })).toBeInTheDocument();
+  });
+  it('no presenta antecedentes invalidados como último contacto válido', async () => {
+    data.emailHistory = { address: 'antiguo+red@example.test', items: [{ ...historical, validity: 'INVALIDATED' }], total: 1, page: 1, pageSize: 25, lastValidContact: null, importedRecords: { items: [], total: 0, page: 1, pageSize: 25 } };
+    view('/directory/search?q=antiguo%2Bred%40example.test'); await screen.findByText(/Solo existen antecedentes invalidados/);
+    expect(screen.getByText(/Invalidada · antecedente histórico/)).toBeInTheDocument(); expect(screen.queryByRole('heading', { name: 'Último contacto válido registrado' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('link', { name: process.purpose })); expect(screen.getByRole('heading', { name: 'Proceso abierto' })).toBeInTheDocument();
+  });
+  it('correo actual sin historia declara ausencia de comunicaciones', async () => {
+    data.email = { type: 'EMAIL', id: emailId, value: 'actual@example.test', condition: 'USABLE', people: { items: [], total: 0, limit: 10 }, organizations: { items: [], total: 0, limit: 10 } };
+    data.emailHistory = { address: 'actual@example.test', items: [], total: 0, page: 1, pageSize: 25, lastValidContact: null, importedRecords: { items: [], total: 0, page: 1, pageSize: 25 } };
+    view('/directory/search?q=actual%40example.test'); await screen.findByText('No hay comunicaciones registradas para esta dirección.');
+    expect(screen.queryByRole('heading', { name: 'Último contacto válido registrado' })).not.toBeInTheDocument();
+  });
+  it('pagina antecedentes conservando el resumen de último contacto', async () => {
+    data.emailHistory = { address: 'antiguo+red@example.test', items: [historical], total: 26, page: 1, pageSize: 25, lastValidContact: historical, importedRecords: { items: [], total: 0, page: 1, pageSize: 25 } };
+    view('/directory/search?q=antiguo%2Bred%40example.test'); await screen.findByRole('heading', { name: 'Antecedentes de correo · 26' });
+    await userEvent.click(screen.getByRole('button', { name: 'Siguiente' })); await waitFor(() => expect(searchCalls().at(-1)?.[0]).toContain('page=2'));
+    expect(screen.getByRole('heading', { name: 'Último contacto válido registrado' })).toBeInTheDocument();
+  });
+  it('cambio de permisos conserva directory.read y retira antecedentes y caché anterior', async () => {
+    currentIdentity = { ...identity, permissions: [...identity.permissions, 'relationships.process.read', 'communications.read'] };
+    client.setQueryData(AUTH_QUERY_KEY, currentIdentity);
+    data.emailHistory = { address: 'antiguo+red@example.test', items: [historical], total: 1, page: 1, pageSize: 25, lastValidContact: historical, importedRecords: { items: [], total: 0, page: 1, pageSize: 25 } };
+    view('/directory/search?q=antiguo%2Bred%40example.test', true); await screen.findByRole('heading', { name: 'Último contacto válido registrado' });
+    data.emailHistory = null; currentIdentity = identity;
+    await act(async () => { await client.invalidateQueries({ queryKey: AUTH_QUERY_KEY }); }); await screen.findByText('No se encontraron resultados.');
+    expect(screen.queryByText(/Usuario registrador original/)).not.toBeInTheDocument();
+    expect(client.getQueriesData({ queryKey: ['directory', identity.id, 'search'] }).every(([key]) => !String(key[5]).includes('communications.read'))).toBe(true);
   });
 });

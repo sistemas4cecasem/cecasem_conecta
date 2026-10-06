@@ -1,46 +1,36 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { useEffect, useRef } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useSession } from '../auth/session';
 import type { AuthIdentity } from '../auth/session';
-import type { Category } from './contracts';
-import { useCategories, useOrganizations } from './queries';
-import { buttonClass, Field, inputClass, Pagination, QueryState } from './directory-ui';
+import { useOrganizations } from './queries';
+import { buttonClass, Pagination, QueryState } from './directory-ui';
+import { OrganizationFilters } from './organization-filters';
 import { OrganizationForm } from './organization-form';
 export function OrganizationsPage() {
   const session = useSession(); const identity = session.data;
+  const [, setParams] = useSearchParams(); const previousIdentity = useRef<string | undefined>(undefined);
+  useEffect(() => { if (previousIdentity.current && identity?.id && previousIdentity.current !== identity.id) setParams({}, { replace: true }); previousIdentity.current = identity?.id; }, [identity?.id, setParams]);
   if (!identity?.permissions.includes('directory.read')) return <p role="alert">No tienes permiso para consultar el directorio.</p>;
   return <OrganizationsList key={identity.id} identity={identity} />;
 }
-type SelectedCategory = Pick<Category, 'id' | 'name' | 'isActive'>;
-function CategoryFilter({ identity, selected, onChange }: { identity: AuthIdentity; selected: SelectedCategory | null; onChange: (category: SelectedCategory | null) => void }) {
-  const [page, setPage] = useState(1);
-  const catalog = useCategories(identity, `categories?status=all&page=${page}`);
-  const options = catalog.data?.items ?? [];
-  return <section aria-label="Catálogo de categorías para filtrar" className="space-y-2">
-    <Field label="Categoría"><select className={inputClass} value={selected?.id ?? ''} disabled={catalog.isPending || catalog.isError}
-      onChange={event => onChange(options.find(category => category.id === event.target.value) ?? null)}>
-      <option value="">Todas las categorías</option>
-      {selected && !options.some(category => category.id === selected.id) && <option value={selected.id}>{selected.name}{selected.isActive ? '' : ' (inactiva)'}</option>}
-      {options.map(category => <option key={category.id} value={category.id}>{category.name}{category.isActive ? '' : ' (inactiva)'}</option>)}
-    </select></Field>
-    {catalog.isPending && <p role="status">Cargando categorías…</p>}
-    <QueryState pending={false} error={catalog.isError} retry={catalog.refetch} />
-    {catalog.data?.total === 0 && <p>No hay categorías registradas.</p>}
-    {catalog.data && catalog.data.total > catalog.data.pageSize && <Pagination page={page} total={catalog.data.total} pageSize={catalog.data.pageSize} onPage={setPage} />}
-  </section>;
-}
 function OrganizationsList({ identity }: { identity: AuthIdentity }) {
-  const [page, setPage] = useState(1); const [status, setStatus] = useState('active');
-  const [name, setName] = useState('');
-  const [category, setCategory] = useState<SelectedCategory | null>(null);
-  const list = useOrganizations(identity, `organizations?page=${page}&status=${status}&name=${encodeURIComponent(name)}${category ? '&categoryId=' + encodeURIComponent(category.id) : ''}`);
-  return <section className="space-y-4"><h1 className="text-2xl font-semibold">Directorio · Organizaciones</h1>
+  const [params, setParams] = useSearchParams();
+  const requestedPage = Number(params.get('page') ?? '1');
+  const page = Number.isInteger(requestedPage) && requestedPage > 0 && requestedPage <= 1000000 ? requestedPage : 1;
+  const name = params.get('name') ?? '';
+  const query = new URLSearchParams(params); query.set('page', String(page));
+  if (!query.has('status')) query.set('status', 'active');
+  const list = useOrganizations(identity, 'organizations?' + query);
+  function change(values: Record<string, string>) {
+    const next = new URLSearchParams(params);
+    for (const [key, value] of Object.entries(values)) { if (value.trim()) next.set(key, value); else next.delete(key); }
+    setParams(next);
+  }
+  return <section className="min-w-0 w-full space-y-4 break-words"><h1 className="text-2xl font-semibold">Directorio · Organizaciones</h1>
     <div className="flex flex-wrap gap-4">{identity.permissions.includes('directory.write') && <Link className={buttonClass} to="/organizations/new">Crear organización</Link>}
-      <Link className={buttonClass} to="/directory/search">Buscar en el Directorio</Link><Link className={buttonClass} to="/organizations/categories">Categorías</Link><Link className={buttonClass} to="/people">Personas externas</Link></div>
-    <div className="grid gap-4 sm:grid-cols-2"><Field label="Filtrar organizaciones por nombre"><input className={inputClass} value={name} onChange={e => { setName(e.target.value); setPage(1); }} /></Field>
-      <Field label="Estado"><select className={inputClass} value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}>
-        <option value="active">Activas</option><option value="inactive">Inactivas</option><option value="all">Todas</option></select></Field></div>
-    <CategoryFilter identity={identity} selected={category} onChange={value => { setCategory(value); setPage(1); }} />
+      <Link className={buttonClass} to="/directory/search">Búsqueda global</Link><Link className={buttonClass} to="/organizations/categories">Categorías</Link><Link className={buttonClass} to="/people">Personas externas</Link></div>
+    <label className="block">Filtrar organizaciones por nombre<input className="mt-1 min-h-11 w-full rounded border px-3 py-2" value={name} onChange={event => change({ name: event.target.value, page: '1' })} /></label>
+    <OrganizationFilters identity={identity} params={params} change={change} />
     <section aria-label="Resultados de organizaciones" className="space-y-4">
     <QueryState pending={list.isPending} error={list.isError} retry={list.refetch} />
     {list.data?.total === 0 && <p>No hay organizaciones para estos filtros.</p>}
@@ -50,7 +40,7 @@ function OrganizationsList({ identity }: { identity: AuthIdentity }) {
       {row.parent && <p>Matriz: {row.parent.name}</p>}
       <p>{row.categories.map(category => category.name).join(', ') || 'Sin categorías'}</p>
     </li>)}</ul>
-    {list.data && <Pagination page={page} total={list.data.total} onPage={setPage} />}
+    {list.data && <Pagination page={page} total={list.data.total} onPage={value => change({ page: String(value) })} />}
     </section>
   </section>;
 }

@@ -33,6 +33,7 @@ export function OrganizationDetailPage() {
     <Link className="inline-flex min-h-11 items-center underline" to="/organizations">Volver al directorio</Link>
     <h1 className="text-2xl font-semibold">{row.name}</h1>
     <p>Estado: {row.isActive ? 'Activa' : 'Inactiva'}</p>
+    {row.dataImportBatch && <p role="status" className="rounded border p-3">Dato importado desde Excel · pendiente de verificación · lote {row.dataImportBatch.id} · {row.dataImportBatch.originalFilename}</p>}
     {row.duplicateOf && <p role="status" className="rounded border border-amber-500 p-3">Este registro fue consolidado en: <Link className="underline" to={'/organizations/'+row.duplicateOf.id}>{row.duplicateOf.name}</Link>. Su historial permanece disponible.</p>}
     {!!row.consolidatedRecords?.length && <p>Fichas consolidadas: {row.consolidatedRecords.map(item=><Link key={item.id} className="inline-flex min-h-11 items-center px-2 underline" to={'/organizations/'+item.id}>{item.name}</Link>)}</p>}
     <DuplicatePanel key={'duplicates-'+id} identity={identity} actorPath={'organizations/'+id}/>

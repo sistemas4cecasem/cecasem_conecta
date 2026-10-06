@@ -29,7 +29,7 @@ export class VerificationService {
       ${contact ? Prisma.sql`m.id` : Prisma.sql`NULL::uuid`} AS "contactMethodId"
       FROM ${table} t ${contact ? Prisma.sql`JOIN "ContactMethod" m ON m.id=t."contactMethodId"` : Prisma.empty} WHERE t.id=${id}::uuid`);
     if (!rows[0]) throw new DirectoryError(kind === 'organization' ? 'ORGANIZATION_NOT_FOUND' : kind === 'person' ? 'PERSON_NOT_FOUND'
-      : kind === 'relation' ? 'PERSON_RELATION_NOT_FOUND' : 'CONTACT_ASSOCIATION_NOT_FOUND');
+      : kind === 'relation' ? 'PERSON_RELATION_NOT_FOUND' : kind === 'importedHistory' ? 'IMPORTED_HISTORY_NOT_FOUND' : 'CONTACT_ASSOCIATION_NOT_FOUND');
     return rows[0];
   }
   private async writable(kind: VerificationKind,id: string,tx: Prisma.TransactionClient) {
@@ -42,10 +42,12 @@ export class VerificationService {
       const row = await tx.personContact.findUnique({where:{id}});
       if (!row) throw new DirectoryError('CONTACT_ASSOCIATION_NOT_FOUND');
       await this.actors.writable('person',row.personId,tx);
-    } else {
+    } else if (kind === 'organizationContact') {
       const row = await tx.organizationContact.findUnique({where:{id}});
       if (!row) throw new DirectoryError('CONTACT_ASSOCIATION_NOT_FOUND');
       await this.actors.writable('organization',row.organizationId,tx);
+    } else if (!await tx.importedHistoricalRecord.findUnique({ where: { id }, select: { id: true } })) {
+      throw new DirectoryError('IMPORTED_HISTORY_NOT_FOUND');
     }
   }
   private async condition(kind: VerificationKind, current: VerificationContext, tx: Prisma.TransactionClient) {

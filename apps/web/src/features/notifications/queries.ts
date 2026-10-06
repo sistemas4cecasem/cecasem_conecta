@@ -3,6 +3,7 @@ import type { z } from 'zod';
 import { AUTH_QUERY_KEY, type AuthIdentity } from '../auth/session';
 import { apiRequest } from '../../lib/api/client';
 import { notificationCountSchema, notificationPageSchema, notificationSchema } from './contracts';
+import { invalidateDashboard } from '../home/dashboard-queries';
 
 export const notificationIdentityKey = (identity: AuthIdentity) => [identity.id, identity.role, [...identity.permissions].sort().join(',')] as const;
 function assertIdentity(client: QueryClient, identity: AuthIdentity): void {
@@ -46,6 +47,7 @@ export function useReadNotification(identity: AuthIdentity) {
   }, onSettled: async () => {
     assertIdentity(client, identity);
     await client.invalidateQueries({ queryKey: ['notifications', ...notificationIdentityKey(identity)] });
+    await invalidateDashboard(client, identity);
   } });
 }
 export async function clearForbiddenNotifications(client: QueryClient, identity: AuthIdentity | null): Promise<void> {

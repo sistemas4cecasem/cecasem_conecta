@@ -32,6 +32,8 @@ export function useCommunicationAmendment(identity: AuthIdentity, id: string) {
     { method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': requestKey }, body: JSON.stringify(type === 'INVALIDATION' ? { reason: content } : { type, content }) })), retry: false,
     onSuccess: async () => { if (!communicationIdentityMatches(client, identity)) return;
       await Promise.all(['communications', 'relationship-context', 'relationship-timeline', 'relationship-processes'].map(prefix => client.invalidateQueries({ queryKey: [prefix, identity.id] })));
+      await client.invalidateQueries({ queryKey: ['directory', identity.id, 'search'] });
+      await client.invalidateQueries({ queryKey: ['directory', identity.id, 'organizations'] });
     } });
 }
 export function useSentCommunication(identity: AuthIdentity) {
@@ -42,6 +44,8 @@ export function useSentCommunication(identity: AuthIdentity) {
       if (!communicationIdentityMatches(client, identity)) return;
       client.setQueryData([...communicationIdentityKey(identity), 'detail', row.id], row);
       await Promise.all(['communications', 'relationship-processes', 'relationship-context', 'relationship-timeline'].map(prefix => client.invalidateQueries({ queryKey: [prefix, identity.id] })));
+      await client.invalidateQueries({ queryKey: ['directory', identity.id, 'search'] });
+      await client.invalidateQueries({ queryKey: ['directory', identity.id, 'organizations'] });
     } });
 }
 export function useReceivedCommunication(identity: AuthIdentity) {
@@ -52,6 +56,8 @@ export function useReceivedCommunication(identity: AuthIdentity) {
       if (!communicationIdentityMatches(client, identity)) return;
       client.setQueryData([...communicationIdentityKey(identity), 'detail', row.id], row);
       await Promise.all(['communications', 'relationship-processes', 'relationship-context', 'relationship-timeline'].map(prefix => client.invalidateQueries({ queryKey: [prefix, identity.id] })));
+      await client.invalidateQueries({ queryKey: ['directory', identity.id, 'search'] });
+      await client.invalidateQueries({ queryKey: ['directory', identity.id, 'organizations'] });
     } });
 }
 export async function clearForbiddenCommunications(client: QueryClient, identity: AuthIdentity | null) {

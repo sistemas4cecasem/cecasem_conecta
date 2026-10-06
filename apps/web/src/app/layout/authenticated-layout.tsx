@@ -18,6 +18,7 @@ import { clearForbiddenRestrictions } from '../../features/relationships/restric
 import { clearForbiddenContext } from '../../features/relationships/context-queries';
 import { clearForbiddenCommunications } from '../../features/communications/queries';
 import { clearForbiddenTimeline } from '../../features/relationships/timeline-queries';
+import { clearForbiddenDashboard } from '../../features/home/dashboard-queries';
 
 const ROLE_LABELS = { ADMINISTRATOR: 'Administrador', BOARD: 'Directorio', RESEARCH: 'Búsqueda', PLANNING: 'Planificación' };
 
@@ -45,6 +46,7 @@ export function AuthenticatedLayout() {
       void clearForbiddenNotifications(client, session.data);
       void clearForbiddenFiles(client, session.data);
       void clearForbiddenMeetings(client, session.data);
+      void clearForbiddenDashboard(client, session.data);
     }
   }, [client, session.data]);
 

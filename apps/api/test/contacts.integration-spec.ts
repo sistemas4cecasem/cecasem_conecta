@@ -43,7 +43,7 @@ describe('Medios de contacto PostgreSQL y HTTP',()=>{
   ] as [ 'get'|'post'|'put'|'patch',string][];
   it.each(routes)('anónimo %s %s →401',async(method,path)=>{await request(app.getHttpServer())[method]('/api/v1/'+path.replace('ID',randomUUID())).expect(401);});
   it.each(routes)('sin capability %s %s →403',async(method,path)=>{const actor=await fixture();jest.spyOn(app.get(SessionsService),'findIdentity').mockResolvedValue({...actor,role:'UNKNOWN' as UserRole});await request(app.getHttpServer())[method]('/api/v1/'+path.replace('ID',randomUUID())).set('Cookie','cecasem_session=fixture').expect(403);});
-  it.each(Object.values(UserRole))('%s opera ordinariamente; condición y reactivación solo Admin',async role=>{
+  it.each(Object.values(UserRole))('%s puede gestionar estados lógicos de contactos con historial y auditoría',async role=>{
     const actor=await fixture(role),auth=await cookie(actor),p=await person(actor.id),o=await org(actor.id);
     const created=await request(app.getHttpServer()).post('/api/v1/organizations/'+o.id+'/contacts').set('Cookie',auth).send({type:'EMAIL',value:'  CONTACTO@FUNDACION.ORG ',sourceDescription:'Sitio oficial'}).expect(201);
     const association=(created.body as {association:{id:string;contactMethodId:string}}).association;methodIds.push(association.contactMethodId);
@@ -59,8 +59,12 @@ describe('Medios de contacto PostgreSQL y HTTP',()=>{
     await request(app.getHttpServer()).put('/api/v1/contact-methods/'+current.id).set('Cookie',auth).send({value:'contacto.corregido@fundacion.org',expectedVersion:current.version,confirmShared:true}).expect(200);
     await request(app.getHttpServer()).patch('/api/v1/organization-contacts/'+association.id+'/end').set('Cookie',auth).send({expectedVersion:2}).expect(200);
     for(const path of ['contact-methods','contact-methods/'+current.id,'contact-methods/'+current.id+'/people','contact-methods/'+current.id+'/organizations','contact-methods/'+current.id+'/history','organization-contacts/'+association.id,'organization-contacts/'+association.id+'/history','people/'+p.id+'/contacts','organizations/'+o.id+'/contacts'])await request(app.getHttpServer()).get('/api/v1/'+path).set('Cookie',auth).expect(200);
-    await request(app.getHttpServer()).patch('/api/v1/organization-contacts/'+association.id+'/status').set('Cookie',auth).send({isActive:true,expectedVersion:3}).expect(role===UserRole.ADMINISTRATOR?200:403);
-    await request(app.getHttpServer()).patch('/api/v1/contact-methods/'+current.id+'/condition').set('Cookie',auth).send({condition:'UNUSABLE',expectedVersion:current.version+1}).expect(role===UserRole.ADMINISTRATOR?200:403);
+    const reactivated=await request(app.getHttpServer()).patch('/api/v1/organization-contacts/'+association.id+'/status').set('Cookie',auth).send({isActive:true,expectedVersion:3}).expect(200);
+    expect(reactivated.body).toMatchObject({id:association.id,isActive:true,version:4});
+    expect(await prisma.auditEvent.findFirst({where:{action:AuditAction.CONTACT_ASSOCIATION_STATUS_CHANGED,actorUserId:actor.id,organizationContactId:association.id}})).not.toBeNull();
+    const unusable=await request(app.getHttpServer()).patch('/api/v1/contact-methods/'+current.id+'/condition').set('Cookie',auth).send({condition:'UNUSABLE',expectedVersion:current.version+1}).expect(200);
+    expect(unusable.body).toMatchObject({id:current.id,condition:ContactCondition.UNUSABLE,version:current.version+2});
+    expect(await prisma.auditEvent.findFirst({where:{action:AuditAction.CONTACT_METHOD_CONDITION_CHANGED,actorUserId:actor.id,contactMethodId:current.id}})).not.toBeNull();
     expect((await contacts.getAssociation('person',reusedBody.association.id)).lastVerifiedAt).toBeNull();
   });
   it.each([{type:'NOPE',value:'x'},{type:'EMAIL',value:'bad'},{type:'EMAIL',value:'a@example.test',condition:'UNUSABLE'},{type:'EMAIL',value:'a@example.test',lastVerifiedAt:'2026-01-01'},{type:'PHONE',value:'abc'},{type:'LINKEDIN',value:'https://linkedin.com.evil.test'},{type:'FORM',value:'javascript:x'},{type:'OTHER',value:'Canal'}])('entrada inválida %j →400',async body=>{const auth=await cookie(await fixture());await request(app.getHttpServer()).post('/api/v1/contact-methods').set('Cookie',auth).send(body).expect(400);});
@@ -167,9 +171,9 @@ describe('Medios de contacto PostgreSQL y HTTP',()=>{
     await request(app.getHttpServer()).delete('/api/v1/contact-methods/'+m.id).set('Cookie',auth).expect(404);
     const list=await request(app.getHttpServer()).get('/api/v1/contact-methods?pageSize=1').set('Cookie',auth).expect(200);expect(list.body).toMatchObject({total:1,page:1,pageSize:1,items:[{id:m.id}]});
   });
-  it('servicios revalidan actor desactivado y permisos administrativos vigentes',async()=>{
+  it('servicios revalidan que el actor siga activo antes de cambiar el estado',async()=>{
     const actor=await fixture(),m=await method(actor.id);await prisma.user.update({where:{id:actor.id},data:{isActive:false,deactivatedAt:new Date()}});await expect(contacts.create({type:ContactType.EMAIL,value:'new@example.test'},actor.id)).rejects.toMatchObject({code:'FORBIDDEN'});
-    await prisma.user.update({where:{id:actor.id},data:{isActive:true,deactivatedAt:null,role:UserRole.RESEARCH}});await expect(contacts.condition(m.id,{condition:ContactCondition.UNUSABLE,expectedVersion:1},actor.id)).rejects.toMatchObject({code:'FORBIDDEN'});
+    await expect(contacts.condition(m.id,{condition:ContactCondition.UNUSABLE,expectedVersion:1},actor.id)).rejects.toMatchObject({code:'FORBIDDEN'});
   });
   it('fallo HTTP devuelve 500 seguro y revierte medio y asociación',async()=>{
     const actor=await fixture(),auth=await cookie(actor),p=await person(actor.id);jest.spyOn(Logger.prototype,'error').mockImplementation(()=>undefined);jest.spyOn(history,'record').mockRejectedValueOnce(new Error('private fixture'));

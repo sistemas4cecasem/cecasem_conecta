@@ -12,7 +12,7 @@ export class OrganizationsController {
   constructor(private readonly directory: DirectoryService) {}
   @Get() @Header('Cache-Control', 'no-store') @RequirePermissions(PERMISSIONS.DIRECTORY_READ)
   @ApiOperation({ summary: 'Listar organizaciones paginadas' })
-  list(@Query() query: OrganizationQueryDto) { return this.directory.listOrganizations(query); }
+  list(@Query() query: OrganizationQueryDto, @Req() request: AuthenticatedRequest) { return this.directory.listOrganizations(query, request.authenticatedUser.id); }
   @Get(':id') @Header('Cache-Control', 'no-store') @RequirePermissions(PERMISSIONS.DIRECTORY_READ)
   detail(@Param('id', new ParseUUIDPipe()) id: string) { return this.directory.getOrganization(id); }
   @Post() @RequirePermissions(PERMISSIONS.DIRECTORY_WRITE)

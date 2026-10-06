@@ -15,15 +15,14 @@ function renderApplication(path: string) {
 
 describe('Aplicación base', () => {
   beforeEach(() => {
-    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(Response.json({
-      id: 'fixture', givenNames: 'Ana', familyNames: 'Prueba', username: 'ana.prueba', email: 'fixture@example.test', role: 'RESEARCH', permissions: [],
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => Promise.resolve(url.endsWith('/dashboard') ? Response.json({ view: 'research', asOf: '2026-10-05T12:00:00Z', activeProcesses: 0, relevantProcesses: [], activeIntents: 0, relevantIntents: [], unreadReminders: 0, reminderItems: [] }) : Response.json({
+      id: 'fixture', givenNames: 'Ana', familyNames: 'Prueba', username: 'ana.prueba', email: 'fixture@example.test', role: 'RESEARCH', permissions: ['relationships.process.read'],
     }))));
   });
   it('muestra la pantalla inicial después de comprobar la sesión', async () => {
     renderApplication('/');
-    expect(await screen.findByRole('heading', { name: 'CECASEM Conecta', level: 1 })).toBeInTheDocument();
-    expect(screen.getByText('Sistema de Gestión de Relaciones Institucionales y Cooperación')).toBeVisible();
-    expect(screen.getByRole('heading', { name: 'Aplicación base en funcionamiento' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: 'Panel institucional', level: 1 })).toBeInTheDocument();
+    expect(await screen.findByText('Procesos activos relevantes')).toBeVisible();
     expect(screen.getByRole('main')).toBeInTheDocument();
   });
 
@@ -32,7 +31,7 @@ describe('Aplicación base', () => {
     renderApplication('/ruta-inexistente');
     expect(screen.getByRole('heading', { name: 'Página no encontrada' })).toBeVisible();
     await user.click(screen.getByRole('link', { name: 'Volver al inicio' }));
-    expect(await screen.findByRole('heading', { name: 'CECASEM Conecta', level: 1 })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: 'Panel institucional', level: 1 })).toBeVisible();
     expect(screen.queryByRole('heading', { name: 'Página no encontrada' })).not.toBeInTheDocument();
   });
 });

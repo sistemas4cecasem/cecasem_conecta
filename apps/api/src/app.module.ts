@@ -19,6 +19,8 @@ import { RelationshipsModule } from './modules/relationships/relationships.modul
 import { CommunicationsModule } from './modules/communications/communications.module';
 import { RelationshipContextModule } from './modules/relationships/relationship-context.module';
 import { RelationshipTimelineModule } from './modules/relationships/relationship-timeline.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { DataExchangeModule } from './modules/data-exchange/data-exchange.module';
 
 @Module({
   imports: [TranslationModule, RemindersModule,
@@ -38,6 +40,8 @@ import { RelationshipTimelineModule } from './modules/relationships/relationship
     CommunicationsModule,
     RelationshipContextModule,
     RelationshipTimelineModule,
+    DashboardModule,
+    DataExchangeModule,
   ],
 })
 export class AppModule {}

@@ -11,6 +11,7 @@ const messages = {
   CONSOLIDATION_CONFIRMATION_REQUIRED: 'Confirme los efectos y la reconciliación de contactos y vínculos.',
   FORBIDDEN: 'No tiene los permisos necesarios.', INVALID_DIRECTORY: 'Revise los datos de la ficha.',
   PERSON_NOT_FOUND: 'No se encontró la persona.', PERSON_RELATION_NOT_FOUND: 'No se encontró el vínculo institucional.',
+  IMPORTED_HISTORY_NOT_FOUND: 'No se encontró el antecedente histórico importado.',
   ORGANIZATION_NOT_FOUND: 'No se encontró la organización.', CATEGORY_NOT_FOUND: 'No se encontró la categoría.',
   CATEGORY_EXISTS: 'Ya existe una categoría con ese nombre.', CATEGORY_INACTIVE: 'No puede asignar una categoría inactiva.',
   INVALID_HIERARCHY: 'La relación matriz/sede produciría un ciclo.',
@@ -19,7 +20,7 @@ const messages = {
   CONTACT_EMAIL_EXISTS: 'Este correo ya está registrado. Consulte su ficha y confirme si desea asociarlo.',
   CONTACT_VALUE_EXISTS: 'El correo corregido ya pertenece a otro medio. Puede sustituir explícitamente una asociación usando ese medio.',
   SHARED_CONTACT_CONFIRMATION_REQUIRED: 'Confirme la corrección global del medio compartido después de revisar sus asociaciones.',
-  CONTACT_UNUSABLE: 'El medio está marcado como no utilizable. Consulte sus antecedentes; un Administrador puede cambiar su condición.',
+  CONTACT_UNUSABLE: 'El medio está marcado como no utilizable. Consulte sus antecedentes o seleccione un medio disponible.',
   INVALID_CONTACT_REPLACEMENT: 'Seleccione un medio diferente y confirme la sustitución de esta asociación.',
 };
 @Catch(DirectoryError)

@@ -12,7 +12,7 @@ import { ApiError, apiRequest } from '../../lib/api/client';
 describe('Autenticación completa en interfaz', () => {
   let client = createQueryClient();
   let authenticated = false;
-  const identity = { id: 'fixture', givenNames: 'Ana', familyNames: 'Prueba', username: 'ana.prueba', email: 'fixture@example.test', role: 'RESEARCH', permissions: [] };
+  const identity = { id: 'fixture', givenNames: 'Ana', familyNames: 'Prueba', username: 'ana.prueba', email: 'fixture@example.test', role: 'RESEARCH', permissions: ['relationships.process.read'] };
   const password = crypto.randomUUID();
   let loginResult: () => Promise<Response>;
   let logoutResult: () => Promise<Response>;
@@ -26,6 +26,7 @@ describe('Autenticación completa en interfaz', () => {
       if (url.endsWith('/auth/me')) return Promise.resolve(authenticated ? Response.json(identity) : new Response(null, { status: 401 }));
       if (url.endsWith('/auth/login')) return loginResult();
       if (url.endsWith('/auth/logout')) return logoutResult();
+      if (url.endsWith('/dashboard')) return Promise.resolve(Response.json({ view: 'research', asOf: '2026-10-05T12:00:00Z', activeProcesses: 0, relevantProcesses: [], activeIntents: 0, relevantIntents: [], unreadReminders: 0, reminderItems: [] }));
       throw new Error('Unexpected request');
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -76,7 +77,7 @@ describe('Autenticación completa en interfaz', () => {
   it('logs in, clears previous data and does not persist credentials or tokens', async () => {
     client.setQueryData(['private', 'previous'], { private: true });
     renderApp(); await fillLogin();
-    expect(await screen.findByRole('heading', { name: 'CECASEM Conecta' })).toBeVisible();
+    expect(await screen.findByRole('heading', { name: 'Panel institucional' })).toBeVisible();
     expect(client.getQueryData(['private', 'previous'])).toBeUndefined();
     expect(client.getQueryData(AUTH_QUERY_KEY)).toEqual(identity);
     expect(client.getMutationCache().getAll()).toHaveLength(0);
@@ -100,11 +101,11 @@ describe('Autenticación completa en interfaz', () => {
     await screen.findByRole('button', { name: 'Cerrar sesión' });
     await userEvent.click(screen.getByRole('button', { name: 'Cerrar sesión' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo completar');
-    expect(screen.getByRole('heading', { name: 'CECASEM Conecta' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Panel institucional' })).toBeVisible();
   });
   it('redirects after the session expires on the server', async () => {
     authenticated = true; renderApp('/');
-    await screen.findByRole('heading', { name: 'CECASEM Conecta' });
+    await screen.findByRole('heading', { name: 'Panel institucional' });
     authenticated = false;
     await client.invalidateQueries({ queryKey: AUTH_QUERY_KEY });
     expect(await screen.findByRole('heading', { name: 'Iniciar sesión' })).toBeVisible();
@@ -113,7 +114,7 @@ describe('Autenticación completa en interfaz', () => {
     fetchMock.mockRejectedValueOnce(new TypeError('network'));
     renderApp('/');
     expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo comprobar');
-    expect(screen.queryByRole('heading', { name: 'CECASEM Conecta' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Panel institucional' })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Iniciar sesión' })).toBeVisible());
   });
@@ -121,7 +122,7 @@ describe('Autenticación completa en interfaz', () => {
     function CacheProbe() { client = useQueryClient(); return null; }
     authenticated = true;
     render(<AppProviders><MemoryRouter><CacheProbe /><AppRoutes /></MemoryRouter></AppProviders>);
-    await screen.findByRole('heading', { name: 'CECASEM Conecta' });
+    await screen.findByRole('heading', { name: 'Panel institucional' });
     client.setQueryData(['private'], { private: true });
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 401 }));
     await expect(apiRequest('future-protected')).rejects.toBeInstanceOf(ApiError);
@@ -134,8 +135,9 @@ describe('Autenticación completa en interfaz', () => {
       permissions: role === 'ADMINISTRATOR' ? ['auth.first_access.issue', 'auth.password_reset.issue', 'users.read'] : role === 'BOARD' ? ['users.read'] : [] }));
     renderApp('/');
     const navigation = await screen.findByRole('navigation', { name: 'Navegación principal' });
-    expect(within(navigation).getAllByRole('link')).toHaveLength(role === 'ADMINISTRATOR' || role === 'BOARD' ? 2 : 1);
+    expect(within(navigation).getAllByRole('link')).toHaveLength(role === 'ADMINISTRATOR' || role === 'BOARD' ? 3 : 2);
     expect(within(navigation).getByRole('link', { name: 'Inicio' })).toHaveAttribute('href', '/');
+    expect(within(navigation).getByRole('link', { name: 'Exportar Excel' })).toHaveAttribute('href', '/admin/exports');
     expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible();
   });
   it('actualiza rol y capabilities al refrescar me sin volver a iniciar sesión', async () => {
@@ -156,7 +158,7 @@ describe('Autenticación completa en interfaz', () => {
     function CacheProbe() { client = useQueryClient(); return null; }
     authenticated = true;
     render(<AppProviders><MemoryRouter><CacheProbe /><AppRoutes /></MemoryRouter></AppProviders>);
-    await screen.findByRole('heading', { name: 'CECASEM Conecta' });
+    await screen.findByRole('heading', { name: 'Panel institucional' });
     client.setQueryData(['private'], { private: true });
     fetchMock.mockResolvedValueOnce(Response.json({ message: 'No tiene los permisos necesarios.' }, { status: 403 }));
     await expect(apiRequest('auth/first-access-tokens', { method: 'POST' })).rejects.toMatchObject({ status: 403 });

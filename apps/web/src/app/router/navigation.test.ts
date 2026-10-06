@@ -18,6 +18,7 @@ describe('Filtrado de navegación por capabilities recibidas', () => {
     expect(visibleNavigationItems(items, permissions)[0]).toEqual(items[0]);
     expect(visibleNavigationItems(AUTHENTICATED_NAVIGATION, permissions)).toEqual([
       { label: 'Inicio', to: '/' },
+      { label: 'Exportar Excel', to: '/admin/exports' },
       ...(permissions.includes('users.read') ? [{ label: 'Usuarios', to: '/users', requiredPermission: 'users.read' }] : []),
     ]);
   });

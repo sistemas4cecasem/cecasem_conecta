@@ -1,14 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import { OrganizationFilterService } from './organization-filter.service';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import type { DirectorySearchQuery, SearchEmail, SearchOrganization, SearchPage, SearchPerson } from './directory-search.contract';
 import { searchInput } from './directory-search.rules';
+import { normalizedSearchText as normalized } from '../../common/search/search-text';
 
-// PostgreSQL NFD + eliminación del mismo rango de marcas usado en la consulta.
-const combiningMarks = Array.from({ length: 112 }, (_, index) => String.fromCharCode(0x300 + index)).join('');
-function normalized(column: Prisma.Sql) {
-  return Prisma.sql`btrim(regexp_replace(translate(lower(normalize(coalesce(${column}, ''), NFD)), ${combiningMarks}, ''), '[^[:alnum:]]+', ' ', 'g'))`;
-}
 const organizationSelect = { id: true, name: true, alias: true, country: true, isActive: true,
   parent: { select: { id: true, name: true, isActive: true } }, duplicateOf: { select: { id: true, name: true, isActive: true } } } satisfies Prisma.OrganizationSelect;
 const personIdentity = { id: true, displayName: true, isActive: true,
@@ -20,7 +17,7 @@ const contextLimit = 10;
 /** Interfaz pública de consulta de directory. Solo este módulo consulta su persistencia. */
 @Injectable()
 export class DirectorySearchService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly filters: OrganizationFilterService) {}
 
   private empty<T>(query: DirectorySearchQuery): SearchPage<T> {
     return { items: [], total: 0, page: query.page, pageSize: query.pageSize };
@@ -33,10 +30,11 @@ export class DirectorySearchService {
     const label = kind === 'organization' ? Prisma.sql`name` : Prisma.sql`"displayName"`;
     const alternate = kind === 'organization' ? Prisma.sql`alias` : Prisma.sql`concat_ws(' ', "givenNames", "familyNames")`;
     const tokens = input.name.split(' ').map(token => Prisma.sql`combined LIKE ${'%' + token + '%'}`);
+    const filter = kind === 'organization' && query.organizationFilters ? await this.filters.predicate(query.organizationFilters, tx, query.actorId) : Prisma.sql`TRUE`;
     const [result] = await tx.$queryRaw<{ ids: string[]; total: number }[]>(Prisma.sql`
       WITH names AS (
         SELECT id, "isActive", "duplicateOfId", ${normalized(label)} AS label,
-          ${normalized(alternate)} AS alternate FROM ${table}
+          ${normalized(alternate)} AS alternate FROM ${table} o WHERE (${filter})
       ), matches AS (
         SELECT *, CASE WHEN label = ${input.name} OR alternate = ${input.name} THEN 0
           WHEN label LIKE ${input.name + '%'} OR alternate LIKE ${input.name + '%'} THEN 1 ELSE 2 END AS rank

@@ -5,6 +5,7 @@ import { intentSchema, intentsPageSchema } from './contracts';
 import { z } from 'zod';
 import { processDetailSchema } from './process-contracts';
 import { processIdentityKey } from './process-queries';
+import { invalidateDashboard } from '../home/dashboard-queries';
 export function intentIdentityKey(identity: AuthIdentity) {
   return ['relationships', identity.id, identity.role, identity.permissions.filter(p => p.startsWith('relationships.intent.')).sort().join(',')] as const;
 }
@@ -28,6 +29,7 @@ export function useIntentMutation(identity: AuthIdentity) {
       client.setQueryData([...intentIdentityKey(identity), 'intent', row.id], row);
       await client.invalidateQueries({ queryKey: ['relationships', identity.id] });
       await client.invalidateQueries({ queryKey: ['relationship-context', identity.id] });
+      await invalidateDashboard(client, identity);
     } });
 }
 export async function clearForbiddenIntents(client: QueryClient, identity: AuthIdentity | null) {
@@ -53,6 +55,6 @@ export function useIntentConversion(identity: AuthIdentity) {
       client.setQueryData([...intentIdentityKey(identity), 'intent', result.intent.id], result.intent);
       client.setQueryData([...processIdentityKey(identity), 'detail', result.process.id], result.process);
       await Promise.all([client.invalidateQueries({ queryKey: ['relationships', identity.id] }),
-        client.invalidateQueries({ queryKey: ['relationship-processes', identity.id] }), client.invalidateQueries({ queryKey: ['relationship-context', identity.id] })]);
+        client.invalidateQueries({ queryKey: ['relationship-processes', identity.id] }), client.invalidateQueries({ queryKey: ['relationship-context', identity.id] }), invalidateDashboard(client, identity)]);
     } });
 }

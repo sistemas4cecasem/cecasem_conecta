@@ -10,6 +10,12 @@ export class AuditService {
   recordReminderSettings(actorUserId: string, operationId: string, previousReminderIntervalDays: number, newReminderIntervalDays: number, tx: Prisma.TransactionClient) {
     return tx.auditEvent.create({ data: { action: 'REMINDER_INTERVAL_UPDATED', actorUserId, operationId, previousReminderIntervalDays, newReminderIntervalDays } });
   }
+  recordDataImport(batchId: string, actorUserId: string, tx: Prisma.TransactionClient) {
+    return tx.auditEvent.create({ data: { action: 'DATA_IMPORT_BATCH_APPLIED', dataImportBatchId: batchId, actorUserId, operationId: batchId } });
+  }
+  recordDataImportFailure(batchId: string, actorUserId: string, tx: Prisma.TransactionClient) {
+    return tx.auditEvent.create({ data: { action: 'DATA_IMPORT_BATCH_FAILED', dataImportBatchId: batchId, actorUserId, operationId: batchId } });
+  }
   recordMeeting(meetingEventId: string, actorUserId: string, tx: Prisma.TransactionClient) {
     return tx.auditEvent.create({ data: { action: 'MEETING_RECORDED', meetingEventId, actorUserId, operationId: meetingEventId } });
   }

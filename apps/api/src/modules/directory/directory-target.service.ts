@@ -11,6 +11,18 @@ export class UnavailableDirectoryTarget extends Error {}
 export class DirectoryTargetService {
   constructor(private readonly actors: DirectoryActorPolicy) {}
 
+  /** Proyecciones de lectura por lote para contextos transversales autorizados. */
+  async summaries(targets: InstitutionalTarget[], tx: Prisma.TransactionClient): Promise<Map<string, TargetSummary>> {
+    const organizationIds = [...new Set(targets.flatMap(target => target.organizationId ? [target.organizationId] : []))];
+    const personIds = [...new Set(targets.flatMap(target => target.personId ? [target.personId] : []))];
+    const organizations = organizationIds.length ? await tx.organization.findMany({ where: { id: { in: organizationIds } }, select: { id: true, name: true, isActive: true } }) : [];
+    const people = personIds.length ? await tx.person.findMany({ where: { id: { in: personIds } }, select: { id: true, displayName: true, isActive: true } }) : [];
+    return new Map<string, TargetSummary>([
+      ...organizations.map(row => ['ORGANIZATION:' + row.id, { kind: 'ORGANIZATION' as const, id: row.id, label: row.name, isActive: row.isActive }] as const),
+      ...people.map(row => ['PERSON:' + row.id, { kind: 'PERSON' as const, id: row.id, label: row.displayName, isActive: row.isActive }] as const),
+    ]);
+  }
+
   /** Organizaciones vigentes distintas, acotadas y sin los locks de validación de escritura. */
   async currentOrganizationContext(personId: string, limit: number, tx: Prisma.TransactionClient): Promise<{ items: TargetSummary[]; total: number }> {
     const where = { personRelations: { some: { personId, isCurrent: true } } };

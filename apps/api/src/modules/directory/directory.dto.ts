@@ -35,6 +35,13 @@ export class DirectoryQueryDto extends PageQueryDto {
   @ApiPropertyOptional({ format: 'uuid' }) @ValidateIf((_o, v) => v !== undefined) @IsUUID() parentId?: string;
 }
 export class OrganizationQueryDto extends DirectoryQueryDto {
+  @ApiPropertyOptional({ maxLength: 150, description: 'País completo, sin distinguir mayúsculas.' })
+  @Transform(trim) @ValidateIf((_o, v) => v !== undefined) @IsString() @Length(1, 150) country?: string;
+  @ApiPropertyOptional({ enum: ['CURRENT', 'REVIEW_DUE', 'NEVER_VERIFIED'] })
+  @ValidateIf((_o, v) => v !== undefined) @IsIn(['CURRENT', 'REVIEW_DUE', 'NEVER_VERIFIED']) verificationStatus?: 'CURRENT' | 'REVIEW_DUE' | 'NEVER_VERIFIED';
+  @ApiPropertyOptional({ description: 'Antecedentes externos enviados/recibidos, incluidas invalidaciones; excluye notas.' })
+  @Transform(({ value }: { value: unknown }) => value === 'true' ? true : value === 'false' ? false : value)
+  @ValidateIf((_o, v) => v !== undefined) @IsBoolean() withCommunications?: boolean;
   @ApiPropertyOptional({ format: 'uuid', description: 'Una categoría asociada; sin coincidencias devuelve una lista vacía.' })
   @ValidateIf((_o, v) => v !== undefined) @IsUUID() categoryId?: string;
 }

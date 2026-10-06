@@ -16,7 +16,8 @@ import type { DirectoryStatusDto, PageQueryDto } from './directory.dto';
 import type { PeopleQueryDto, PersonEditDto, PersonInputDto, RelationCreateDto, RelationEditDto, RelationEndDto, RelationsQueryDto } from './people.dto';
 
 const personSelect = { id:true, displayName:true, givenNames:true, familyNames:true, isActive:true, version:true,
-  duplicateOfId:true, duplicateOf:{select:{id:true,displayName:true}},consolidatedRecords:{select:{id:true,displayName:true}}, createdAt:true, updatedAt:true, lastVerifiedAt:true, _count:{select:{relations:{where:{isCurrent:true}}}} } satisfies Prisma.PersonSelect;
+  duplicateOfId:true, duplicateOf:{select:{id:true,displayName:true}},consolidatedRecords:{select:{id:true,displayName:true}}, createdAt:true, updatedAt:true, lastVerifiedAt:true,
+  dataImportBatchId:true, dataImportBatch:{select:{id:true,originalFilename:true,createdAt:true}}, _count:{select:{relations:{where:{isCurrent:true}}}} } satisfies Prisma.PersonSelect;
 const relationSelect = { reconciliationTargets:relationOrigins,id:true, personId:true, organizationId:true, positionTitle:true, area:true, isCurrent:true, startDate:true, endDate:true,
   sourceDescription:true, sourceUrl:true, notes:true, version:true, createdAt:true, updatedAt:true, lastVerifiedAt:true,
   person:{select:{id:true,displayName:true,isActive:true,duplicateOfId:true}}, organization:{select:{id:true,name:true,isActive:true,duplicateOfId:true}} } satisfies Prisma.PersonOrganizationRelationSelect;

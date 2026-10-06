@@ -28,6 +28,9 @@ type ProcessMutation = { kind: 'state'; input: ChangeProcessStateDto } | { kind:
 const mutationPermissions = { state: PERMISSIONS.PROCESS_STATE_CHANGE, close: PERMISSIONS.PROCESS_CLOSE, reopen: PERMISSIONS.PROCESS_REOPEN };
 const mutationEvents = { state: ProcessEventType.STATE_CHANGED, close: ProcessEventType.CLOSED, reopen: ProcessEventType.REOPENED };
 const mutationAudits = { state: AuditAction.PROCESS_STATE_CHANGED, close: AuditAction.PROCESS_CLOSED, reopen: AuditAction.PROCESS_REOPENED };
+export interface ProcessExportFilters {
+  state?: ProcessState | 'all'; createdByUserId?: string; organizationId?: string; personId?: string;
+}
 function publicUser(user: { id: string; givenNames: string; familyNames: string; isActive: boolean }): ProcessUserDto {
   return { id: user.id, displayName: [user.givenNames, user.familyNames].join(' '), isActive: user.isActive };
 }
@@ -112,6 +115,27 @@ export class RelationshipProcessesService {
       const items: RelationshipProcessDto[] = [];
       for (const row of rows) items.push(await this.contract(row, actor, tx));
       return { items, total: await tx.relationshipProcess.count({ where }), page: query.page, pageSize: query.pageSize };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+  }
+  /** Proyección de exportación: consulta solo campos institucionales, aplica el mismo filtro del listado y evita el armado N+1 de su contrato de pantalla. */
+  async exportPage(filters: ProcessExportFilters, page: number, pageSize: number, actorId: string) {
+    return this.prisma.$transaction(async tx => {
+      this.requirePermission(await this.users.findIdentityById(actorId, tx), PERMISSIONS.PROCESS_READ);
+      const where: Prisma.RelationshipProcessWhereInput = {
+        ...(filters.state && filters.state !== 'all' ? { state: filters.state } : {}),
+        ...(filters.createdByUserId ? { createdByUserId: filters.createdByUserId } : {}),
+        ...(filters.organizationId ? { organizationId: filters.organizationId } : {}),
+        ...(filters.personId ? { personId: filters.personId } : {}),
+      };
+      const items = await tx.relationshipProcess.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: (page - 1) * pageSize, take: pageSize,
+          select: { id: true, purpose: true, state: true, createdAt: true, lastActivityAt: true, currentResult: true, closedAt: true,
+            organization: { select: { id: true, name: true } }, person: { select: { id: true, displayName: true } },
+            createdBy: { select: { id: true, givenNames: true, familyNames: true } },
+            participants: { orderBy: [{ joinedAt: 'asc' }, { userId: 'asc' }], select: { joinedAt: true, origin: true,
+              user: { select: { id: true, givenNames: true, familyNames: true } } } },
+          } });
+      const total = await tx.relationshipProcess.count({ where });
+      return { items, total };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
   async get(id: string, actorId: string): Promise<ProcessDetailDto> {

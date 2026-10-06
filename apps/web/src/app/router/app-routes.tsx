@@ -31,7 +31,9 @@ import { ContactRestrictionDetailPage } from '../../features/relationships/conta
 import { SentCommunicationPage } from '../../features/communications/sent-communication-page';
 import { ReceivedCommunicationPage } from '../../features/communications/received-communication-page';
 import { CommunicationDetailPage } from '../../features/communications/communication-detail-page';
+import { ImportsPage } from '../../features/data-exchange/imports-page';
 const DirectorySearchPage = lazy(() => import('../../features/directory/search-page'));
+const ExportsPage = lazy(() => import('../../features/data-exchange/exports-page').then(module => ({ default: module.ExportsPage })));
 
 export function AppRoutes() {
   return (
@@ -53,6 +55,8 @@ export function AppRoutes() {
         <Route index element={<HomePage />} />
         <Route path="settings/reminders" element={<ReminderSettingsPage />} />
         <Route path="settings/verification" element={<VerificationSettingsPage />} />
+        <Route path="admin/imports" element={<ImportsPage />} />
+        <Route path="admin/exports" element={<Suspense fallback={<p role="status">Cargando exportación…</p>}><ExportsPage /></Suspense>} />
         <Route path="users" element={<UsersPage />} />
         <Route path="organizations" element={<OrganizationsPage />} />
         <Route path="directory/search" element={<Suspense fallback={<p role="status">Cargando búsqueda…</p>}><DirectorySearchPage /></Suspense>} />

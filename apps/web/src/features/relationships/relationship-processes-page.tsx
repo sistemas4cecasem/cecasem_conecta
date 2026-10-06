@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { useSession, type AuthIdentity } from '../auth/session';
 import { buttonClass, Field, inputClass, Pagination, QueryState } from '../directory/directory-ui';
 import { PROCESS_RESULT_LABELS, PROCESS_STATE_LABELS, type RelationshipProcess } from './process-contracts';
@@ -18,11 +18,15 @@ export function RelationshipProcessesPage() {
   return <ProcessesList key={processIdentityKey(identity).join(':')} identity={identity} />;
 }
 function ProcessesList({ identity }: { identity: AuthIdentity }) {
-  const [page, setPage] = useState(1), [state, setState] = useState('all');
+  const [params, setParams] = useSearchParams();
+  const [page, setPage] = useState(1);
+  const validStates = ['PREPARATION', 'IN_PROGRESS', 'WAITING_RESPONSE', 'NEGOTIATION', 'CLOSED'];
+  const requestedState = params.get('state') ?? 'all';
+  const state = requestedState === 'all' || validStates.includes(requestedState) ? requestedState : 'all';
   const list = useProcesses(identity, page, state);
   return <section className="min-w-0 w-full space-y-4"><h1 className="text-2xl font-semibold">Procesos de relación</h1>
     {identity.permissions.includes('relationships.process.create') && <Link className={buttonClass} to="/relationship-processes/new">Crear proceso</Link>}
-    <Field label="Estado de procesos"><select className={inputClass} value={state} onChange={e => { setState(e.target.value); setPage(1); }}><option value="all">Todos</option>
+    <Field label="Estado de procesos"><select className={inputClass} value={state} onChange={e => { const next = new URLSearchParams(params); if (e.target.value === 'all') next.delete('state'); else next.set('state', e.target.value); next.delete('page'); setParams(next); setPage(1); }}><option value="all">Todos</option>
       {Object.entries(PROCESS_STATE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field>
     <QueryState pending={list.isPending} error={list.isError} retry={list.refetch} />
     {list.data?.total === 0 && <p>No hay procesos para estos filtros.</p>}

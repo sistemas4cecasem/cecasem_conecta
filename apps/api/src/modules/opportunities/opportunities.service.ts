@@ -39,6 +39,9 @@ export interface OpportunityActivity {
   newStatus: OpportunityStatus;
   name: string;
 }
+export interface OpportunityExportFilters {
+  status?: OpportunityStatus | 'all'; organizationId?: string; processId?: string;
+}
 @Injectable()
 export class OpportunitiesService {
   constructor(private readonly prisma: PrismaService, private readonly users: UsersService, private readonly targets: DirectoryTargetService, private readonly processes: RelationshipProcessesService, private readonly communications: CommunicationsService, private readonly audit: AuditService) { }
@@ -112,6 +115,26 @@ export class OpportunitiesService {
         ...(query.processId ? { processId: query.processId } : {}), ...(query.communicationId ? { communicationId: query.communicationId } : {}) };
       const rows = await tx.opportunity.findMany({ where, select: opportunitySelect, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: (query.page - 1) * query.pageSize, take: query.pageSize });
       return { items: rows.map(row => this.contract(row, actor)), total: await tx.opportunity.count({ where }), page: query.page, pageSize: query.pageSize };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+  }
+  /** Proyección institucional para exportar; excluye detalles de comunicación y adjuntos. */
+  async exportPage(filters: OpportunityExportFilters, page: number, pageSize: number, actorId: string) {
+    return this.prisma.$transaction(async tx => {
+      this.authorize(await this.users.findIdentityById(actorId, tx), PERMISSIONS.OPPORTUNITY_READ);
+      const where: Prisma.OpportunityWhereInput = {
+        ...(filters.status && filters.status !== 'all' ? { status: filters.status } : {}),
+        ...(filters.organizationId ? { organizations: { some: { organizationId: filters.organizationId } } } : {}),
+        ...(filters.processId ? { processId: filters.processId } : {}),
+      };
+      const items = await tx.opportunity.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: (page - 1) * pageSize, take: pageSize,
+          select: { id: true, name: true, description: true, url: true, deadline: true, requirements: true, status: true,
+            discardReason: true, finalResult: true, createdAt: true, updatedAt: true,
+            createdBy: { select: { id: true, givenNames: true, familyNames: true } },
+            organizations: { orderBy: { organizationId: 'asc' }, select: { organization: { select: { id: true, name: true } } } },
+            process: { select: { id: true, purpose: true } }, communication: { select: { id: true } },
+          } });
+      const total = await tx.opportunity.count({ where });
+      return { items, total };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
   async get(id: string, actorId: string): Promise<OpportunityDto> {

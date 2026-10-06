@@ -142,7 +142,7 @@ export class ContactsService {
   }
   async condition(id:string,input:ContactConditionDto,actorId:string) {
     return this.prisma.$transaction(async tx=>{
-      await this.authorize(actorId,PERMISSIONS.DIRECTORY_STATUS_UPDATE,tx);await this.lockMethod(id,tx);
+      await this.authorize(actorId,PERMISSIONS.DIRECTORY_WRITE,tx);await this.lockMethod(id,tx);
       const current=await this.method(id,tx);assertVersion(current.version,input.expectedVersion);
       if(current.condition===input.condition)return methodContract(current);
       await tx.contactMethod.update({where:{id},data:{condition:input.condition,version:{increment:1}}});
@@ -195,7 +195,7 @@ export class ContactsService {
     return this.prisma.$transaction(async tx=>{await this.authorize(actorId,PERMISSIONS.DIRECTORY_WRITE,tx);const current=await this.lockedAssociation(kind,id,tx);assertVersion(current.version,input.expectedVersion);return this.setAssociationState(kind,id,current,false,actorId,AuditAction.CONTACT_ASSOCIATION_ENDED,tx);});
   }
   async status(kind:AssociationKind,id:string,input:DirectoryStatusDto,actorId:string) {
-    return this.prisma.$transaction(async tx=>{await this.authorize(actorId,PERMISSIONS.DIRECTORY_STATUS_UPDATE,tx);const current=await this.lockedAssociation(kind,id,tx);assertVersion(current.version,input.expectedVersion);return this.setAssociationState(kind,id,current,input.isActive,actorId,AuditAction.CONTACT_ASSOCIATION_STATUS_CHANGED,tx);});
+    return this.prisma.$transaction(async tx=>{await this.authorize(actorId,PERMISSIONS.DIRECTORY_WRITE,tx);const current=await this.lockedAssociation(kind,id,tx);assertVersion(current.version,input.expectedVersion);return this.setAssociationState(kind,id,current,input.isActive,actorId,AuditAction.CONTACT_ASSOCIATION_STATUS_CHANGED,tx);});
   }
   async replace(kind:AssociationKind,id:string,input:ContactReplacementDto,actorId:string) {
     if(!input.confirmed)throw new DirectoryError('INVALID_CONTACT_REPLACEMENT');const context=contactContext(input);

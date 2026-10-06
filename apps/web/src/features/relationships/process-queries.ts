@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { apiRequest } from '../../lib/api/client';
 import { AUTH_QUERY_KEY, type AuthIdentity } from '../auth/session';
 import { processDetailSchema, processEventsPageSchema, processesPageSchema } from './process-contracts';
+import { invalidateDashboard } from '../home/dashboard-queries';
 export function processIdentityKey(identity: AuthIdentity) {
   return ['relationship-processes', identity.id, identity.role, identity.permissions.filter(p => p.startsWith('relationships.process.')).sort().join(',')] as const;
 }
@@ -29,6 +30,8 @@ export function useProcessMutation(identity: AuthIdentity) {
       await client.invalidateQueries({ queryKey: ['relationship-processes', identity.id] });
       await client.invalidateQueries({ queryKey: ['relationship-context', identity.id] });
       await client.invalidateQueries({ queryKey: ['relationship-timeline', identity.id] });
+      await client.invalidateQueries({ queryKey: ['directory', identity.id, 'search'] });
+      await invalidateDashboard(client, identity);
     } });
 }
 export async function clearForbiddenProcesses(client: QueryClient, identity: AuthIdentity | null) {

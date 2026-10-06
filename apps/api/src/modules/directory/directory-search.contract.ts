@@ -1,4 +1,7 @@
+import type { OrganizationFilters } from './organization-filter.service';
 export interface DirectorySearchQuery {
+  organizationFilters?: OrganizationFilters;
+  actorId?: string;
   q: string;
   page: number;
   pageSize: number;

@@ -22,6 +22,7 @@ export function PersonDetailPage() {
     reload={async()=>{const response=await detail.refetch();if(!response.isSuccess)return;setEditing(response.data);return response.data;}}/></section>;
   return <section className="min-w-0 space-y-6 break-words"><Link className="inline-flex min-h-11 underline" to="/people">Volver a personas</Link>
     <h1 className="text-2xl font-semibold">{row.displayName}</h1><p>Estado: {row.isActive?'Activa':'Inactiva'}</p>
+    {row.dataImportBatch&&<p role="status" className="rounded border p-3">Dato importado desde Excel · pendiente de verificación · lote {row.dataImportBatch.id} · {row.dataImportBatch.originalFilename}</p>}
     <RelationshipContextPanel identity={identity} target={{kind:'PERSON',id:row.id,label:row.displayName}} />
     {row.duplicateOf&&<p role="status" className="rounded border border-amber-500 p-3">Este registro fue consolidado en: <Link className="underline" to={'/people/'+row.duplicateOf.id}>{row.duplicateOf.displayName}</Link>. Su historial permanece disponible.</p>}
     {!!row.consolidatedRecords?.length&&<p>Fichas consolidadas: {row.consolidatedRecords.map(item=><Link key={item.id} className="inline-flex min-h-11 items-center px-2 underline" to={'/people/'+item.id}>{item.displayName}</Link>)}</p>}

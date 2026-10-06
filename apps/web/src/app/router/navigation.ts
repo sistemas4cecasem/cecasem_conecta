@@ -16,6 +16,8 @@ export const AUTHENTICATED_NAVIGATION: readonly NavigationItem[] = [
   { label: 'Restricciones', to: '/contact-restrictions', requiredPermission: 'relationships.restriction.read' },
   { label: 'Recordatorios', to: '/settings/reminders', requiredPermission: 'settings.reminders.update' },
   { label: 'Verificación', to: '/settings/verification', requiredPermission: 'settings.verification.update' },
+  { label: 'Importar Excel', to: '/admin/imports', requiredPermission: 'data_exchange.import.execute' },
+  { label: 'Exportar Excel', to: '/admin/exports' },
   { label: 'Usuarios', to: '/users', requiredPermission: 'users.read' },
 ];
 

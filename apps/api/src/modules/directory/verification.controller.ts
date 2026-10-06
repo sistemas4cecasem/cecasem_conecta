@@ -62,3 +62,14 @@ export class OrganizationContactVerificationController {
   @Get(':id/verifications') @Header('Cache-Control', 'no-store') @RequirePermissions(PERMISSIONS.DIRECTORY_HISTORY_READ)
   history(@Param('id', new ParseUUIDPipe()) id: string, @Query() query: PageQueryDto) { return this.verification.history('organizationContact', id, query); }
 }
+
+@ApiTags('directory-verification') @ApiCookieAuth('cecasem_session') @UseFilters(DirectoryErrorFilter) @Controller('imported-history')
+export class ImportedHistoryVerificationController {
+  constructor(private readonly verification: VerificationService) {}
+  @Get(':id/verification') @Header('Cache-Control', 'no-store') @RequirePermissions(PERMISSIONS.DIRECTORY_READ)
+  status(@Param('id', new ParseUUIDPipe()) id: string) { return this.verification.status('importedHistory', id); }
+  @Post(':id/verify') @RequirePermissions(PERMISSIONS.DIRECTORY_VERIFY)
+  verify(@Param('id', new ParseUUIDPipe()) id: string, @Body() body: VerifyDto, @Req() request: AuthenticatedRequest) { return this.verification.verify('importedHistory', id, body, request.authenticatedUser.id); }
+  @Get(':id/verifications') @Header('Cache-Control', 'no-store') @RequirePermissions(PERMISSIONS.DIRECTORY_HISTORY_READ)
+  history(@Param('id', new ParseUUIDPipe()) id: string, @Query() query: PageQueryDto) { return this.verification.history('importedHistory', id, query); }
+}

@@ -1,9 +1,23 @@
+import { Prisma } from '../../generated/prisma/client';
+export type VerificationStatus = 'NEVER_VERIFIED' | 'REVIEW_DUE' | 'CURRENT';
+
+/** Última verificación, versión y meses calendario UTC; equivalente a verificationCondition. */
+export function organizationVerificationPredicate(status: VerificationStatus, id: Prisma.Sql, version: Prisma.Sql, months: number, now: Date): Prisma.Sql {
+  const latest = Prisma.sql`SELECT v."verifiedAt", v."objectVersion" FROM "Verification" v
+    WHERE v."organizationId" = ${id} ORDER BY v."verifiedAt" DESC, v.id DESC LIMIT 1`;
+  if (status === 'NEVER_VERIFIED') return Prisma.sql`NOT EXISTS (${latest})`;
+  const due = Prisma.sql`v."objectVersion" <> ${version} OR
+    ((v."verifiedAt" AT TIME ZONE 'UTC') + make_interval(months => ${months}::int)) <= (${now}::timestamptz AT TIME ZONE 'UTC')`;
+  return Prisma.sql`EXISTS (SELECT 1 FROM (${latest}) v WHERE ${status === 'REVIEW_DUE' ? due : Prisma.sql`NOT (${due})`})`;
+}
+
 export const verificationTargets = {
   organization: { table: 'Organization', column: 'organizationId', classification: 'institutional' },
   person: { table: 'Person', column: 'personId', classification: 'personal' },
   relation: { table: 'PersonOrganizationRelation', column: 'personRelationId', classification: 'personal' },
   personContact: { table: 'PersonContact', column: 'personContactId', classification: 'personal' },
   organizationContact: { table: 'OrganizationContact', column: 'organizationContactId', classification: 'institutional' },
+  importedHistory: { table: 'ImportedHistoricalRecord', column: 'importedHistoryId', classification: 'institutional' },
 } as const;
 export type VerificationKind = keyof typeof verificationTargets;
 export function addCalendarMonths(at: Date, months: number): Date {

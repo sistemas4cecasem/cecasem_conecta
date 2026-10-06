@@ -13,7 +13,7 @@ export function DirectoryTargetPicker({ identity, selected, onSelect, organizati
   const ready = validSearchQuery(q) && settled === q;
   const path = 'search?' + new URLSearchParams({ q, page: String(page), pageSize: '25', includeInactive: String(!!referralKind) });
   const results = useQuery({ queryKey: ['directory', identity.id, 'target-picker', path], enabled: ready && identity.permissions.includes('directory.read'),
-    queryFn: async ({ signal }) => searchResponseSchema.parse(await apiRequest(path, { signal })), retry: false });
+    queryFn: async ({ signal }) => searchResponseSchema.pick({ organizations: true, people: true }).parse(await apiRequest(path, { signal })), retry: false });
   const data = ready ? results.data : undefined;
   const organizations = referralKind === 'PERSON' ? [] : data?.organizations.items.filter(row => !row.duplicateOf && (referralKind || row.isActive)) ?? [];
   const people = referralKind === 'ORGANIZATION' ? [] : data?.people.items.filter(row => !row.duplicateOf && (referralKind === 'PERSON' || (row.isActive && row.currentRelationsTotal === 0))) ?? [];

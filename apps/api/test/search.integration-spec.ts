@@ -21,6 +21,13 @@ import { DuplicateDetectionService } from '../src/modules/directory/duplicate-de
 import { ConsolidationService } from '../src/modules/directory/consolidation.service';
 import type { SearchQueryDto } from '../src/modules/search/search.dto';
 import type { SearchService } from '../src/modules/search/search.service';
+import { RelationshipProcessesService } from '../src/modules/relationships/relationship-processes.service';
+import { RelationshipSearchService } from '../src/modules/relationships/relationship-search.service';
+import { CommunicationsService } from '../src/modules/communications/communications.service';
+import { CommunicationAmendmentsService } from '../src/modules/communications/communication-amendments.service';
+import { CommunicationSearchService } from '../src/modules/communications/communication-search.service';
+import * as authorization from '../src/modules/auth/authorization/role-permissions';
+import { Client } from 'pg';
 type SearchResponse = Awaited<ReturnType<SearchService['search']>>;
 
 const databaseUrl = validateDatabaseUrl(process.env.DATABASE_URL);
@@ -29,7 +36,7 @@ describe('Búsqueda del directorio PostgreSQL/HTTP', () => {
   let app: INestApplication<Server>, prisma: PrismaService, users: UsersService, directory: DirectoryService,
     people: PeopleService, contacts: ContactsService, queries: DirectorySearchService, hash: string;
   const password = randomBytes(24).toString('base64url');
-  const userIds: string[] = [], orgIds: string[] = [], personIds: string[] = [], methodIds: string[] = [];
+  const userIds: string[] = [], orgIds: string[] = [], personIds: string[] = [], methodIds: string[] = [], accountIds: string[] = [];
   beforeAll(async () => {
     const module = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(ConfigService)
       .useValue(new ConfigService(validateEnvironment({ NODE_ENV: 'test', DATABASE_URL: databaseUrl }))).compile();
@@ -45,6 +52,12 @@ describe('Búsqueda del directorio PostgreSQL/HTTP', () => {
       prisma.duplicateReconciliation.deleteMany({ where: { candidateId: { in: candidates.map(row => row.id) } } }),
       prisma.verification.deleteMany({ where: { actorUserId: { in: userIds } } }),
       prisma.auditEvent.deleteMany({ where: { actorUserId: { in: userIds } } }),
+      prisma.communicationAmendment.deleteMany({ where: { communication: { registeredByUserId: { in: userIds } } } }),
+      prisma.communicationRecipient.deleteMany({ where: { communication: { registeredByUserId: { in: userIds } } } }),
+      prisma.communication.deleteMany({ where: { registeredByUserId: { in: userIds } } }),
+      prisma.relationshipProcessEvent.deleteMany({ where: { process: { createdByUserId: { in: userIds } } } }),
+      prisma.processParticipant.deleteMany({ where: { process: { createdByUserId: { in: userIds } } } }),
+      prisma.relationshipProcess.deleteMany({ where: { createdByUserId: { in: userIds } } }),
       prisma.directoryChange.deleteMany({ where: { actorUserId: { in: userIds } } }),
       prisma.duplicateCandidate.deleteMany({ where: pairs }),
       prisma.personContact.deleteMany({ where: { personId: { in: personIds } } }),
@@ -55,8 +68,11 @@ describe('Búsqueda del directorio PostgreSQL/HTTP', () => {
       prisma.person.deleteMany({ where: { id: { in: personIds } } }),
       prisma.organization.updateMany({ where: { id: { in: orgIds } }, data: { duplicateOfId: null, parentId: null } }),
       prisma.organization.deleteMany({ where: { id: { in: orgIds } } }),
-      prisma.userSession.deleteMany({ where: { userId: { in: userIds } } }), prisma.user.deleteMany({ where: { id: { in: userIds } } }),
-    ]); userIds.length = orgIds.length = personIds.length = methodIds.length = 0;
+      prisma.userSession.deleteMany({ where: { userId: { in: userIds } } }),
+      prisma.userEmailAccount.deleteMany({ where: { userId: { in: userIds } } }),
+      prisma.emailAccount.deleteMany({ where: { id: { in: accountIds } } }),
+      prisma.user.deleteMany({ where: { id: { in: userIds } } }),
+    ]); userIds.length = orgIds.length = personIds.length = methodIds.length = accountIds.length = 0;
   });
   afterAll(async () => { await app.close(); });
   async function user(role: UserRole = UserRole.ADMINISTRATOR) {
@@ -76,6 +92,14 @@ describe('Búsqueda del directorio PostgreSQL/HTTP', () => {
   }
   function query(q: string, overrides: Partial<SearchQueryDto> = {}): SearchQueryDto { return { q, page: 1, pageSize: 25, includeInactive: false, ...overrides }; }
   function http(cookie: string, values: object) { return request(app.getHttpServer()).get('/api/v1/search').set('Cookie', cookie).query(values); }
+  async function process(actorId: string, purpose = 'Cooperación búsqueda global', personal = false) {
+    const target = personal ? { personId: (await person(actorId)).id } : { organizationId: (await org(actorId)).id };
+    return app.get(RelationshipProcessesService).create({ ...target, purpose }, actorId);
+  }
+  async function incoming(processId: string, actorId: string, address = 'Historico+Red@Example.test', date = '2025-01-01T12:00:00.000Z', cc: string[] = []) {
+    return app.get(CommunicationsService).registerReceived(processId, { sender: address, to: ['cecasem@example.test'], cc, bcc: [],
+      subject: 'Antecedente búsqueda', body: 'Original privado que no debe salir en búsqueda', receivedAt: date }, actorId, randomUUID());
+  }
   it('requiere sesión', async () => { await request(app.getHttpServer()).get('/api/v1/search?q=esperanza').expect(401); });
   it('rechaza identidad sin directory.read antes de consultar datos', async () => {
     const actor = await user();
@@ -194,5 +218,94 @@ describe('Búsqueda del directorio PostgreSQL/HTTP', () => {
     const indices = await prisma.$queryRaw<{ indexdef: string }[]>`SELECT indexdef FROM pg_indexes WHERE schemaname='public' AND indexname='ContactMethod_email_unique'`;
     expect(indices[0].indexdef).toContain('UNIQUE'); expect(indices[0].indexdef).toContain('normalizedValue'); expect(indices[0].indexdef).toContain('EMAIL');
     const extensions = await prisma.$queryRaw<{ extname: string }[]>`SELECT extname FROM pg_extension WHERE extname IN ('unaccent','pg_trgm')`; expect(extensions).toEqual([]);
+  });
+  it.each(Object.values(UserRole))('%s encuentra procesos y correo histórico sin ContactMethod', async role => {
+    const owner = await user(), reader = await user(role), row = await process(owner.id), communication = await incoming(row.id, owner.id);
+    const result = (await http(reader.cookie, { q: 'cooperacion busqueda' }).expect(200)).body as SearchResponse;
+    expect(result.processes?.items).toEqual([{ type: 'PROCESS', id: row.id, purpose: row.purpose, state: row.state, target: row.target }]);
+    const response = await http(reader.cookie, { q: ' HISTORICO+RED@EXAMPLE.TEST ' }).expect(200);
+    expect(response.headers['cache-control']).toBe('no-store'); const body = response.body as SearchResponse;
+    expect(body.email).toBeNull(); expect(body.emailHistory).toMatchObject({ total: 1, address: 'historico+red@example.test',
+      lastValidContact: { id: communication.id, matchedAddress: 'Historico+Red@Example.test', occurredAt: '2025-01-01T12:00:00.000Z',
+        direction: 'RECEIVED', registeredBy: { id: owner.id, displayName: 'QA Búsqueda' }, process: { id: row.id, state: row.state, target: row.target } } });
+    const payload = JSON.stringify(body); for (const privateField of ['bodyOriginal', 'requestFingerprint', 'passwordHash', 'normalizedAddress', 'Original privado']) expect(payload).not.toContain(privateField);
+  });
+  it('un correo del directorio sin comunicación no acredita contacto', async () => {
+    const owner = await user(), method = await email(owner.id);
+    const result = (await http(owner.cookie, { q: method.value }).expect(200)).body as SearchResponse;
+    expect(result.email?.id).toBe(method.id); expect(result.emailHistory).toMatchObject({ items: [], total: 0, lastValidContact: null });
+  });
+  it('conserva invalidados, selecciona contacto válido por fecha real y no por registro o actividad', async () => {
+    const owner = await user(), registrar = await user(UserRole.RESEARCH), row = await process(owner.id);
+    const valid = await incoming(row.id, owner.id, 'Historico+Red@Example.test', '2025-03-01T12:00:00.000Z');
+    await incoming(row.id, registrar.id, 'Historico+Red@Example.test', '2024-01-01T12:00:00.000Z');
+    const invalid = await incoming(row.id, registrar.id, 'Historico+Red@Example.test', '2025-04-01T12:00:00.000Z');
+    await app.get(CommunicationAmendmentsService).create(invalid.id, 'INVALIDATION', 'Registro equivocado para QA', owner.id, randomUUID());
+    await app.get(RelationshipProcessesService).close(row.id, { expectedVersion: (await app.get(RelationshipProcessesService).get(row.id, owner.id)).version, result: 'ACHIEVED' }, owner.id);
+    const before = await prisma.communication.findUniqueOrThrow({ where: { id: valid.id } });
+    const body = (await http(owner.cookie, { q: 'historico+red@example.test', pageSize: 1, page: 2 }).expect(200)).body as SearchResponse;
+    expect(body.emailHistory?.total).toBe(3); expect(body.emailHistory?.items).toHaveLength(1);
+    expect(body.emailHistory?.lastValidContact).toMatchObject({ id: valid.id, occurredAt: '2025-03-01T12:00:00.000Z', registeredBy: { id: owner.id }, process: { state: 'CLOSED' } });
+    const first = (await http(owner.cookie, { q: 'historico+red@example.test', pageSize: 1 }).expect(200)).body as SearchResponse;
+    expect(first.emailHistory?.items[0]).toMatchObject({ id: invalid.id, validity: 'INVALIDATED', registeredBy: { id: registrar.id } });
+    expect(await prisma.communication.findUniqueOrThrow({ where: { id: valid.id } })).toEqual(before);
+  });
+  it('solo invalidados siguen visibles sin último contacto válido', async () => {
+    const owner = await user(), row = await process(owner.id, 'Proceso personal', true), event = await incoming(row.id, owner.id);
+    await app.get(CommunicationAmendmentsService).create(event.id, 'INVALIDATION', 'Antecedente inválido QA', owner.id, randomUUID());
+    const history = (await http(owner.cookie, { q: 'historico+red@example.test' }).expect(200)).body as SearchResponse;
+    expect(history.emailHistory).toMatchObject({ total: 1, lastValidContact: null, items: [{ validity: 'INVALIDATED', process: { target: { kind: 'PERSON' } } }] });
+  });
+  it('busca destinatarios To/CC/BCC, deduplica coincidencias y conserva sufijos', async () => {
+    const owner = await user(), row = await process(owner.id);
+    await app.get(CommunicationsService).registerReceived(row.id, { sender: 'ExternO@Example.test', to: ['to@example.test'], cc: ['cc@example.test'],
+      bcc: ['BCC+Tag@Example.test', 'ExternO@Example.test'], subject: 'Original', body: 'Cuerpo privado', receivedAt: '2025-01-01T12:00:00.000Z' }, owner.id, randomUUID());
+    for (const address of ['externo@example.test', 'to@example.test', 'cc@example.test', 'bcc+tag@example.test']) {
+      const result = (await http(owner.cookie, { q: address }).expect(200)).body as SearchResponse;
+      expect(result.emailHistory?.total).toBe(1); expect(result.emailHistory?.items).toHaveLength(1);
+    }
+    expect(((await http(owner.cookie, { q: 'bcc@example.test' }).expect(200)).body as SearchResponse).emailHistory?.total).toBe(0);
+  });
+  it('salida real y registrador desactivado conservan antecedente histórico', async () => {
+    const owner = await user(), reader = await user(UserRole.PLANNING), row = await process(owner.id);
+    const account = await users.createEmailAccount({ address: 'cecasem.' + randomUUID() + '@example.test', displayName: 'Buzón QA' }); accountIds.push(account.id);
+    await users.assignEmailAccount(owner.id, account.id);
+    const sent = await app.get(CommunicationsService).registerSent(row.id, { emailAccountId: account.id, to: ['Historico+Red@Example.test'], cc: [], bcc: [],
+      subject: 'Salida histórica', body: 'Cuerpo original', sentAt: '2025-02-01T12:00:00.000Z' }, owner.id, randomUUID());
+    await prisma.user.update({ where: { id: owner.id }, data: { isActive: false, deactivatedAt: new Date() } });
+    const result = (await http(reader.cookie, { q: 'historico+red@example.test' }).expect(200)).body as SearchResponse;
+    expect(result.emailHistory?.lastValidContact).toMatchObject({ id: sent.id, direction: 'SENT', occurredAt: '2025-02-01T12:00:00.000Z', registeredBy: { id: owner.id, isActive: false } });
+    await http(owner.cookie, { q: 'historico+red@example.test' }).expect(401);
+  });
+  it('procesos mantienen ranking normalizado, desempate y páginas sin duplicar cerrados', async () => {
+    const owner = await user(), rows = [];
+    for (const purpose of ['Cooperación', 'Cooperación exterior', 'Nueva cooperación']) rows.push(await process(owner.id, purpose));
+    const first = (await http(owner.cookie, { q: 'cooperacion', pageSize: 2 }).expect(200)).body as SearchResponse;
+    const second = (await http(owner.cookie, { q: 'cooperacion', pageSize: 2, page: 2 }).expect(200)).body as SearchResponse;
+    expect(first.processes?.total).toBe(3); expect([...first.processes!.items, ...second.processes!.items].map(item => item.id)).toEqual(rows.map(row => row.id));
+    expect(((await http(owner.cookie, { q: "cooperacion%' OR 1=1 --" }).expect(200)).body as SearchResponse).processes?.total).toBe(0);
+  });
+  it.each([['directory.read'], ['directory.read', 'relationships.process.read']])('no permite bypass con permisos restringidos %j', async (...permissions) => {
+    const owner = await user(), row = await process(owner.id); await incoming(row.id, owner.id);
+    jest.spyOn(authorization, 'hasPermission').mockImplementation((_role, permission) => permissions.includes(permission));
+    const body = (await http(owner.cookie, { q: 'historico+red@example.test' }).expect(200)).body as SearchResponse;
+    expect(body.emailHistory).toBeNull();
+    if (!permissions.includes('relationships.process.read')) expect(body.processes).toBeNull();
+    await expect(app.get(CommunicationSearchService).history({ address: 'historico+red@example.test', page: 1, pageSize: 25 }, owner.id)).rejects.toThrow();
+  });
+  it('proyecta procesos y antecedentes por lotes con cantidad constante de SELECT', async () => {
+    const owner = await user(); const firstProcess = await process(owner.id, 'Carga búsqueda global'); await incoming(firstProcess.id, owner.id);
+    const calls = jest.spyOn(Client.prototype, 'query');
+    const queryText = (query: unknown) => typeof query === 'string' ? query : query && typeof query === 'object' && 'text' in query ? String(query.text) : '';
+    const count = () => calls.mock.calls.filter(([query]) => /SELECT/i.test(queryText(query))).length;
+    const read = async () => {
+      await app.get(RelationshipSearchService).search({ name: 'carga busqueda', page: 1, pageSize: 50 }, owner.id);
+      await app.get(CommunicationSearchService).history({ address: 'historico+red@example.test', page: 1, pageSize: 50 }, owner.id);
+    };
+    await read(); const baseline = count();
+    for (let index = 0; index < 10; index++) { const row = await process(owner.id, 'Carga búsqueda global ' + index); await incoming(row.id, owner.id); }
+    calls.mockClear(); await read(); expect(count()).toBe(baseline); expect(baseline).toBeLessThan(25);
+    const body = (await http(owner.cookie, { q: 'historico+red@example.test', pageSize: 3 }).expect(200)).body as SearchResponse;
+    expect(body.emailHistory?.total).toBe(11); expect(body.emailHistory?.items).toHaveLength(3);
   });
 });
