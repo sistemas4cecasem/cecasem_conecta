@@ -96,6 +96,17 @@ export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'cr
       const messages: Record<string, string> = { VERSION_CONFLICT: 'La oportunidad cambió. Conserva tu borrador, recarga y revisa antes de confirmar.', REQUEST_CONFLICT: 'Esta solicitud ya creó otra oportunidad. Revisa el registro antes de continuar.', INVALID_OPPORTUNITY_TRANSITION: 'El cambio de estado no está permitido.', INVALID_OPPORTUNITY_ORIGIN: 'El origen no existe o la comunicación no pertenece al proceso indicado.', OPPORTUNITY_ORGANIZATION_UNAVAILABLE: 'Selecciona organizaciones activas sin consolidar.', INVALID_OPPORTUNITY: 'Revisa el nombre, la fecha, las organizaciones y los campos de la oportunidad.' };
       if (typeof payload === 'object' && payload !== null && 'code' in payload && typeof payload.code === 'string' && Object.hasOwn(messages, payload.code)) throw new ApiError(messages[payload.code]!, response.status, payload.code);
     }
+    if (/^data-exchange\/imports(?:\/|\?|$)/.test(path)) {
+      const payload: unknown = await response.clone().json().catch(() => null);
+      const messages: Record<string, string> = {
+        ROW_ERRORS: 'Resuelve las coincidencias pendientes o vuelve a analizar el archivo antes de confirmar.',
+        BATCH_ALREADY_IMPORTED: 'Este lote ya se confirmó. Consulta el resultado para verificar las filas aplicadas.',
+        BATCH_NOT_APPLICABLE: 'Este lote no tiene filas válidas para importar.',
+      };
+      if (typeof payload === 'object' && payload !== null && 'code' in payload && typeof payload.code === 'string' && Object.hasOwn(messages, payload.code)) {
+        throw new ApiError(messages[payload.code]!, response.status, payload.code);
+      }
+    }
     if (response.status === 409 && (path.startsWith('communications/') || /relationship-processes\/[^/]+\/communications/.test(path))) {
       const payload: unknown = await response.clone().json().catch(() => null);
       const messages: Record<string, string> = { MAILBOX_UNAVAILABLE: 'La cuenta ya no está habilitada y asignada a tu usuario. Recarga tus cuentas disponibles.',

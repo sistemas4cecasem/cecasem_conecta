@@ -21,10 +21,10 @@ const page = (items: unknown[], total = items.length, number = 1) => ({ items, t
 
 describe('Directorio operativo', () => {
   let client = createQueryClient(); let current = identity; let row = { ...base };
-  let listState = 'ok'; let conflicting = false; let total = 1; let withCategories = true; let loggedOut = false; let showHistory = false;
+  let listState = 'ok'; let conflicting = false; let detailStatus = 200; let total = 1; let withCategories = true; let loggedOut = false; let showHistory = false;
   const fetchMock = vi.fn<(url: string, options?: RequestInit) => Promise<Response>>();
   beforeEach(() => {
-    client = createQueryClient(); current = { ...identity }; row = { ...base }; listState = 'ok'; conflicting = false; total = 1; withCategories = true; loggedOut = false; showHistory = false;
+    client = createQueryClient(); current = { ...identity }; row = { ...base }; listState = 'ok'; conflicting = false; detailStatus = 200; total = 1; withCategories = true; loggedOut = false; showHistory = false;
     fetchMock.mockReset();
     fetchMock.mockImplementation((url, options) => {
       const path = url.replace('/api/v1/', '');
@@ -50,7 +50,11 @@ describe('Directorio operativo', () => {
         const input = JSON.parse(String(options?.body)) as { name: string; description: string };
         row = { ...row, ...input, version: row.version + 1 }; return Promise.resolve(Response.json(row));
       }
-      if (path === 'organizations/org') return Promise.resolve(Response.json(row));
+      if (path === 'organizations/org/status' && method === 'PATCH') {
+        const input = JSON.parse(String(options?.body)) as { isActive: boolean; expectedVersion: number };
+        row = { ...row, isActive: input.isActive, version: row.version + 1 }; return Promise.resolve(Response.json(row));
+      }
+      if (path === 'organizations/org') return Promise.resolve(detailStatus === 404 ? Response.json({ code: 'NOT_FOUND', stack: 'internal detail' }, { status: 404 }) : Response.json(row));
       if (path.startsWith('organizations?')) {
         if (listState === 'pending') return new Promise<Response>(() => undefined);
         if (listState === 'error') return Promise.resolve(new Response(null, { status: 500 }));
@@ -66,7 +70,7 @@ describe('Directorio operativo', () => {
   }
   it('capability permite navegación y edición; estado reservado no aparece', async () => {
     app('/organizations/org'); await screen.findByRole('heading', { name: 'Institución QA' });
-    expect(screen.getByRole('link', { name: 'Directorio' })).toHaveAttribute('href', '/organizations');
+    expect(screen.getAllByRole('link', { name: 'Directorio' }).every(link => link.getAttribute('href') === '/organizations')).toBe(true);
     expect(screen.getByRole('button', { name: 'Editar ficha' })).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Desactivar organización' })).not.toBeInTheDocument();
     expect(screen.getByText('Sin verificar')).toBeVisible();
@@ -74,6 +78,24 @@ describe('Directorio operativo', () => {
   it('Admin recibe cambio de estado por capability', async () => {
     current = { ...identity, role: 'ADMINISTRATOR', permissions: [...capabilities, 'directory.status.update'] };
     app('/organizations/org'); expect(await screen.findByRole('button', { name: 'Desactivar organización' })).toBeVisible();
+  });
+  it('explica y confirma la desactivación de organización antes de escribir', async () => {
+    current = { ...identity, role: 'ADMINISTRATOR', permissions: [...capabilities, 'directory.status.update'] };
+    const user = userEvent.setup(); app('/organizations/org');
+    await user.click(await screen.findByRole('button', { name: 'Desactivar organización' }));
+    expect(screen.getByText(/Sus datos y gestiones históricas se conservarán/)).toBeVisible();
+    expect(fetchMock.mock.calls.some(([url, options]) => url.endsWith('/status') && options?.method === 'PATCH')).toBe(false);
+    await user.click(screen.getByRole('button', { name: 'Confirmar desactivación' }));
+    await screen.findByRole('button', { name: 'Reactivar organización' });
+    const call = fetchMock.mock.calls.find(([url, options]) => url.endsWith('/status') && options?.method === 'PATCH');
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ isActive: false, expectedVersion: 1 });
+  });
+  it('404 de ficha explica el problema y ofrece volver al directorio', async () => {
+    detailStatus = 404; app('/organizations/org');
+    expect(await screen.findByRole('alert')).toHaveTextContent('No se encontró la información solicitada.');
+    expect(screen.getByRole('link', { name: 'Volver al directorio' })).toHaveAttribute('href', '/organizations');
+    expect(screen.getByRole('button', { name: 'Reintentar' })).toBeVisible();
+    expect(screen.queryByText(/internal detail/)).not.toBeInTheDocument();
   });
   it('sin capability no consulta ni muestra navegación', async () => {
     current = { ...identity, permissions: [] }; app();

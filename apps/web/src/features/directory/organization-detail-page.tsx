@@ -14,13 +14,17 @@ import { ContactSection } from './contact-section';
 export function OrganizationDetailPage() {
   const { id = '' } = useParams(); const session = useSession(); const identity = session.data;
   const detail = useOrganization(identity, id); const mutation = useDirectoryMutation(identity);
-  const [editing, setEditing] = useState<Organization | null>(null); const [page, setPage] = useState(1);
+  const [editing, setEditing] = useState<Organization | null>(null); const [page, setPage] = useState(1); const [confirmStatusChange, setConfirmStatusChange] = useState(false);
   const children = useOrganizations(identity, `organizations/${id}/children?status=all&page=${page}`);
   if (!identity?.permissions.includes('directory.read')) return <p role="alert">No tienes permiso para consultar el directorio.</p>;
-  if (!detail.data) return <QueryState pending={detail.isPending} error={detail.isError} retry={detail.refetch} />;
+  if (!detail.data) return <section className="space-y-4"><Link className="inline-flex min-h-11 items-center underline" to="/organizations">Volver al directorio</Link>
+    <QueryState pending={detail.isPending} error={detail.isError} failure={detail.error} retry={detail.refetch} /></section>;
   const row = detail.data;
   async function changeStatus() {
-    try { organizationSchema.parse(await mutation.mutateAsync({ path: 'organizations/' + id + '/status', method: 'PATCH', body: { isActive: !row.isActive, expectedVersion: row.version } })); } catch { /* Mostrar error. */ }
+    try {
+      organizationSchema.parse(await mutation.mutateAsync({ path: 'organizations/' + id + '/status', method: 'PATCH', body: { isActive: !row.isActive, expectedVersion: row.version } }));
+      setConfirmStatusChange(false);
+    } catch { /* Mostrar error y conservar la confirmación. */ }
   }
   if (editing) return <section className="space-y-4"><h1 className="text-2xl font-semibold">Editar organización</h1>
     <OrganizationForm identity={identity} initial={editing} saved={() => setEditing(null)} cancel={() => setEditing(null)}
@@ -39,8 +43,13 @@ export function OrganizationDetailPage() {
     <DuplicatePanel key={'duplicates-'+id} identity={identity} actorPath={'organizations/'+id}/>
     <div className="flex flex-wrap gap-3">
       {!row.duplicateOfId && identity.permissions.includes('directory.write') && <button className={buttonClass} onClick={() => setEditing(row)}>Editar ficha</button>}
-      {!row.duplicateOfId && identity.permissions.includes('directory.status.update') && <button disabled={mutation.isPending} className={buttonClass} onClick={() => void changeStatus()}>{row.isActive ? 'Desactivar organización' : 'Reactivar organización'}</button>}
+      {!row.duplicateOfId && identity.permissions.includes('directory.status.update') && <button disabled={mutation.isPending} className={buttonClass} onClick={() => { mutation.reset(); setConfirmStatusChange(true); }}>{row.isActive ? 'Desactivar organización' : 'Reactivar organización'}</button>}
     </div>
+    {!row.duplicateOfId && identity.permissions.includes('directory.status.update') && confirmStatusChange && <div role="group" aria-label={row.isActive ? 'Confirmar desactivación de organización' : 'Confirmar reactivación de organización'} className="space-y-2 rounded border border-amber-600 p-3">
+      <p>{row.isActive ? 'La ficha quedará inactiva. Sus datos y gestiones históricas se conservarán; podrás reactivarla después.' : 'La ficha volverá a estar activa para nuevas gestiones. Su historial se conservará.'}</p>
+      <div className="flex flex-wrap gap-3"><button disabled={mutation.isPending || !!mutation.error} className={buttonClass} onClick={() => void changeStatus()}>{mutation.isPending ? 'Actualizando…' : row.isActive ? 'Confirmar desactivación' : 'Confirmar reactivación'}</button>
+        <button disabled={mutation.isPending} className={buttonClass} onClick={() => setConfirmStatusChange(false)}>Volver sin cambiar estado</button></div>
+    </div>}
     <MutationError error={mutation.error} reload={async () => { await detail.refetch(); mutation.reset(); }} />
     <dl className="grid gap-3 sm:grid-cols-2">
       {[['País', row.country], ['Sigla/nombre alternativo', row.alias], ['Descripción', row.description],

@@ -11,6 +11,7 @@
     "test:unit": "yarn prisma:generate && NODE_OPTIONS=--experimental-vm-modules jest --runInBand src",
     "test:e2e": "yarn prisma:generate && NODE_OPTIONS=--experimental-vm-modules jest --runInBand --testPathPatterns=e2e-spec",
     "bootstrap:admin": "yarn build && node dist/bootstrap-admin.js",
+    "demo:prepare": "node ../../scripts/demo/prepare-demo.mjs",
     "test:integration": "yarn prisma:generate && NODE_OPTIONS=--experimental-vm-modules jest --runInBand --config jest.integration.config.mjs",
     "start": "yarn prisma:generate && nest start",
     "start:prod": "NODE_ENV=production node dist/main.js",

@@ -9,20 +9,21 @@ import { ImportsPage } from './imports-page';
 
 const batchId = '11111111-1111-4111-8111-111111111111';
 const admin: AuthIdentity = { id: 'admin', email: 'admin@example.test', givenNames: 'A', familyNames: 'Admin', username: 'admin', role: 'ADMINISTRATOR', permissions: ['data_exchange.import.execute'] };
+type PreviewMatch = { field?: string; kind: string; id: string; label: string; score: number | null };
 const preview = { id: batchId, originalFilename: 'historial.xlsx', worksheetName: 'Historial', recordKind: 'ORGANIZATION', status: 'ANALYZED', analyzedRows: 1, readyRows: 1, reviewRows: 0, invalidRows: 0, importedRows: 0, page: 1, pageSize: 50,
-  rows: [{ rowNumber: 2, status: 'READY', sourceValues: { Nombre: 'Fundación Esperanza' }, normalizedValues: { name: 'Fundación Esperanza' }, errors: [], warnings: [], matches: [] }] };
+  rows: [{ rowNumber: 2, status: 'READY', sourceValues: { Nombre: 'Fundación Esperanza' }, normalizedValues: { name: 'Fundación Esperanza' }, errors: [], warnings: [], matches: [] as PreviewMatch[] }] };
 
 describe('Importación Excel en el navegador', () => {
-  let client = createQueryClient(); let identity: AuthIdentity | null = admin; let confirmed = false;
+  let client = createQueryClient(); let identity: AuthIdentity | null = admin; let confirmed = false; let confirmConflict = false; let currentPreview = preview;
   const fetchMock = vi.fn<(url: string, options?: RequestInit) => Promise<Response>>();
   beforeEach(() => {
-    client = createQueryClient(); client.setQueryDefaults(AUTH_QUERY_KEY, { staleTime: Infinity }); client.setQueryData(AUTH_QUERY_KEY, admin); identity = admin; confirmed = false;
+    client = createQueryClient(); client.setQueryDefaults(AUTH_QUERY_KEY, { staleTime: Infinity }); client.setQueryData(AUTH_QUERY_KEY, admin); identity = admin; confirmed = false; confirmConflict = false; currentPreview = preview;
     fetchMock.mockReset().mockImplementation((url) => {
       if (url.endsWith('/auth/me')) return Promise.resolve(Response.json(identity));
       if (url.includes('/data-exchange/imports?page=')) return Promise.resolve(Response.json({ items: [], total: 0, page: 1, pageSize: 25 }));
       if (url.endsWith('/data-exchange/imports/inspect')) return Promise.resolve(Response.json({ sheets: [{ name: 'Historial', rowCount: 2, columnCount: 2, sample: [{ rowNumber: 1, cells: [{ column: 1, value: 'Nombre', cellType: 'TEXT' }, { column: 2, value: 'País', cellType: 'TEXT' }] }] }] }));
-      if (url.endsWith('/data-exchange/imports/preview')) return Promise.resolve(Response.json(preview));
-      if (url.endsWith(`/data-exchange/imports/${batchId}/confirm`)) { confirmed = true; return Promise.resolve(Response.json({ status: 'IMPORTED' })); }
+      if (url.endsWith('/data-exchange/imports/preview')) return Promise.resolve(Response.json(currentPreview));
+      if (url.endsWith(`/data-exchange/imports/${batchId}/confirm`)) { if (confirmConflict) return Promise.resolve(Response.json({ code: 'ROW_ERRORS' }, { status: 409 })); confirmed = true; return Promise.resolve(Response.json({ status: 'IMPORTED' })); }
       if (url.endsWith(`/data-exchange/imports/${batchId}?page=1&pageSize=50`)) return Promise.resolve(Response.json({ ...preview, status: confirmed ? 'IMPORTED' : 'ANALYZED', importedRows: confirmed ? 1 : 0,
         rows: confirmed ? [{ ...preview.rows[0], status: 'IMPORTED' }] : preview.rows }));
       return Promise.resolve(new Response(null, { status: 404 }));
@@ -57,5 +58,32 @@ describe('Importación Excel en el navegador', () => {
     await screen.findByText(/1 filas aplicadas/);
     expect(confirmed).toBe(true);
     expect(fetchMock.mock.calls.find(([url]) => String(url).endsWith('/preview'))?.[1]?.body).toBeInstanceOf(FormData);
+  });
+  it('explica coincidencias potenciales, localiza campos y bloquea confirmación hasta decidir', async () => {
+    currentPreview = { ...preview, readyRows: 0, reviewRows: 1, rows: [{ ...preview.rows[0]!, status: 'NEEDS_REVIEW', matches: [{ field: 'organizationName', kind: 'POSSIBLE', id: 'org-existing', label: 'Fundación Esperanza Comunitaria', score: 0.95 }] }] };
+    const user = userEvent.setup(); view();
+    const file = new File(['xlsx fixture'], 'historial.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    await user.upload(screen.getByLabelText('Archivo XLSX'), file); await user.click(screen.getByRole('button', { name: 'Inspeccionar archivo' }));
+    await screen.findByLabelText('Nombre de organización (obligatorio)'); await user.selectOptions(screen.getByLabelText('Nombre de organización (obligatorio)'), '1');
+    await user.click(screen.getByRole('button', { name: 'Analizar y crear preview' })); await screen.findByRole('heading', { name: 'Revisión previa a importar' });
+    expect(screen.getByLabelText('Decisión para Organización')).toBeInTheDocument();
+    expect(screen.getByText('Fila 2 · Revisión')).toBeInTheDocument();
+    expect(screen.getByText(/Las filas en «Revisión» contienen advertencias o coincidencias/u)).toBeVisible();
+    expect(screen.getByRole('status')).toHaveTextContent('Resuelve 1 coincidencia pendiente');
+    const confirm = screen.getByRole('button', { name: 'Confirmar y escribir datos' }); expect(confirm).toBeDisabled();
+    await user.selectOptions(screen.getByLabelText('Decisión para Organización'), 'org-existing');
+    expect(confirm).toBeEnabled();
+  });
+  it('un conflicto al confirmar el lote explica cómo resolverlo sin exponer el cuerpo técnico', async () => {
+    currentPreview = { ...preview, readyRows: 0, reviewRows: 1, rows: [{ ...preview.rows[0]!, status: 'NEEDS_REVIEW', matches: [{ field: 'organizationName', kind: 'POSSIBLE', id: 'org-existing', label: 'Fundación Esperanza Comunitaria', score: 0.95 }] }] };
+    confirmConflict = true; const user = userEvent.setup(); view();
+    const file = new File(['xlsx fixture'], 'historial.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    await user.upload(screen.getByLabelText('Archivo XLSX'), file); await user.click(screen.getByRole('button', { name: 'Inspeccionar archivo' }));
+    await screen.findByLabelText('Nombre de organización (obligatorio)'); await user.selectOptions(screen.getByLabelText('Nombre de organización (obligatorio)'), '1');
+    await user.click(screen.getByRole('button', { name: 'Analizar y crear preview' })); await screen.findByRole('heading', { name: 'Revisión previa a importar' });
+    await user.selectOptions(screen.getByLabelText('Decisión para Organización'), 'CREATE_NEW');
+    vi.stubGlobal('confirm', vi.fn(() => true)); await user.click(screen.getByRole('button', { name: 'Confirmar y escribir datos' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Resuelve las coincidencias pendientes o vuelve a analizar el archivo antes de confirmar.');
+    expect(screen.queryByText(/detalle interno/)).not.toBeInTheDocument(); expect(confirmed).toBe(false);
   });
 });

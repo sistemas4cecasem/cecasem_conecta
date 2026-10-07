@@ -1,10 +1,14 @@
 # CECASEM Conecta
 
-Base técnica de Fase 0: monorepo Yarn, API NestJS, React/Vite y PostgreSQL/Prisma.
-Incluye el modelo interno de usuarios y cuentas de correo de Subfase 1.1 y la
-autenticación por contraseña/sesión de Subfase 1.2 y primer acceso de Subfase 1.3.
-Incluye restablecimiento administrativo y auditoría mínima de Subfase 1.4.
-No incluye RBAC funcional ni administración completa de usuarios.
+CECASEM Conecta centraliza el directorio institucional, procesos de relación,
+comunicaciones registradas, oportunidades, reuniones, importaciones, archivos y
+su historial de auditoría. Usa un monorepo Yarn con API NestJS, web React/Vite y
+PostgreSQL/Prisma.
+
+La Fase 6 consolidó integración, QA y validación local. La instalación física y
+la operación permanente en LAN o VPS corresponden a Fase 7.
+
+La [guía Docker](docs/subfase-6.5-docker-produccion-lan.md) documenta el stack reproducible para validación local y su configuración para una futura operación LAN; la instalación física y operación quedan para Fase 7.
 
 La ruta `/` requiere sesión y `/login` permite iniciar sesión. Las cuentas nuevas
 conservan `passwordHash=null` hasta completar `/first-access` con una credencial
@@ -32,12 +36,14 @@ Compose. Sus contraseñas son ejemplos compartidos, no credenciales de producci�
 | Variable | Uso |
 | --- | --- |
 | `WEB_PORT` | Único puerto publicado; ejemplo `8080` |
+| `WEB_BIND_ADDRESS` | Interfaz de publicación; `127.0.0.1` local o `0.0.0.0` para LAN |
 | `APP_PORT` | Puerto interno API, también configurado en Nginx; ejemplo `3000` |
 | `POSTGRES_DB` | Nombre de la base de aplicación |
 | `POSTGRES_USER` | Cuenta de aplicación, distinta de `postgres` |
 | `POSTGRES_PASSWORD` | Contraseña de esa cuenta |
 | `POSTGRES_ADMIN_PASSWORD` | Contraseña diferente para el usuario administrador `postgres` |
 | `DATABASE_URL` | URL de aplicación; debe coincidir con las variables DB y usar `db:5432` |
+| `SESSION_COOKIE_SECURE` | Selección obligatoria: `false` solo para HTTP de prueba; `true` detrás de HTTPS |
 
 Codifica los caracteres especiales del usuario/contraseña de `DATABASE_URL`
 como componentes URL. Las variables DB conservan los valores originales.
@@ -45,14 +51,16 @@ No uses `localhost` como host de base dentro de Compose. Las variables se inyect
 en runtime; no se copian archivos `.env` ni se incorporan secretos al build.
 `apps/api/.env.example` corresponde a ejecución local sin Docker;
 `apps/web/.env.example` documenta el proxy Vite de desarrollo.
+Los archivos `.env` antiguos deben declarar explícitamente `SESSION_COOKIE_SECURE`;
+producción usa `infra/production/.env` y no reutiliza la configuración local.
 
 ## Construir y levantar
 
 ```sh
-docker compose config --quiet
-docker compose build
-docker compose up -d --wait --wait-timeout 120
-docker compose ps
+docker compose --project-name cecasem_conecta --env-file .env -f docker-compose.yml config --quiet
+docker compose --project-name cecasem_conecta --env-file .env -f docker-compose.yml build
+docker compose --project-name cecasem_conecta --env-file .env -f docker-compose.yml up -d --wait --wait-timeout 120
+docker compose --project-name cecasem_conecta --env-file .env -f docker-compose.yml ps
 ```
 
 Abre `http://localhost:8080` o el puerto configurado. Solo Web publica un puerto;
@@ -70,21 +78,23 @@ dependencias de producción; Web final contiene Nginx y el build estático.
 ## Salud, logs y parada
 
 ```sh
-docker compose ps
-docker compose logs --tail 100 web api db
-docker compose stop db
-docker compose up -d db
-docker compose down
+docker compose --project-name cecasem_conecta --env-file .env -f docker-compose.yml ps
+docker compose --project-name cecasem_conecta --env-file .env -f docker-compose.yml logs --tail 100 web api db
+docker compose --project-name cecasem_conecta --env-file .env -f docker-compose.yml stop db
+docker compose --project-name cecasem_conecta --env-file .env -f docker-compose.yml up -d db
+docker compose --project-name cecasem_conecta --env-file .env -f docker-compose.yml down
 ```
 
 `GET /` devuelve la SPA. `GET /api/v1/health` desde el mismo origen devuelve
 `{"status":"ok","database":"ok"}` con HTTP 200 cuando PostgreSQL responde.
 Si DB cae, devuelve 503 y el healthcheck API pasa a `unhealthy`; la API puede
-recuperarse cuando DB vuelve. El healthcheck Web verifica que Nginx responde,
-no la salud de DB. PostgreSQL usa `pg_isready` y API espera a DB saludable.
+recuperarse cuando DB vuelve. El healthcheck Web consulta esa ruta a través de
+Nginx, por lo que representa la salud del recorrido completo. PostgreSQL usa
+`pg_isready` y API espera a DB saludable.
 
-Usa `docker compose up -d --wait --wait-timeout 120` para comprobar nuevamente
-el conjunto tras restaurar DB. No se usan pausas arbitrarias para readiness.
+Usa `up -d --wait --wait-timeout 120` con el proyecto y archivo explícitos para
+comprobar nuevamente el conjunto tras restaurar DB. No se usan pausas arbitrarias
+para readiness.
 `docker compose config` sin `--quiet` puede mostrar credenciales interpoladas:
 no compartas esa salida. Los logs de aplicación no deben imprimirlas.
 
@@ -104,14 +114,14 @@ explícita en PostgreSQL, conservando los datos.
 
 ## Migraciones de despliegue
 
-Existe la primera migración funcional de identidades, documentada en
-`apps/api/README.md`. No se ejecutan migraciones automáticamente al iniciar API.
-Antes de desplegar el nuevo build, prepara DB y ejecuta el comando manual:
+Las migraciones Prisma versionadas están en `apps/api/prisma/migrations`. No se
+ejecutan automáticamente al iniciar API. Antes de desplegar una versión, prepara
+DB y ejecuta el comando manual:
 
 ```sh
-docker compose up -d --wait db
-docker compose -f docker-compose.yml -f infra/compose.migrations.yml run --build --rm api yarn workspace @cecasem-conecta/api prisma:migrate:deploy
-docker compose up -d --wait --wait-timeout 120
+docker compose --project-name cecasem_conecta --env-file infra/production/.env -f docker-compose.yml up -d --wait db
+docker compose --project-name cecasem_conecta --env-file infra/production/.env -f docker-compose.yml -f infra/compose.migrations.yml run --build --rm api yarn workspace @cecasem-conecta/api prisma:migrate:deploy
+docker compose --project-name cecasem_conecta --env-file infra/production/.env -f docker-compose.yml up -d --wait --wait-timeout 120
 ```
 
 El override usa la etapa de build, que contiene Prisma CLI, con la misma conexión
@@ -138,12 +148,12 @@ Para probar persistencia sin entidades de negocio, compara el identificador del
 cluster antes y después de `down`/`up`:
 
 ```sh
-docker compose exec -T db psql -U postgres -d postgres -Atc "SELECT system_identifier FROM pg_control_system()"
+docker compose --project-name cecasem_conecta --env-file infra/production/.env -f docker-compose.yml exec -T db psql -U postgres -d postgres -Atc "SELECT system_identifier FROM pg_control_system()"
 ```
 
 Ante fallos, revisa `ps` y logs del servicio afectado. Si faltan variables, Compose
 lo indicará antes de crear contenedores. Si el puerto Web está ocupado, cambia
 `WEB_PORT`. Si API no conecta, revisa coherencia de credenciales y hostname `db`.
-Si recreas API por separado, reinicia Web para que Nginx vuelva a resolver su
-dirección interna. Si Docker Desktop falla, diagnostica el daemon antes de continuar;
+Nginx consulta el DNS interno de Docker para actualizar la dirección del API;
+recrear API no requiere reiniciar Web. Si Docker Desktop falla, diagnostica el daemon antes de continuar;
 no uses restablecimiento de fábrica ni limpieza global como solución automática.

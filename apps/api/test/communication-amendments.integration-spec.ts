@@ -119,6 +119,14 @@ describe('Correcciones e invalidación PostgreSQL/HTTP', () => {
     for (const method of ['patch', 'delete'] as const) await request(app.getHttpServer())[method]('/api/v1/communications/' + row.id + '/amendments/' + correction.id).set('Cookie', f.owner.cookie).send({ content: 'Editar' }).expect(404);
     expect(await communications().get(row.id, f.owner.id)).toEqual(original);
   });
+  it('el cuerpo original rechaza DML ordinario y las correcciones/invalidaciones siguen siendo aditivas', async () => {
+    const f = await fixture(), row = await incoming(f.process.id, f.owner.id, 1);
+    await expect(prisma.communication.update({ where: { id: row.id }, data: { bodyOriginal: 'Cuerpo sobrescrito' } })).rejects.toThrow();
+    await expect(prisma.$executeRaw`UPDATE "Communication" SET "bodyOriginal" = ${'Cuerpo sobrescrito por SQL'} WHERE id = ${row.id}::uuid`).rejects.toThrow();
+    await amend(row.id, f.owner.id, 'CORRECTION', 'Corrección explicativa');
+    await amend(row.id, f.owner.id, 'INVALIDATION', 'Invalidación explicativa');
+    expect(await communications().get(row.id, f.owner.id)).toMatchObject({ bodyOriginal: row.bodyOriginal, validity: 'INVALIDATED' });
+  });
   it('timeline conserva original invalidado y acciones posteriores; contexto usa solo válida y ninguna cuando todas se invalidan', async () => {
     const f = await fixture(), first = await incoming(f.process.id, f.owner.id, 1), second = await incoming(f.process.id, f.owner.id, 2);
     await amend(first.id, f.owner.id, 'CORRECTION'); await amend(first.id, f.owner.id, 'ANNOTATION'); await amend(first.id, f.owner.id, 'INVALIDATION');

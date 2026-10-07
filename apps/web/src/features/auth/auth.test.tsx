@@ -134,11 +134,25 @@ describe('Autenticación completa en interfaz', () => {
     fetchMock.mockResolvedValueOnce(Response.json({ ...identity, role,
       permissions: role === 'ADMINISTRATOR' ? ['auth.first_access.issue', 'auth.password_reset.issue', 'users.read'] : role === 'BOARD' ? ['users.read'] : [] }));
     renderApp('/');
-    const navigation = await screen.findByRole('navigation', { name: 'Navegación principal' });
+    const navigations = await screen.findAllByRole('navigation', { name: 'Navegación principal' });
+    const navigation = navigations[0]!;
     expect(within(navigation).getAllByRole('link')).toHaveLength(role === 'ADMINISTRATOR' || role === 'BOARD' ? 3 : 2);
     expect(within(navigation).getByRole('link', { name: 'Inicio' })).toHaveAttribute('href', '/');
     expect(within(navigation).getByRole('link', { name: 'Exportar Excel' })).toHaveAttribute('href', '/admin/exports');
     expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible();
+  });
+  it('el menú móvil se abre y se cierra y conserva la ruta activa', async () => {
+    const user = userEvent.setup();
+    authenticated = true;
+    renderApp('/');
+    const summary = await screen.findByText('Menú principal');
+    const disclosure = summary.closest('details');
+    expect(disclosure).not.toHaveAttribute('open');
+    await user.click(summary);
+    expect(disclosure).toHaveAttribute('open');
+    expect(within(disclosure!).getByRole('link', { name: 'Inicio' })).toHaveAttribute('aria-current', 'page');
+    await user.click(summary);
+    expect(disclosure).not.toHaveAttribute('open');
   });
   it('actualiza rol y capabilities al refrescar me sin volver a iniciar sesión', async () => {
     let role = 'ADMINISTRATOR';

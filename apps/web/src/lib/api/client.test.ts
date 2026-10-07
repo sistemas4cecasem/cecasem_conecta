@@ -36,6 +36,12 @@ describe('Cliente API', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('detalle interno', { status })));
     await expect(apiRequest('health')).rejects.toMatchObject({ name: 'ApiError', status, message: expect.not.stringContaining('detalle interno') });
   });
+  it('traduce conflictos de importación a una instrucción accionable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ code: 'ROW_ERRORS', message: 'detalle interno' }, { status: 409 })));
+    await expect(apiRequest('data-exchange/imports/fixture/confirm', { method: 'POST' })).rejects.toMatchObject({
+      code: 'ROW_ERRORS', status: 409, message: 'Resuelve las coincidencias pendientes o vuelve a analizar el archivo antes de confirmar.',
+    });
+  });
 
   it('representa un fallo de red con un mensaje utilizable', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));

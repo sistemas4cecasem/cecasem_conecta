@@ -14,6 +14,8 @@
     "build": "yarn workspaces foreach --all --exclude cecasem-conecta --verbose run build",
     "lint": "yarn workspaces foreach --all --exclude cecasem-conecta --verbose run lint",
     "typecheck": "yarn workspaces foreach --all --exclude cecasem-conecta --verbose run typecheck",
-    "test": "yarn workspaces foreach --all --exclude cecasem-conecta --verbose run test"
+    "test": "yarn workspaces foreach --all --exclude cecasem-conecta --verbose run test",
+    "demo:prepare": "yarn workspace @cecasem-conecta/api demo:prepare",
+    "demo:test": "node --test scripts/demo/prepare-demo.spec.mjs"
   }
 }

@@ -137,6 +137,7 @@ describe('Contexto institucional previo', () => {
     row.target = { kind: 'PERSON', id: personId, label: 'María QA', isActive: true }; row.relatedOrganizationContext = { items: [org], total: 1 }; panel();
     const section = await screen.findByRole('region', { name: 'Contexto de organizaciones vinculadas' });
     expect(screen.getAllByRole('link', { name: 'Cooperación institucional' })).toHaveLength(1); expect(within(section).getByRole('link', { name: 'Fundación QA' })).toBeVisible();
+    expect(within(section).getByText(/Última actividad formal:/)).toBeVisible();
     expect(screen.getByText(/no demuestra contacto con esta persona/)).toBeVisible(); expect(reads()[0]?.[0]).toContain('personId=' + personId);
     expect(screen.getAllByRole('link', { name: 'Respuesta registrada' })).toHaveLength(1);
     expect(screen.getByRole('region', { name: 'Comunicaciones registradas de María QA' })).toHaveTextContent('No hay comunicaciones válidas registradas en CECASEM Conecta.');

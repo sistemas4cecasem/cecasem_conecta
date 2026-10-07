@@ -66,8 +66,8 @@ describe('Procesos de relación frontend', () => {
   });
   function writes() { return fetchMock.mock.calls.filter(([, options]) => options?.method === 'POST'); }
   it('listado muestra contexto institucional y navegación', async () => {
-    view(); expect(await screen.findByRole('link', { name: 'Propuesta de cooperación' })).toBeVisible(); expect(screen.getByRole('link', { name: 'Procesos' })).toBeVisible();
-    expect(screen.getByText('Creador: Ana Prueba')).toBeVisible(); expect(screen.getByText('Estado: En preparación')).toBeVisible(); expect(screen.getByText(/Última actividad:/)).toBeVisible();
+    view(); expect(await screen.findByRole('link', { name: 'Propuesta de cooperación' })).toBeVisible(); expect(screen.getAllByRole('link', { name: 'Procesos' }).length).toBeGreaterThan(0);
+    expect(screen.getByText('Creador: Ana Prueba')).toBeVisible(); expect(screen.getByText('Estado: En preparación')).toBeVisible(); expect(screen.getByText(/Última actividad formal:/)).toBeVisible();
   });
   it('estado filtra y reinicia página, paginación cambia solicitud', async () => {
     total = 30; view(); await screen.findByText('Página 1 de 2 · 30 registros'); await userEvent.click(screen.getByRole('button', { name: 'Siguiente' }));

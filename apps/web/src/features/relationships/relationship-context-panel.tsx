@@ -72,7 +72,7 @@ function Limited({ items, total }: { items: number; total: number }) { return to
 function ProcessList({ context, closed }: { context: ActorContext; closed: boolean }) {
   const processes = closed ? context.recentClosedProcesses : context.activeProcesses;
   return <><ul className="space-y-2">{processes.items.map(process => <li key={process.id}><Link className="underline whitespace-pre-wrap" to={'/relationship-processes/' + process.id}>{process.purpose}</Link>
-    <p>{PROCESS_STATE_LABELS[process.state]} · Creador: {process.createdBy.displayName}{!process.createdBy.isActive && ' (cuenta inactiva)'} · Creación: {date(process.createdAt)} · Última actividad: {date(process.lastActivityAt)}</p>
+    <p>{PROCESS_STATE_LABELS[process.state]} · Creador: {process.createdBy.displayName}{!process.createdBy.isActive && ' (cuenta inactiva)'} · Creación: {date(process.createdAt)} · Última actividad formal: {date(process.lastActivityAt)}</p>
     {closed && <p>Resultado: {process.result ? PROCESS_RESULT_LABELS[process.result] : 'Sin resultado'} · Cierre: {process.closedAt ? date(process.closedAt) : 'Sin fecha'}</p>}
   </li>)}</ul><Limited items={processes.items.length} total={processes.total} /></>;
 }

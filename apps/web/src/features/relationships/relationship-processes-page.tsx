@@ -8,7 +8,7 @@ export function ProcessContext({ process }: { process: RelationshipProcess }) {
   const date = (value: string) => new Date(value).toLocaleString('es-BO');
   return <div className="space-y-1"><p>Actor principal: <Link className="underline" to={'/' + (process.target.kind === 'ORGANIZATION' ? 'organizations/' : 'people/') + process.target.id}>{process.target.label}</Link>{!process.target.isActive && ' (inactivo)'}</p>
     <p>Creador: {process.createdBy.displayName}{!process.createdBy.isActive && ' (cuenta inactiva)'}</p><p>Estado: {PROCESS_STATE_LABELS[process.state]}</p>
-    <p>Creación: {date(process.createdAt)}</p><p>Última actividad: {date(process.lastActivityAt)}</p>
+    <p>Creación: {date(process.createdAt)}</p><p>Última actividad formal: {date(process.lastActivityAt)}</p>
     {process.currentResult && <div><p>Resultado: {PROCESS_RESULT_LABELS[process.currentResult]}</p><p>Cerrado por {process.closedBy?.displayName} · {date(process.closedAt!)}</p>{process.closureObservation && <p className="whitespace-pre-wrap break-words">{process.closureObservation}</p>}</div>}
     {process.sourceIntentId && <Link className="underline" to={'/contact-intents/' + process.sourceIntentId}>Consultar intención de origen</Link>}</div>;
 }

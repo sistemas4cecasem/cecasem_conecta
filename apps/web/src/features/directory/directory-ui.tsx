@@ -6,9 +6,9 @@ export const buttonClass = 'min-h-11 rounded border border-slate-500 px-3 py-2 d
 export function Field({ label, children, error }: { label: string; children: ReactNode; error?: string }) {
   return <label className="block min-w-0">{label}{children}{error && <span role="alert" className="block text-sm text-red-800">{error}</span>}</label>;
 }
-export function QueryState({ pending, error, retry }: { pending: boolean; error: boolean; retry: () => unknown }) {
+export function QueryState({ pending, error, failure, retry }: { pending: boolean; error: boolean; failure?: unknown; retry: () => unknown }) {
   if (pending) return <p role="status">Cargando…</p>;
-  if (error) return <div><p role="alert">No se pudo cargar la información.</p><button className={buttonClass} onClick={() => void retry()}>Reintentar</button></div>;
+  if (error) return <div><p role="alert">{failure instanceof ApiError ? failure.message : 'No se pudo cargar la información.'}</p><button className={buttonClass} onClick={() => void retry()}>Reintentar</button></div>;
   return null;
 }
 export function Pagination({ page, total, pageSize = 25, onPage }: { page: number; total: number; pageSize?: number; onPage: (page: number) => void }) {

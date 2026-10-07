@@ -1,0 +1,9 @@
+name: cecasem-demo
+
+services:
+  db:
+    ports:
+      - '127.0.0.1:${DEMO_DB_PORT:-55437}:5432'
+  web:
+    ports: !override
+      - '127.0.0.1:${DEMO_WEB_PORT:-8087}:80'

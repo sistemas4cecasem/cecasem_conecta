@@ -67,7 +67,7 @@ describe('Administración de usuarios y permisos', () => {
   });
   it('Board consulta únicamente activos, sin controles administrativos', async () => {
     current = { ...current, role: 'BOARD', permissions: ['users.read'] }; app(); await card('Diego Prueba');
-    expect(screen.getByRole('link', { name: 'Usuarios' })).toHaveAttribute('href', '/users');
+    expect(screen.getAllByRole('link', { name: 'Usuarios' }).every(link => link.getAttribute('href') === '/users')).toBe(true);
     expect(screen.queryByRole('form', { name: 'Crear usuario' })).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
     for (const name of ['Desactivar','Gestionar buzones','Generar primer acceso','Iniciar restablecimiento']) expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
@@ -131,8 +131,10 @@ describe('Administración de usuarios y permisos', () => {
     rows = [{ ...established, ...identity, credentialStatus: 'ESTABLISHED' }]; const user = userEvent.setup(); app(); const row = await card('Ana Admin');
     client.setQueryData(['private'], { private: true });
     await user.click(row.getByRole('button', { name: 'Desactivar' }));
+    expect(row.getByText(/perderá acceso a CECASEM Conecta/)).toBeVisible();
+    expect(row.getByText(/permanecerán en el historial/)).toBeVisible();
     expect(fetchMock.mock.calls.some(([url]) => url.endsWith('/deactivate'))).toBe(false);
-    await user.click(row.getByRole('button', { name: 'Confirmar' }));
+    await user.click(row.getByRole('button', { name: 'Confirmar desactivación' }));
     expect(await screen.findByRole('heading', { name: 'Iniciar sesión' })).toBeVisible(); expect(client.getQueryData(['private'])).toBeUndefined();
   });
   it('registra catálogo y asigna/retira/reasigna buzón', async () => {

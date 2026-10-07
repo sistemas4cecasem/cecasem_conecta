@@ -14,10 +14,10 @@ const org={id:'org-a',name:'Organización A',country:null,alias:null,description
 const episode:PersonRelation={id:'episode-a',personId:base.id,organizationId:org.id,positionTitle:'Coordinadora',area:null,isCurrent:true,startDate:null,endDate:null,sourceDescription:null,sourceUrl:null,notes:null,version:1,createdAt:stamp,updatedAt:stamp,person:{id:base.id,displayName:base.displayName,isActive:true},organization:{id:org.id,name:org.name,isActive:true}};
 const page=(items:unknown[],total=items.length)=>({items,total,page:1,pageSize:25});
 describe('Personas y episodios institucionales en UI',()=>{
-  let client=createQueryClient(),actor=identity,row={...base},relations:PersonRelation[]=[],state='ok',total=1,conflicting=false,loggedOut=false;
+  let client=createQueryClient(),actor=identity,row={...base},relations:PersonRelation[]=[],state='ok',detailStatus=200,total=1,conflicting=false,loggedOut=false;
   const fetchMock=vi.fn<(url:string,options?:RequestInit)=>Promise<Response>>();
   beforeEach(()=>{
-    client=createQueryClient();actor={...identity};row={...base};relations=[];state='ok';total=1;conflicting=false;loggedOut=false;fetchMock.mockReset();
+    client=createQueryClient();actor={...identity};row={...base};relations=[];state='ok';detailStatus=200;total=1;conflicting=false;loggedOut=false;fetchMock.mockReset();
     fetchMock.mockImplementation((url,options)=>{
       const path=url.replace('/api/v1/',''),method=options?.method??'GET';
       if (url.includes('/duplicate-candidates?')) return Promise.resolve(Response.json({items:[],total:0,page:1,pageSize:25}));
@@ -40,7 +40,10 @@ describe('Personas y episodios institucionales en UI',()=>{
         if(conflicting)return Promise.resolve(Response.json({code:'VERSION_CONFLICT'},{status:409}));
         row={...row,...JSON.parse(String(options?.body)) as object,version:row.version+1};return Promise.resolve(Response.json(row));
       }
-      if(path==='people/person')return Promise.resolve(Response.json({...row,currentRelationsCount:relations.filter(r=>r.isCurrent).length}));
+      if(path==='people/person/status'&&method==='PATCH'){
+        const input=JSON.parse(String(options?.body)) as {isActive:boolean;expectedVersion:number};row={...row,isActive:input.isActive,version:row.version+1};return Promise.resolve(Response.json(row));
+      }
+      if(path==='people/person')return Promise.resolve(detailStatus===404?Response.json({code:'NOT_FOUND',stack:'internal detail'},{status:404}):Response.json({...row,currentRelationsCount:relations.filter(r=>r.isCurrent).length}));
       if(path==='people/person/relations'&&method==='POST'){
         const input=JSON.parse(String(options?.body)) as {organizationId:string;positionTitle:string};const created={...episode,...input,id:'episode-'+relations.length,organization:{id:input.organizationId,name:input.organizationId==='org-b'?'Organización B':org.name,isActive:true}};
         relations=[...relations,created];return Promise.resolve(Response.json(created,{status:201}));
@@ -65,6 +68,10 @@ describe('Personas y episodios institucionales en UI',()=>{
   it('lista personas y solicita paginación backend, sin descargar todo',async()=>{
     total=26;const user=userEvent.setup();app();await screen.findByRole('link',{name:'Ana QA'});await user.click(screen.getByRole('button',{name:'Siguiente'}));
     await waitFor(()=>expect(fetchMock.mock.calls.some(([url])=>url.includes('page=2'))).toBe(true));
+  });
+  it('mantiene Directorio activo al abrir una ficha de persona',async()=>{
+    app('/people/person');await screen.findByRole('heading',{name:'Ana QA'});
+    expect(screen.getAllByRole('link',{name:'Directorio'}).every(link=>link.getAttribute('aria-current')==='page')).toBe(true);
   });
   it.each(['pending','empty','error'])('listado representa %s',async mode=>{
     state=mode;app();if(mode==='pending')expect(await screen.findByText('Cargando…')).toBeVisible();
@@ -127,6 +134,21 @@ describe('Personas y episodios institucionales en UI',()=>{
   it('Admin ve control de estado; vínculos conservados en persona inactiva',async()=>{
     actor={...actor,role:'ADMINISTRATOR',permissions:[...actor.permissions,'directory.status.update']};row={...row,isActive:false};relations=[{...episode,person:{...episode.person,isActive:false}}];app('/people/person');
     expect(await screen.findByRole('button',{name:'Reactivar persona'})).toBeVisible();expect(await screen.findByText('Persona inactiva; vínculo conservado.')).toBeVisible();
+  });
+  it('desactivación de persona describe el efecto y espera confirmación explícita',async()=>{
+    actor={...actor,role:'ADMINISTRATOR',permissions:[...actor.permissions,'directory.status.update']};const user=userEvent.setup();app('/people/person');
+    await user.click(await screen.findByRole('button',{name:'Desactivar persona'}));
+    expect(screen.getByText(/Sus datos, vínculos e historial institucional se conservarán/)).toBeVisible();
+    expect(fetchMock.mock.calls.some(([url,options])=>url.endsWith('/status')&&options?.method==='PATCH')).toBe(false);
+    await user.click(screen.getByRole('button',{name:'Confirmar desactivación'}));await screen.findByRole('button',{name:'Reactivar persona'});
+    const call=fetchMock.mock.calls.find(([url,options])=>url.endsWith('/status')&&options?.method==='PATCH');
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({isActive:false,expectedVersion:1});
+  });
+  it('404 de persona muestra salida al listado y no expone respuesta técnica',async()=>{
+    detailStatus=404;app('/people/person');
+    expect(await screen.findByRole('alert')).toHaveTextContent('No se encontró la información solicitada.');
+    expect(screen.getByRole('link',{name:'Volver a personas'})).toHaveAttribute('href','/people');
+    expect(screen.queryByText(/internal detail/)).not.toBeInTheDocument();
   });
   it('logout limpia personas y episodios de caché',async()=>{
     relations=[episode];app('/people/person');await screen.findByRole('link',{name:'Organización A'});expect(client.getQueriesData({queryKey:['directory','qa']}).length).toBeGreaterThan(1);

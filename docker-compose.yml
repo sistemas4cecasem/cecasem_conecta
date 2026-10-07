@@ -19,6 +19,8 @@ services:
       retries: 10
       start_period: 10s
     restart: unless-stopped
+    networks:
+      - data
 
   api:
     image: ${COMPOSE_PROJECT_NAME:-cecasem_conecta}-api:local
@@ -32,7 +34,7 @@ services:
       FIRST_ACCESS_TOKEN_TTL_SECONDS: ${FIRST_ACCESS_TOKEN_TTL_SECONDS:-86400}
       PASSWORD_RESET_TOKEN_TTL_SECONDS: ${PASSWORD_RESET_TOKEN_TTL_SECONDS:-14400}
       SESSION_TTL_SECONDS: ${SESSION_TTL_SECONDS:-28800}
-      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:?Set SESSION_COOKIE_SECURE explicitly for HTTP or HTTPS}
       FILE_STORAGE_ROOT: ${FILE_STORAGE_ROOT:-/app/storage/private}
       TRANSLATION_ENABLED: ${TRANSLATION_ENABLED:-false}
       LIBRETRANSLATE_URL: ${LIBRETRANSLATE_URL:-}
@@ -53,6 +55,9 @@ services:
       start_period: 10s
     init: true
     restart: unless-stopped
+    networks:
+      - edge
+      - data
 
   web:
     image: ${COMPOSE_PROJECT_NAME:-cecasem_conecta}-web:local
@@ -63,18 +68,28 @@ services:
     environment:
       API_PORT: ${APP_PORT:-3000}
     ports:
-      - '${WEB_PORT:-8080}:80'
+      - target: 80
+        published: ${WEB_PORT:-8080}
+        host_ip: ${WEB_BIND_ADDRESS:-127.0.0.1}
+        protocol: tcp
     depends_on:
       api:
         condition: service_healthy
     healthcheck:
-      test: [CMD, wget, -q, -O, /dev/null, 'http://127.0.0.1/']
+      test: [CMD, wget, -q, -O, /dev/null, 'http://127.0.0.1/api/v1/health']
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 5s
     restart: unless-stopped
+    networks:
+      - edge
 
 volumes:
   postgres_data:
   private_files:
+
+networks:
+  edge:
+  data:
+    internal: true

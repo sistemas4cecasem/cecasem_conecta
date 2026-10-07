@@ -39,14 +39,16 @@ export function UserCard({ user, identity }: { user: AdministrativeUser; identit
         <button className="ml-2 min-h-11 underline" disabled={action.pending || role === user.role}>Guardar rol</button></form>}
       {can('users.status.update') && <div><button className="min-h-11 rounded border px-3" disabled={action.pending} onClick={() => setConfirm(true)}>
         {user.isActive ? 'Desactivar' : 'Reactivar'}</button>
-        {confirm && <div role="group" aria-label="Confirmar cambio de estado"><p>¿Confirmas {user.isActive ? 'desactivar' : 'reactivar'} esta cuenta?</p>
+        {confirm && <div role="group" aria-label="Confirmar cambio de estado"><p>{user.isActive
+          ? 'La persona perderá acceso a CECASEM Conecta. Sus acciones institucionales permanecerán en el historial; podrás reactivar la cuenta después.'
+          : 'La cuenta volverá a poder iniciar sesión con sus credenciales actuales. Su historial institucional se conserva.'}</p>
           <button className="min-h-11 underline" disabled={action.pending} onClick={() => void action.run(async () => {
             await apiRequest(`users/${user.id}/${user.isActive ? 'deactivate' : 'reactivate'}`, { method: 'POST' });
             setConfirm(false);
             if (self && user.isActive) {
               await client.cancelQueries(); client.clear(); client.setQueryData(AUTH_QUERY_KEY, null); navigate('/login', { replace: true });
             } else await client.invalidateQueries({ queryKey: ['users', identity.id] });
-          })}>Confirmar</button><button className="ml-3 min-h-11 underline" onClick={() => setConfirm(false)}>Cancelar</button></div>}
+          })}>{user.isActive ? 'Confirmar desactivación' : 'Confirmar reactivación'}</button><button className="ml-3 min-h-11 underline" onClick={() => setConfirm(false)}>Cancelar</button></div>}
       </div>}
       {user.isActive && user.credentialStatus === 'PENDING_FIRST_ACCESS' && can('auth.first_access.issue') && <TemporaryCredential userId={user.id} kind="first-access" />}
       {user.isActive && user.credentialStatus === 'ESTABLISHED' && can('auth.password_reset.issue') && <TemporaryCredential userId={user.id} kind="password-reset" />}

@@ -14,9 +14,10 @@ import { ContactSection } from './contact-section';
 import { RelationshipContextPanel } from '../relationships/relationship-context-panel';
 export function PersonDetailPage() {
   const {id=''}=useParams();const identity=useSession().data;const detail=usePerson(identity,id);const mutation=useDirectoryMutation(identity);
-  const [editing,setEditing]=useState<Person|null>(null);
+  const [editing,setEditing]=useState<Person|null>(null);const [confirmStatusChange,setConfirmStatusChange]=useState(false);
   if(!identity?.permissions.includes('directory.read')) return <p role="alert">No tienes permiso para consultar personas.</p>;
-  if(!detail.data) return <QueryState pending={detail.isPending} error={detail.isError} retry={detail.refetch}/>;
+  if(!detail.data) return <section className="space-y-4"><Link className="inline-flex min-h-11 items-center underline" to="/people">Volver a personas</Link>
+    <QueryState pending={detail.isPending} error={detail.isError} failure={detail.error} retry={detail.refetch}/></section>;
   const row=detail.data;
   if(editing) return <section className="space-y-4"><h1 className="text-2xl font-semibold">Editar persona</h1><PersonForm identity={identity} initial={editing} saved={()=>setEditing(null)} cancel={()=>setEditing(null)}
     reload={async()=>{const response=await detail.refetch();if(!response.isSuccess)return;setEditing(response.data);return response.data;}}/></section>;
@@ -29,7 +30,12 @@ export function PersonDetailPage() {
     <DuplicatePanel key={'duplicates-'+id} identity={identity} actorPath={'people/'+id}/>
     {!row.currentRelationsCount&&<p>Sin vínculos vigentes: persona independiente o institución aún no identificada. Los episodios históricos se conservan abajo.</p>}
     <div className="flex flex-wrap gap-3">{!row.duplicateOfId&&identity.permissions.includes('directory.write')&&<button className={buttonClass} onClick={()=>setEditing(row)}>Editar persona</button>}
-      {!row.duplicateOfId&&identity.permissions.includes('directory.status.update')&&<button className={buttonClass} disabled={mutation.isPending} onClick={()=>{void mutation.mutateAsync({path:'people/'+id+'/status',method:'PATCH',body:{isActive:!row.isActive,expectedVersion:row.version}}).catch(()=>undefined);}}>{row.isActive?'Desactivar persona':'Reactivar persona'}</button>}</div>
+      {!row.duplicateOfId&&identity.permissions.includes('directory.status.update')&&<button className={buttonClass} disabled={mutation.isPending} onClick={()=>{mutation.reset();setConfirmStatusChange(true);}}>{row.isActive?'Desactivar persona':'Reactivar persona'}</button>}</div>
+    {!row.duplicateOfId&&identity.permissions.includes('directory.status.update')&&confirmStatusChange&&<div role="group" aria-label={row.isActive?'Confirmar desactivación de persona':'Confirmar reactivación de persona'} className="space-y-2 rounded border border-amber-600 p-3">
+      <p>{row.isActive?'La ficha quedará inactiva. Sus datos, vínculos e historial institucional se conservarán; podrás reactivarla después.':'La ficha volverá a estar activa para nuevas gestiones. Su historial y vínculos se conservarán.'}</p>
+      <div className="flex flex-wrap gap-3"><button className={buttonClass} disabled={mutation.isPending||!!mutation.error} onClick={()=>{void mutation.mutateAsync({path:'people/'+id+'/status',method:'PATCH',body:{isActive:!row.isActive,expectedVersion:row.version}}).then(()=>setConfirmStatusChange(false)).catch(()=>undefined);}}>{mutation.isPending?(row.isActive?'Desactivando…':'Reactivando…'):row.isActive?'Confirmar desactivación':'Confirmar reactivación'}</button>
+        <button className={buttonClass} disabled={mutation.isPending} onClick={()=>setConfirmStatusChange(false)}>Volver sin cambiar estado</button></div>
+    </div>}
     <MutationError error={mutation.error} reload={async()=>{await detail.refetch();mutation.reset();}}/>
     <dl className="grid gap-3 sm:grid-cols-2">{[['Nombres',row.givenNames??'Sin dato'],['Apellidos',row.familyNames??'Sin dato'],['Creación',dateLabel(row.createdAt)],['Modificación',dateLabel(row.updatedAt)],['Última verificación',dateLabel(row.lastVerifiedAt)]].map(([label,value])=><div key={label}><dt className="font-semibold">{label}</dt><dd>{value}</dd></div>)}</dl>
     <VerificationPanel identity={identity} readOnly={!!row.duplicateOfId} path={'people/'+id} label={'persona '+row.displayName}/>
