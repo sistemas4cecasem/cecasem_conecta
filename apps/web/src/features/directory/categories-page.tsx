@@ -1,12 +1,16 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useSession } from '../auth/session';
 import { categoryFormSchema, categorySchema, type Category } from './contracts';
 import { useCategories, useDirectoryMutation } from './queries';
-import { buttonClass, Field, inputClass, MutationError, Pagination, QueryState } from './directory-ui';
+import { buttonClass, MutationError } from './directory-ui';
+import { ActionLink, Button } from '../../components/ui/actions';
+import { FormActions, FormField, FormSection, Input, Select } from '../../components/ui/forms';
+import { FilterBar, PageHeader, Surface } from '../../components/ui/layout';
+import { EmptyState, QueryFeedback, StatusBadge } from '../../components/ui/feedback';
+import { DataList, DataListItem, Pagination } from '../../components/ui/lists';
 import { DirectoryHistory } from './directory-history';
 import type { AuthIdentity } from '../auth/session';
 
@@ -17,10 +21,14 @@ function CategoryEditor({ identity, initial, done, reload }: { identity: AuthIde
     try { categorySchema.parse(await mutation.mutateAsync({ path: initial ? 'categories/' + initial.id : 'categories', method: initial ? 'PUT' : 'POST',
       body: { ...values, ...(initial ? { expectedVersion: initial.version } : {}) } })); form.reset({ name: '' }); done(); } catch { /* Conservar borrador. */ }
   })}>
-    <Field label={initial ? 'Nuevo nombre de categoría' : 'Nombre de categoría'} error={form.formState.errors.name?.message}><input {...form.register('name')} className={inputClass} maxLength={150} /></Field>
+    <FormSection heading={initial ? 'Editar categoría' : 'Nueva categoría'}>
+    <FormField label={initial ? 'Nuevo nombre de categoría' : 'Nombre de categoría'} error={form.formState.errors.name?.message}>
+      {control => <Input {...form.register('name')} {...control} maxLength={150} />}
+    </FormField>
+    </FormSection>
     <MutationError error={mutation.error} reload={initial ? async () => { await reload?.(); done(); } : undefined} />
-    <div className="flex flex-wrap gap-3"><button className={buttonClass} disabled={mutation.isPending}>{mutation.isPending ? 'Guardando…' : initial ? 'Guardar categoría' : 'Crear categoría'}</button>
-      {initial && <button className={buttonClass} type="button" onClick={done}>Cancelar edición</button>}</div>
+    <FormActions><Button type="submit" variant="primary" pending={mutation.isPending} disabled={mutation.isPending}>{mutation.isPending ? 'Guardando…' : initial ? 'Guardar categoría' : 'Crear categoría'}</Button>
+      {initial && <Button type="button" onClick={done}>Cancelar edición</Button>}</FormActions>
   </form>;
 }
 function CategoryCard({ identity, row }: { identity: AuthIdentity; row: Category }) {
@@ -28,7 +36,7 @@ function CategoryCard({ identity, row }: { identity: AuthIdentity; row: Category
   const [editing, setEditing] = useState<Category | null>(null); const [history, setHistory] = useState(false);
   const mutation = useDirectoryMutation(identity);
   const reload = async () => { await client.invalidateQueries({ queryKey: ['directory', identity.id, 'categories'] }); mutation.reset(); };
-  return <li className="space-y-3 rounded border p-3 break-words"><h2 className="font-semibold">{row.name} · {row.isActive ? 'Activa' : 'Inactiva'}</h2>
+  return <DataListItem><h2 className="font-semibold">{row.name} · <StatusBadge tone={row.isActive ? 'success' : 'neutral'}>{row.isActive ? 'Activa' : 'Inactiva'}</StatusBadge></h2>
     {editing ? <CategoryEditor identity={identity} initial={editing} done={() => setEditing(null)} reload={reload} /> : <div className="flex flex-wrap gap-3">
       {identity.permissions.includes('directory.write') && <button className={buttonClass} onClick={() => setEditing(row)}>Editar {row.name}</button>}
       {identity.permissions.includes('directory.status.update') && <button className={buttonClass} disabled={mutation.isPending}
@@ -37,19 +45,19 @@ function CategoryCard({ identity, row }: { identity: AuthIdentity; row: Category
     </div>}
     <MutationError error={mutation.error} reload={reload} />
     {history && <DirectoryHistory identity={identity} path={'categories/' + row.id + '/history'} />}
-  </li>;
+  </DataListItem>;
 }
 export function CategoriesPage() {
   const session = useSession(); const identity = session.data; const [page, setPage] = useState(1); const [status, setStatus] = useState('active');
   const categories = useCategories(identity, `categories?page=${page}&status=${status}`);
   if (!identity?.permissions.includes('directory.read')) return <p role="alert">No tienes permiso para consultar categorías.</p>;
-  return <section className="space-y-4"><Link className="inline-flex min-h-11 items-center underline" to="/organizations">Volver al directorio</Link>
-    <h1 className="text-2xl font-semibold">Categorías institucionales</h1>
-    {identity.permissions.includes('directory.write') && <CategoryEditor identity={identity} done={() => undefined} />}
-    <Field label="Estado de categorías"><select className={inputClass} value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}><option value="active">Activas</option><option value="inactive">Inactivas</option><option value="all">Todas</option></select></Field>
-    <QueryState pending={categories.isPending} error={categories.isError} retry={categories.refetch} />
-    {categories.data?.total === 0 && <p>No hay categorías para estos filtros. El catálogo comienza vacío.</p>}
-    <ul className="space-y-3">{categories.data?.items.map(row => <CategoryCard key={row.id} identity={identity} row={row} />)}</ul>
+  return <section className="space-y-4">
+    <PageHeader eyebrow="Directorio" title="Categorías institucionales" actions={<ActionLink appearance="context" to="/organizations">Volver al directorio</ActionLink>} />
+    {identity.permissions.includes('directory.write') && <Surface><CategoryEditor identity={identity} done={() => undefined} /></Surface>}
+    <FilterBar aria-label="Filtros de categorías"><FormField label="Estado de categorías">{control => <Select {...control} value={status} onChange={e => { setStatus(e.target.value); setPage(1); }}><option value="active">Activas</option><option value="inactive">Inactivas</option><option value="all">Todas</option></Select>}</FormField></FilterBar>
+    <QueryFeedback pending={categories.isPending} error={categories.isError} retry={categories.refetch} />
+    {categories.data?.total === 0 && <EmptyState title="No hay categorías para estos filtros. El catálogo comienza vacío." />}
+    <DataList>{categories.data?.items.map(row => <CategoryCard key={row.id} identity={identity} row={row} />)}</DataList>
     {categories.data && <Pagination page={page} total={categories.data.total} onPage={setPage} />}
   </section>;
 }
