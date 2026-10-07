@@ -70,7 +70,7 @@ describe('Directorio operativo', () => {
   }
   it('capability permite navegación y edición; estado reservado no aparece', async () => {
     app('/organizations/org'); await screen.findByRole('heading', { name: 'Institución QA' });
-    expect(screen.getAllByRole('link', { name: 'Directorio' }).every(link => link.getAttribute('href') === '/organizations')).toBe(true);
+    expect(screen.getAllByRole('link', { name: 'Organizaciones' }).every(link => link.getAttribute('href') === '/organizations')).toBe(true);
     expect(screen.getByRole('button', { name: 'Editar ficha' })).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Desactivar organización' })).not.toBeInTheDocument();
     expect(screen.getByText('Sin verificar')).toBeVisible();

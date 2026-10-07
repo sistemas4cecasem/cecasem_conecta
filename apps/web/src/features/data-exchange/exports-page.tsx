@@ -75,7 +75,7 @@ export function ExportsPage() {
   const input = (label: string, name: keyof ExportFilters, placeholder = '') => <label className="block min-w-0">{label}<input className="mt-1 block min-h-11 w-full rounded border px-3" value={String(filters[name] ?? '')} placeholder={placeholder} onChange={event => update(name, event.target.value)} /></label>;
   const select = (label: string, name: keyof ExportFilters, options: [string, string][]) => <label className="block min-w-0">{label}<select className="mt-1 block min-h-11 w-full rounded border p-2" value={String(filters[name] ?? '')} onChange={event => update(name, event.target.value)}><option value="">Cualquiera</option>{options.map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select></label>;
 
-  return <main className="min-w-0 space-y-6 break-words">
+  return <section aria-label="Exportación Excel" className="min-w-0 space-y-6 break-words">
     <h1 className="text-2xl font-semibold">Exportación Excel</h1>
     <p>Prepara archivos .xlsx estructurados desde la información que puedes consultar. Se exportan todos los resultados de los filtros, aunque el listado esté paginado.</p>
     {!available.length ? <p role="status">Tu perfil no tiene dominios disponibles para exportar.</p> : <>
@@ -110,5 +110,5 @@ export function ExportsPage() {
       {preview && <section className="max-w-3xl rounded border p-4" aria-label="Resumen de exportación"><h2 className="text-lg font-semibold">Resumen</h2><p>Tipo: {exportTypes.find(item => item.type === preview.type)?.label}</p><p>Filtros: {filterSummary(type as ExportType, filters)}</p><p>{preview.unit}: {preview.count}</p>{preview.count === 0 && <p role="status">No hay resultados para esos filtros. Ajusta la búsqueda antes de descargar.</p>}</section>}
     </>}
     {error && <p role="alert" className="max-w-3xl rounded border border-red-600 p-3">{error}</p>}
-  </main>;
+  </section>;
 }

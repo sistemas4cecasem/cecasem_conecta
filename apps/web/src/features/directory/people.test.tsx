@@ -71,7 +71,7 @@ describe('Personas y episodios institucionales en UI',()=>{
   });
   it('mantiene Directorio activo al abrir una ficha de persona',async()=>{
     app('/people/person');await screen.findByRole('heading',{name:'Ana QA'});
-    expect(screen.getAllByRole('link',{name:'Directorio'}).every(link=>link.getAttribute('aria-current')==='page')).toBe(true);
+    expect(screen.getAllByRole('link',{name:'Personas externas'}).every(link=>link.getAttribute('aria-current')==='page')).toBe(true);
   });
   it.each(['pending','empty','error'])('listado representa %s',async mode=>{
     state=mode;app();if(mode==='pending')expect(await screen.findByText('Cargando…')).toBeVisible();

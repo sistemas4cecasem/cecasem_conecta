@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AUTHENTICATED_NAVIGATION, type NavigationItem, visibleNavigationItems } from './navigation';
+import { activeNavigationRoute, AUTHENTICATED_NAVIGATION, NAVIGATION_GROUPS, type NavigationItem, visibleNavigationItems } from './navigation';
 
 // Estos destinos son datos de prueba, no rutas del producto.
 const items: readonly NavigationItem[] = [
@@ -25,5 +25,25 @@ describe('Filtrado de navegación por capabilities recibidas', () => {
   it('filtra un subconjunto sin inferir permisos adicionales desde el rol', () => {
     expect(visibleNavigationItems(items, ['auth.first_access.issue']).map(item => item.to)).toEqual(['/', '/fixture-issue']);
     expect(visibleNavigationItems(items, ['unassigned']).map(item => item.to)).toEqual(['/']);
+  });
+  it('expone los accesos del Directorio con su permiso de lectura existente', () => {
+    const visible = visibleNavigationItems(AUTHENTICATED_NAVIGATION, ['directory.read']);
+    expect(visible.map(item => item.to)).toEqual(['/', '/organizations', '/people', '/directory/search', '/organizations/categories', '/admin/exports']);
+    expect(visible.every(item => !item.requiredPermission || item.requiredPermission === 'directory.read')).toBe(true);
+  });
+  it('agrupa cada destino una sola vez sin añadir rutas al catálogo', () => {
+    const routes = NAVIGATION_GROUPS.flatMap(group => [...group.routes]);
+    expect(new Set(routes).size).toBe(routes.length);
+    expect([...routes].sort()).toEqual(AUTHENTICATED_NAVIGATION.map(item => item.to).sort());
+  });
+  it.each([
+    ['/organizations/fixture', '/organizations'], ['/people/fixture', '/people'],
+    ['/directory/search', '/directory/search'], ['/organizations/categories', '/organizations/categories'],
+    ['/contact-methods/fixture', '/organizations'], ['/communications/fixture', '/relationship-processes'],
+    ['/relationship-processes/fixture/communications/sent', '/relationship-processes'],
+    ['/contact-intents/fixture', '/contact-intents'], ['/opportunities/fixture', '/opportunities'],
+    ['/meetings/fixture', '/meetings'], ['/', '/'], ['/unknown', undefined],
+  ])('mantiene contexto activo de %s sin cambiar la URL', (pathname, expected) => {
+    expect(activeNavigationRoute(pathname)).toBe(expected);
   });
 });

@@ -3,13 +3,14 @@ import { clearForbiddenOpportunities } from '../../features/opportunities/querie
 import { clearForbiddenNotifications } from '../../features/notifications/queries';
 import { NotificationIndicator } from '../../features/notifications/notifications-page';
 import { clearForbiddenFiles } from '../../features/files/queries';
-import { Link, Navigate, Outlet, useNavigate, useLocation } from 'react-router';
+import { Navigate, Outlet, useNavigate, useLocation } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { ApiError, apiRequest } from '../../lib/api/client';
 import { AUTH_QUERY_KEY, useSession } from '../../features/auth/session';
 import { ApplicationFrame } from './application-frame';
-import { AUTHENTICATED_NAVIGATION, visibleNavigationItems } from '../router/navigation';
+import { activeNavigationRoute, AUTHENTICATED_NAVIGATION, visibleNavigationItems } from '../router/navigation';
+import { ShellNavigation } from './shell-navigation';
 import { clearForbiddenAdministration } from '../../features/users/administration-cache';
 import { clearForbiddenDirectory } from '../../features/directory/queries';
 import { clearForbiddenIntents } from '../../features/relationships/queries';
@@ -68,33 +69,18 @@ export function AuthenticatedLayout() {
     <button className="min-h-11 underline" onClick={() => void session.refetch()}>Reintentar</button></div></ApplicationFrame>;
   if (!session.data) return <Navigate to="/login" replace />;
   const navigationItems = visibleNavigationItems(AUTHENTICATED_NAVIGATION, session.data.permissions);
-  return <ApplicationFrame actions={<div className="mt-3 space-y-3 text-sm">
-    <details key={location.pathname} className="lg:hidden">
-      <summary className="inline-flex min-h-11 cursor-pointer items-center rounded border border-slate-400 px-3 py-2 font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-800">Menú principal</summary>
-    <NavigationLinks items={navigationItems} pathname={location.pathname} className="mt-2 flex flex-col items-start gap-1 rounded border border-slate-200 p-2" />
-    </details>
-    <NavigationLinks items={navigationItems} pathname={location.pathname} className="hidden flex-wrap items-center gap-2 lg:flex" />
-    <div className="flex flex-wrap items-center gap-3">
+  const context = navigationItems.find(item => item.to === activeNavigationRoute(location.pathname))?.label
+    ?? (location.pathname === '/notifications' ? 'Notificaciones' : 'CECASEM Conecta');
+  return <ApplicationFrame pathname={location.pathname} context={context}
+    navigation={<ShellNavigation items={navigationItems} pathname={location.pathname} />}
+    actions={<div className="shell-account-area">
     {session.data.permissions.includes('notifications.read') && <NotificationIndicator identity={session.data} />}
-    <span>{session.data.givenNames} {session.data.familyNames}</span>
-    <span>{ROLE_LABELS[session.data.role]}</span>
-    <button disabled={pending} onClick={() => void logout()} className="min-h-11 rounded border px-3 py-2">
+    <div className="shell-account" role="group" aria-label="Cuenta actual">
+    <div className="shell-account-identity"><span>{session.data.givenNames} {session.data.familyNames}</span>
+    <span className="shell-account-role">{ROLE_LABELS[session.data.role]}</span></div>
+    <button disabled={pending} onClick={() => void logout()} className="shell-account-logout">
       {pending ? 'Cerrando sesión…' : 'Cerrar sesión'}</button>
-    {error && <p role="alert">{error}</p>}
     </div>
+    {error && <p role="alert">{error}</p>}
   </div>}>{notificationReadFailed && <p role="alert">No se pudo confirmar la lectura del aviso. Se actualizará al sincronizar las notificaciones.</p>}<Outlet /></ApplicationFrame>;
-}
-
-function NavigationLinks({ items, pathname, className }: { items: ReturnType<typeof visibleNavigationItems>; pathname: string; className: string }) {
-  return <nav aria-label="Navegación principal" className={className}>
-    {items.map(item => {
-      const routeActive = item.to === '/' ? pathname === '/' : pathname === item.to || pathname.startsWith(`${item.to}/`);
-      const directoryRouteActive = item.to === '/organizations' && /^\/(?:people|contact-methods|directory\/search)(?:\/|$)/u.test(pathname);
-      const active = routeActive || directoryRouteActive;
-      return <Link key={item.to} to={item.to} aria-current={active ? 'page' : undefined}
-        className={`inline-flex min-h-11 items-center rounded px-2 underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-800 ${active ? 'bg-slate-100 font-semibold decoration-2' : ''}`}>
-        {item.label}
-      </Link>;
-    })}
-  </nav>;
 }

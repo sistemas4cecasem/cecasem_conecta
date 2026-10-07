@@ -33,7 +33,7 @@ export function HomePage() {
 
 function DashboardHome({ identity }: { identity: NonNullable<ReturnType<typeof useSession>['data']> }) {
   const query = useDashboard(identity);
-  return <section className="mx-auto w-full max-w-6xl min-w-0 space-y-8 px-1 py-2 sm:px-3" aria-labelledby="home-title">
+  return <section className="w-full min-w-0 space-y-8" aria-labelledby="home-title">
     <header><p className="text-sm font-semibold tracking-widest text-teal-800">CECASEM CONECTA</p><h1 id="home-title" className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">Panel institucional</h1>
       {query.data && <p className="mt-2 text-sm text-slate-600">Actualizado {new Date(query.data.asOf).toLocaleString('es-BO', { dateStyle: 'medium', timeStyle: 'short' })}</p>}
     </header>

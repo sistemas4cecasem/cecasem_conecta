@@ -80,7 +80,7 @@ export function ImportsPage() {
     } catch (failure) { setError(failure instanceof ApiError ? failure.message : 'No se pudo aplicar el lote.'); }
     finally { setPending(false); }
   }
-  return <main className="min-w-0 space-y-6 break-words">
+  return <section aria-label="Importación Excel histórica" className="min-w-0 space-y-6 break-words">
     <h1 className="text-2xl font-semibold">Importación Excel histórica</h1>
     <p>Solo se aceptan archivos XLSX. La inspección no los almacena y el preview solo guarda el análisis; la confirmación es una acción distinta que escribe datos.</p>
     <section className="space-y-4 rounded border p-4" aria-label="Seleccionar y analizar archivo">
@@ -123,5 +123,5 @@ export function ImportsPage() {
       {batch.status === 'ANALYZED' && <button className="min-h-11 rounded border border-blue-700 px-4 font-semibold" disabled={pending || batch.readyRows + batch.reviewRows === 0 || unresolvedDecisions.length > 0} onClick={() => { if (window.confirm(`Se escribirán ${batch.readyRows + batch.reviewRows} filas válidas del lote ${batch.id}. ¿Deseas aplicar la importación?`)) void confirm(); }}>{pending ? 'Aplicando…' : 'Confirmar y escribir datos'}</button>}
       {batch.status === 'IMPORTED' && <p role="status">Importación confirmada: {batch.importedRows} filas aplicadas. El lote ya no admite otra confirmación.</p>}
     </section>}
-  </main>;
+  </section>;
 }
