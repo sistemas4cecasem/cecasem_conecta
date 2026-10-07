@@ -1,0 +1,29 @@
+@layer components {
+  .organizations-page { width: 100%; min-width: 0; }
+  .organizations-page > * + * { margin-top: 1.5rem; }
+  .organizations-page .ui-filter-controls { display: block; }
+  .organizations-search { max-width: 42rem; margin-bottom: 1rem; }
+  .organizations-search .ui-field-label { color: var(--color-brand-primary); font-weight: 600; }
+  .organizations-secondary-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); align-items: start; gap: 0.75rem 1rem; }
+  .organizations-filter-footer { margin-top: 1rem; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.75rem; }
+  .organizations-filter-summary { color: var(--color-app-muted); font-size: 0.8125rem; overflow-wrap: anywhere; }
+  .organizations-page .organizations-create { color: white; background: var(--color-brand-primary); border-color: var(--color-brand-primary); }
+  .organizations-page .organizations-create:hover { background: #18253d; }
+  .organization-row-heading { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; }
+  .organization-row-heading .ui-link { display: inline-flex; align-items: center; min-height: 2.75rem; min-width: 0; font-size: 0.9375rem; }
+  .organization-row-heading .ui-badge { flex-shrink: 0; }
+  .organizations-page .ui-data-list-item { padding-block: 0.625rem; }
+  .organizations-page .ui-data-list-item > * + * { margin-top: 0.25rem; }
+  @media (min-width: 80rem) {
+    .organizations-secondary-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  @media (min-width: 90rem) {
+    .organizations-secondary-filters { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  }
+  @media (max-width: 39.999rem) {
+    .organizations-secondary-filters { grid-template-columns: minmax(0, 1fr); }
+    .organization-row-heading { align-items: flex-start; flex-wrap: wrap; }
+    .organizations-page .ui-metadata { flex-direction: column; gap: 0.25rem; }
+    .organizations-filter-footer > .ui-button { width: 100%; }
+  }
+}

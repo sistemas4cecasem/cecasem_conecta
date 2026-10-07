@@ -1,11 +1,17 @@
 import { useEffect, useRef } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
+import { ActionLink } from '../../components/ui/actions';
+import { EmptyState, QueryFeedback, StatusBadge } from '../../components/ui/feedback';
+import { FormField, Input } from '../../components/ui/forms';
+import { FilterBar, PageHeader, Surface } from '../../components/ui/layout';
+import { DataList, DataListItem, Metadata, Pagination } from '../../components/ui/lists';
 import { useSession } from '../auth/session';
 import type { AuthIdentity } from '../auth/session';
 import { useOrganizations } from './queries';
-import { buttonClass, Pagination, QueryState } from './directory-ui';
 import { OrganizationFilters } from './organization-filters';
 import { OrganizationForm } from './organization-form';
+import { organizationFilterKeys } from './organization-filter.contracts';
+import './organizations.css';
 export function OrganizationsPage() {
   const session = useSession(); const identity = session.data;
   const [, setParams] = useSearchParams(); const previousIdentity = useRef<string | undefined>(undefined);
@@ -21,27 +27,38 @@ function OrganizationsList({ identity }: { identity: AuthIdentity }) {
   const query = new URLSearchParams(params); query.set('page', String(page));
   if (!query.has('status')) query.set('status', 'active');
   const list = useOrganizations(identity, 'organizations?' + query);
+  const unfilteredAll = params.get('status') === 'all' && !name && organizationFilterKeys.filter(key => key !== 'status').every(key => !params.get(key));
   function change(values: Record<string, string>) {
     const next = new URLSearchParams(params);
     for (const [key, value] of Object.entries(values)) { if (value.trim()) next.set(key, value); else next.delete(key); }
     setParams(next);
   }
-  return <section className="min-w-0 w-full space-y-4 break-words"><h1 className="text-2xl font-semibold">Directorio · Organizaciones</h1>
-    <div className="flex flex-wrap gap-4">{identity.permissions.includes('directory.write') && <Link className={buttonClass} to="/organizations/new">Crear organización</Link>}
-      <Link className={buttonClass} to="/directory/search">Búsqueda global</Link><Link className={buttonClass} to="/organizations/categories">Categorías</Link><Link className={buttonClass} to="/people">Personas externas</Link></div>
-    <label className="block">Filtrar organizaciones por nombre<input className="mt-1 min-h-11 w-full rounded border px-3 py-2" value={name} onChange={event => change({ name: event.target.value, page: '1' })} /></label>
-    <OrganizationFilters identity={identity} params={params} change={change} />
-    <section aria-label="Resultados de organizaciones" className="space-y-4">
-    <QueryState pending={list.isPending} error={list.isError} retry={list.refetch} />
-    {list.data?.total === 0 && <p>No hay organizaciones para estos filtros.</p>}
-    <ul className="space-y-3">{list.data?.items.map(row => <li key={row.id} className="min-w-0 rounded border p-3 break-words">
-      <Link className="inline-flex min-h-11 items-center font-semibold underline" to={'/organizations/' + row.id}>{row.name}</Link>
-      <p>{row.country ?? 'País sin registrar'} · {row.isActive ? 'Activa' : 'Inactiva'}</p>
-      {row.parent && <p>Matriz: {row.parent.name}</p>}
-      <p>{row.categories.map(category => category.name).join(', ') || 'Sin categorías'}</p>
-    </li>)}</ul>
+  return <section className="organizations-page">
+    <PageHeader eyebrow="Directorio" title="Organizaciones" description="Consulta y administra las organizaciones registradas."
+      primaryAction={identity.permissions.includes('directory.write') && <ActionLink appearance="action" className="organizations-create" to="/organizations/new">Crear organización</ActionLink>} />
+    <FilterBar aria-label="Búsqueda y filtros de organizaciones">
+      <div className="organizations-search"><FormField label="Filtrar organizaciones por nombre">{control =>
+        <Input {...control} value={name} onChange={event => change({ name: event.target.value, page: '1' })} />
+      }</FormField></div>
+      <OrganizationFilters identity={identity} params={params} change={change} presentation="modern" />
+    </FilterBar>
+    <Surface aria-label="Resultados de organizaciones">
+    <header className="ui-section-heading"><h2>Resultados</h2></header>
+    {list.data && <p className="ui-description">{list.data.total} organizaciones</p>}
+    <QueryFeedback pending={list.isPending} error={list.isError} retry={list.refetch} />
+    {list.data?.total === 0 && <EmptyState title={unfilteredAll ? 'No hay organizaciones registradas.' : 'No hay organizaciones para estos filtros.'}
+      description={unfilteredAll ? undefined : 'Revisa la búsqueda y los filtros seleccionados.'} />}
+    {!!list.data?.items.length && <DataList>{list.data.items.map(row => <DataListItem key={row.id}>
+      <div className="organization-row-heading"><ActionLink appearance="list" to={'/organizations/' + row.id}>{row.name}</ActionLink>
+        <StatusBadge tone={row.isActive ? 'success' : 'neutral'}>{row.isActive ? 'Activa' : 'Inactiva'}</StatusBadge></div>
+      <Metadata items={[
+        { label: 'País', value: row.country ?? 'País sin registrar' },
+        { label: 'Categorías', value: row.categories.map(category => category.name).join(', ') || 'Sin categorías' },
+        ...(row.parent ? [{ label: 'Matriz', value: row.parent.name }] : []),
+      ]} />
+    </DataListItem>)}</DataList>}
     {list.data && <Pagination page={page} total={list.data.total} onPage={value => change({ page: String(value) })} />}
-    </section>
+    </Surface>
   </section>;
 }
 export function OrganizationCreationPage() {
