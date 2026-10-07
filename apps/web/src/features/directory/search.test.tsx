@@ -49,6 +49,21 @@ describe('Búsqueda inicial del Directorio', () => {
     </MemoryRouter></QueryClientProvider>);
   }
   const searchCalls = () => fetchMock.mock.calls.filter(([url]) => url.includes('/search?'));
+  it('UI 2.4 mantiene encabezado único y estado inicial sin mostrar vacío de resultados',()=>{
+    view();expect(screen.getByRole('heading',{level:1,name:'Búsqueda global'})).toBeVisible();
+    expect(screen.getByRole('searchbox',{name:'Nombre o correo'})).toBeVisible();
+    expect(screen.queryByText('No se encontraron resultados.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link',{name:'Organizaciones'})).not.toBeInTheDocument();
+  });
+  it('UI 2.4 conserva filtro prefijado y limpieza limitada a organizaciones',async()=>{
+    view('/directory/search?q=maria&organizationCountry=Bolivia&includeInactive=true');
+    await screen.findByText('No se encontraron resultados.');
+    expect(screen.getByText('País: Bolivia · Estado: Todas')).toBeVisible();
+    await userEvent.click(screen.getByRole('button',{name:'Limpiar filtros de organizaciones'}));
+    await waitFor(()=>expect(searchCalls().at(-1)?.[0]).not.toContain('organizationCountry'));
+    expect(searchCalls().at(-1)?.[0]).toContain('q=maria');expect(searchCalls().at(-1)?.[0]).toContain('includeInactive=true');
+    expect(screen.getByLabelText('Estado de organizaciones')).toHaveValue('all');
+  });
   it('no consulta con input vacío', () => { view(); expect(screen.getByText(/Escribe al menos dos caracteres/)).toBeInTheDocument(); expect(searchCalls()).toHaveLength(0); });
   it.each(['a', 'a@', '---'])('no consulta query inválida %s', async q => { view('/directory/search?q=' + encodeURIComponent(q)); await new Promise(resolve => setTimeout(resolve, 400)); expect(searchCalls()).toHaveLength(0); });
   it('espera 350 ms y no realiza una petición por cada tecla', async () => {

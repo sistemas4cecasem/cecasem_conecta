@@ -55,7 +55,7 @@ export function OrganizationFilters({ identity, params, change, prefix = '', pre
   const summary = [
     ...(params.get('name') ? [`Nombre: ${params.get('name')}`] : []),
     ...(value('country') ? [`País: ${value('country')}`] : []),
-    `Estado: ${value('status') === 'inactive' ? 'Inactivas' : value('status') === 'all' ? 'Todas' : 'Activas'}`,
+    `Estado: ${value('status') === 'inactive' ? 'Inactivas' : (value('status') || (prefix ? 'all' : 'active')) === 'all' ? 'Todas' : 'Activas'}`,
     ...(value('verificationStatus') ? [`Verificación: ${verificationLabels[value('verificationStatus') as keyof typeof verificationLabels] ?? value('verificationStatus')}`] : []),
     ...(canReadCommunications && value('withCommunications') ? [value('withCommunications') === 'true' ? 'Con comunicaciones históricas' : 'Sin comunicaciones históricas'] : []),
     ...(category ? [`Categoría: ${category.name}`] : []),
@@ -76,7 +76,7 @@ export function OrganizationFilters({ identity, params, change, prefix = '', pre
     {!modern && <CategoryFilter identity={identity} selected={category} onChange={next => { setSelected(next); update('categoryId', next?.id ?? ''); }} />}
     {!modern && canReadCommunications && <p className="text-sm">{communicationHelp}</p>}
     {prefix && <p className="text-sm">Para mostrar organizaciones inactivas, activa también «Incluir fichas inactivas».</p>}
-    {modern ? <div className="organizations-filter-footer"><p className="organizations-filter-summary">{summary}</p><Button onClick={clear}>Limpiar filtros</Button></div>
+    {modern ? <div className="organizations-filter-footer"><p className="organizations-filter-summary">{summary}</p><Button onClick={clear}>Limpiar filtros{prefix ? ' de organizaciones' : ''}</Button></div>
       : <button type="button" className={buttonClass} onClick={clear}>Limpiar filtros{prefix ? ' de organizaciones' : ''}</button>}
   </section>;
 }

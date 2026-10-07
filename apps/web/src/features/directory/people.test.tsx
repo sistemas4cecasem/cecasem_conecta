@@ -65,6 +65,32 @@ describe('Personas y episodios institucionales en UI',()=>{
   });
   afterEach(()=>{client.clear();vi.unstubAllGlobals();});
   function app(path='/people'){return render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[path]}><AppRoutes/></MemoryRouter></QueryClientProvider>);}
+  it('UI 2.4 conserva título y creación sin duplicar navegación',async()=>{
+    app();await screen.findByRole('link',{name:row.displayName});
+    expect(screen.getByRole('heading',{level:1,name:'Personas externas'})).toBeVisible();
+    expect(screen.getByRole('link',{name:'Crear persona'})).toHaveAttribute('href','/people/new');
+    expect(within(screen.getByRole('main')).queryByRole('link',{name:'Organizaciones del directorio'})).not.toBeInTheDocument();
+    expect(screen.getAllByRole('link',{name:'Organizaciones'}).every(link=>link.getAttribute('href')==='/organizations')).toBe(true);
+  });
+  it('UI 2.4 lectura sin escritura no ofrece creación',async()=>{
+    actor={...identity,permissions:['directory.read']};app();await screen.findByRole('link',{name:row.displayName});
+    expect(screen.queryByRole('link',{name:'Crear persona'})).not.toBeInTheDocument();
+  });
+  it('UI 2.4 preserva conteo de vínculos y estado sin inventar organización o cargo',async()=>{
+    row={...base,currentRelationsCount:3,isActive:false};app();await screen.findByRole('link',{name:row.displayName});
+    const result=within(screen.getByRole('region',{name:'Resultados de personas'}));
+    expect(result.getByText('3 vínculos vigentes')).toBeVisible();expect(result.getByText('Inactiva')).toBeVisible();
+    expect(result.getByRole('link',{name:row.displayName})).toHaveAttribute('href','/people/person');
+    expect(result.queryByText(org.name)).not.toBeInTheDocument();
+  });
+  it('UI 2.4 nombre y estado reinician página sin introducir parámetros URL',async()=>{
+    total=26;const user=userEvent.setup();app();await screen.findByRole('link',{name:row.displayName});
+    await user.click(screen.getByRole('button',{name:'Siguiente'}));
+    await user.type(screen.getByLabelText('Filtrar personas por nombre'),'Ana');
+    await waitFor(()=>expect(fetchMock.mock.calls.some(([url])=>url.includes('people?page=1&name=Ana&status=active'))).toBe(true));
+    await user.selectOptions(screen.getByLabelText('Estado'),'all');
+    await waitFor(()=>expect(fetchMock.mock.calls.some(([url])=>url.includes('people?page=1&name=Ana&status=all'))).toBe(true));
+  });
   it('lista personas y solicita paginación backend, sin descargar todo',async()=>{
     total=26;const user=userEvent.setup();app();await screen.findByRole('link',{name:'Ana QA'});await user.click(screen.getByRole('button',{name:'Siguiente'}));
     await waitFor(()=>expect(fetchMock.mock.calls.some(([url])=>url.includes('page=2'))).toBe(true));
