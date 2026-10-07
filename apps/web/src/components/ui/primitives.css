@@ -1,4 +1,11 @@
 @layer components {
+  .ui-metric { display: block; min-width: 0; padding: 0.875rem 1rem; border: 1px solid var(--color-app-border); border-radius: var(--radius-panel); background: var(--color-app-surface); overflow-wrap: anywhere; }
+  .ui-metric-label { display: block; color: var(--color-brand-primary); font-size: 0.875rem; font-weight: 500; line-height: 1.5; }
+  .ui-metric-value { display: block; margin-top: 0.375rem; color: var(--color-app-text); font-size: 1.875rem; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .ui-metric-description, .ui-metric-context { display: block; margin-top: 0.375rem; color: var(--color-app-muted); font-size: 0.8125rem; line-height: 1.5; }
+  .ui-metric-link { text-decoration: none; }
+  .ui-metric-link .ui-metric-label { text-decoration: underline; text-underline-offset: 0.2em; }
+  .ui-metric-link:hover { border-color: var(--color-brand-primary); background: var(--color-app-background); }
   .ui-button, .ui-link-action {
     display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
     min-height: 2.75rem; max-width: 100%; padding: 0.5rem 0.875rem;

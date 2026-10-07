@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createQueryClient } from '../../lib/query/query-client';
@@ -48,6 +48,82 @@ describe('Home dashboard', () => {
     });
 
   it('muestra estado de carga', async () => { mode = 'pending'; view(); expect(await screen.findByRole('status')).toHaveTextContent('Cargando indicadores'); });
+
+  it('conserva las siete métricas institucionales y sus filtros exactos', async () => {
+    view(); await screen.findByText('Procesos activos');
+    const expected = [
+      ['Procesos activos', '4', '/relationship-processes'],
+      ['Esperando respuesta', '1', '/relationship-processes?state=WAITING_RESPONSE'],
+      ['Pendientes de revisión', '2', '/opportunities?status=PENDING_REVIEW'],
+      ['En preparación', '1', '/opportunities?status=PREPARING'],
+      ['Postulaciones pendientes', '3', '/opportunities?status=SUBMITTED'],
+      ['Requieren revisión', '2', '/organizations?status=active&verificationStatus=REVIEW_DUE'],
+      ['Nunca verificadas', '1', '/organizations?status=active&verificationStatus=NEVER_VERIFIED'],
+    ];
+    for (const [label, value, href] of expected) {
+      const metric = screen.getByRole('link', { name: new RegExp(label!) });
+      expect(metric).toHaveAttribute('href', href); expect(within(metric).getByText(value!)).toBeVisible();
+    }
+    expect(fetchMock.mock.calls.every(([url]) => url.endsWith('/dashboard') || url.endsWith('/auth/me'))).toBe(true);
+  });
+
+  it('elige la experiencia por view del contrato y no por el nombre del rol', async () => {
+    current = actor('RESEARCH'); client.setQueryData(AUTH_QUERY_KEY, current); payload = globalPanel;
+    view(); await screen.findByText('Procesos activos');
+    expect(screen.getByRole('heading', { name: 'Directorio' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Procesos activos relevantes' })).not.toBeInTheDocument();
+  });
+
+  it('preserva el control de acceso y no consulta el dashboard sin capability', () => {
+    current = { ...current, permissions: [] }; client.setQueryData(AUTH_QUERY_KEY, current); view();
+    expect(screen.getByRole('alert')).toHaveTextContent('No tienes permiso para consultar el panel.');
+    expect(fetchMock.mock.calls.filter(([url]) => url.endsWith('/dashboard'))).toHaveLength(0);
+  });
+
+  it('muestra los vacíos de Búsqueda sin bloques institucionales', async () => {
+    payload = { ...researchPanel, activeProcesses: 0, relevantProcesses: [], activeIntents: 0, relevantIntents: [], unreadReminders: 0, reminderItems: [] };
+    view(); expect(await screen.findByText('No tienes procesos activos relevantes.')).toBeVisible();
+    expect(screen.getByText('No tienes intenciones activas.')).toBeVisible();
+    expect(screen.getByText('No tienes recordatorios activos sin leer.')).toBeVisible();
+    expect(screen.queryByText('Nunca verificadas')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Ver intenciones' })).toHaveAttribute('href', '/contact-intents');
+    expect(screen.getByRole('link', { name: 'Ver notificaciones' })).toHaveAttribute('href', '/notifications');
+  });
+
+  it('preserva fechas civiles, vacíos y enlaces de Planificación', async () => {
+    payload = { ...planningPanel, upcomingMeetingCount: 0, upcomingMeetings: [] };
+    view(); await screen.findByText('Fondo de cooperación');
+    const dateText = new Intl.DateTimeFormat('es-BO', { timeZone: 'UTC', dateStyle: 'medium' }).format(new Date('2026-10-20T00:00:00.000Z'));
+    expect(screen.getByText(dateText)).toHaveAttribute('datetime', '2026-10-20');
+    expect(screen.getByText('No hay reuniones próximas.')).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Ver reuniones' })).toHaveAttribute('href', '/meetings');
+    expect(screen.queryByText('Tus procesos activos')).not.toBeInTheDocument();
+  });
+
+  it('presenta fechas límite vacías sin inventar oportunidades', async () => {
+    payload = { ...planningPanel, deadlinesInNext30Days: 0, upcomingDeadlines: [] }; view();
+    expect(await screen.findByText('No hay fechas límite dentro de los próximos 30 días.')).toBeVisible();
+    expect(screen.queryByRole('link', { name: deadline.name })).not.toBeInTheDocument();
+  });
+
+  it('mantiene reuniones semánticas con fecha, zona, contexto y actualización', async () => {
+    payload = { ...globalPanel, upcomingMeetings: [{ ...meeting, relatedTitle: 'Proceso de cooperación' }] }; view();
+    const region = await screen.findByRole('region', { name: 'Reuniones próximas (1)' });
+    expect(within(region).getAllByRole('listitem')).toHaveLength(1);
+    expect(within(region).getByText('America/La_Paz')).toBeVisible();
+    expect(within(region).getByText('Proceso de cooperación')).toBeVisible();
+    const dateText = new Date(meeting.scheduledAt).toLocaleString('es-BO', { timeZone: meeting.timezone, dateStyle: 'medium', timeStyle: 'short' });
+    expect(within(region).getByText(dateText)).toHaveAttribute('datetime', meeting.scheduledAt);
+    expect(screen.getByText(new Date(stamp).toLocaleString('es-BO', { dateStyle: 'medium', timeStyle: 'short' }))).toHaveAttribute('datetime', stamp);
+  });
+
+  it.each(['process', 'intent', 'notifications'])('conserva destino del recordatorio %s y el actor sin identificar', async destination => {
+    payload = { ...researchPanel, relevantProcesses: [{ ...researchPanel.relevantProcesses[0]!, target: undefined }], reminderItems: [{ ...researchPanel.reminderItems[0]!, subject: 'Aviso pendiente', processId: destination === 'process' ? meeting.id : null, intentId: destination === 'intent' ? meeting.id : null }] };
+    view(); const notice = await screen.findByRole('link', { name: 'Aviso pendiente' });
+    expect(notice).toHaveAttribute('href', destination === 'process' ? `/relationship-processes/${meeting.id}` : destination === 'intent' ? `/contact-intents/${meeting.id}` : '/notifications');
+    expect(screen.getByText('Sin organización o persona indicada')).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Continuar diálogo' })).toHaveAttribute('href', `/relationship-processes/${meeting.id}`);
+  });
 
   it('muestra error reintentable y estados vacíos sin fabricar resultados', async () => {
     mode = 'error'; view(); await waitFor(() => expect(screen.getByRole('alert')).toBeVisible());

@@ -15,10 +15,10 @@ export function Alert({ tone = 'info', title, actions, children, className = '',
 export function EmptyState({ title, description, action }: { title: string; description?: ReactNode; action?: ReactNode }) {
   return <div className="ui-empty"><p className="ui-empty-title">{title}</p>{description && <p className="ui-description">{description}</p>}{action}</div>;
 }
-export function QueryFeedback({ pending, error, errorMessage = 'No se pudo cargar la información.', retry }: {
-  pending: boolean; error: boolean; errorMessage?: string; retry?: () => unknown;
+export function QueryFeedback({ pending, pendingMessage = 'Cargando…', error, errorMessage = 'No se pudo cargar la información.', retry }: {
+  pending: boolean; pendingMessage?: string; error: boolean; errorMessage?: string; retry?: () => unknown;
 }) {
-  if (pending) return <p role="status" className="ui-loading">Cargando…</p>;
+  if (pending) return <p role="status" className="ui-loading">{pendingMessage}</p>;
   if (error) return <Alert tone="danger" role="alert" actions={retry && <Button onClick={() => void retry()}>Reintentar</Button>}>{errorMessage}</Alert>;
   return null;
 }
