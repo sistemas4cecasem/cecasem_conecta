@@ -1,0 +1,47 @@
+@layer components {
+  .directory-detail { min-width: 0; overflow-wrap: anywhere; }
+  .directory-detail > * + * { margin-top: 1.25rem; }
+  .directory-detail .ui-page-heading .ui-badge { margin-top: 0.625rem; }
+  .directory-detail-main { display: grid; gap: 1.25rem; align-items: start; min-width: 0; }
+  .directory-detail-main > * { min-width: 0; }
+  .directory-detail-summary .ui-metadata { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; font-size: 0.875rem; }
+  .directory-detail-summary .ui-metadata > div { display: block; }
+  .directory-detail-summary dt { color: var(--color-app-muted); font-size: 0.8125rem; }
+  .directory-detail-summary dd { margin-top: 0.25rem; color: var(--color-app-text); white-space: pre-wrap; }
+  .directory-detail h2 { font-size: 1rem; font-weight: 600; color: var(--color-brand-primary); }
+  .directory-detail h3 { font-size: 0.9375rem; font-weight: 600; }
+  .directory-detail h4 { font-size: 0.875rem; font-weight: 600; }
+  .directory-detail p, .directory-detail li { font-size: 0.875rem; line-height: 1.6; }
+  .directory-detail ul, .directory-detail ol { min-width: 0; }
+  .directory-detail .directory-contact-list > li,
+  .directory-detail .directory-episode-list > li { border: 0; border-radius: 0; padding: 1rem 0; margin-top: 0; }
+  .directory-detail .directory-contact-list > li + li,
+  .directory-detail .directory-episode-list > li + li { border-top: 1px solid var(--color-app-border); }
+  .directory-detail .directory-contact-list, .directory-detail .directory-episode-list { border-top: 1px solid var(--color-app-border); }
+  .directory-detail .directory-contact-context > a:first-child { display: inline-flex; align-items: center; min-height: 2.75rem; font-size: 0.8125rem; color: var(--color-app-muted); }
+  .directory-detail .directory-contact-context > p:first-of-type a { font-weight: 600; }
+  .directory-detail .directory-episode-context > a:first-child { display: inline-flex; align-items: center; min-height: 2.75rem; color: var(--color-brand-primary); font-weight: 600; }
+  .directory-detail .directory-contact-context, .directory-detail .directory-episode-context { min-width: 0; }
+  .directory-detail .directory-contact-list > li > section, .directory-detail .directory-episode-list > li > section { margin-top: 1rem; }
+  .directory-detail button:not(.ui-button) { min-height: 2.75rem; padding: 0.5rem 0.875rem; border-color: var(--color-app-border); border-radius: var(--radius-control); color: var(--color-brand-primary); font-size: 0.875rem; background: var(--color-app-surface); }
+  .directory-detail input:not([type=checkbox]):not([type=radio]), .directory-detail select, .directory-detail textarea { min-width: 0; border-color: var(--color-app-border); border-radius: var(--radius-control); font-size: 0.875rem; }
+  .directory-detail [aria-label="Contexto institucional previo"] { background: var(--color-brand-soft); border-color: var(--color-app-border); border-radius: var(--radius-panel); }
+  .directory-detail .directory-history-operation { border-top: 1px solid var(--color-app-border); padding: 1rem 0; }
+  .directory-detail .directory-verify-action { color: white; background: var(--color-brand-primary); border-color: var(--color-brand-primary); }
+  .directory-detail .directory-verification-history { border-color: transparent; background: transparent; font-weight: 400; text-decoration: underline; text-underline-offset: 0.2em; }
+  @media (min-width: 80rem) {
+    .directory-detail-main { grid-template-columns: minmax(0, 1.65fr) minmax(18rem, 1fr); }
+    .directory-detail-summary { grid-column: 1; grid-row: 1; }
+    .directory-detail-contacts { grid-column: 1 / -1; grid-row: 2; }
+    .directory-detail-verification { grid-column: 2; grid-row: 1; }
+    .directory-detail .directory-contact-list > li, .directory-detail .directory-episode-list > li { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(18rem, 1fr); align-items: start; gap: 1rem 2rem; }
+    .directory-detail .directory-contact-list > li > section, .directory-detail .directory-episode-list > li > section { margin-top: 0; }
+    .directory-detail .directory-contact-list > li > [aria-label="Historial de modificaciones"], .directory-detail .directory-episode-list > li > [aria-label="Historial de modificaciones"] { grid-column: 1 / -1; }
+  }
+  @media (max-width: 39.999rem) {
+    .directory-detail-summary .ui-metadata { grid-template-columns: minmax(0, 1fr); }
+    .directory-detail .ui-actions { width: 100%; }
+    .directory-detail .ui-page-header .ui-actions > * { flex-basis: 100%; }
+    .directory-detail .flex.flex-wrap > button { max-width: 100%; flex: 1 1 auto; }
+  }
+}

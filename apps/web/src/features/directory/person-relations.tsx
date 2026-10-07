@@ -11,6 +11,9 @@ import { useDirectoryMutation,usePersonRelations } from './queries';
 import { Field,inputClass,buttonClass,MutationError,Pagination,QueryState } from './directory-ui';
 import { RelationForm } from './relation-form';
 import { DirectoryHistory } from './directory-history';
+import { DataList, DataListItem } from '../../components/ui/lists';
+import { Button } from '../../components/ui/actions';
+import { FormField, Select } from '../../components/ui/forms';
 
 function RelationCard({identity,row,fromOrganization,readOnly=false}:{identity:AuthIdentity;row:PersonRelation;fromOrganization:boolean;readOnly?:boolean}) {
   const [editing,setEditing]=useState<PersonRelation|null>(null),[ending,setEnding]=useState<PersonRelation|null>(null),[history,setHistory]=useState(false);
@@ -22,7 +25,7 @@ function RelationCard({identity,row,fromOrganization,readOnly=false}:{identity:A
     if(!ending) return;
     try {await mutation.mutateAsync({path:'person-organization-relations/'+row.id+'/end',method:'PATCH',body:{expectedVersion:ending.version,endDate:input.endDate||null}});setEnding(null);} catch { /* Mostrar error y preservar borrador. */ }
   }
-  return <li className="min-w-0 space-y-3 rounded border p-3 break-words">
+  return <DataListItem><div className="directory-episode-context space-y-3">
     <Link className="inline-flex min-h-11 underline" to={fromOrganization?'/people/'+row.personId:'/organizations/'+row.organizationId}>{fromOrganization?row.person.displayName:row.organization.name}</Link>
     <p>{row.isCurrent?'Vigente':'Histórico / finalizado'} · Cargo: {row.positionTitle??'Desconocido'}</p>
     <p>Período: {row.startDate??'Inicio desconocido'} → {row.endDate??(row.isCurrent?'Actualidad':'Fin desconocido')}</p>
@@ -43,20 +46,21 @@ function RelationCard({identity,row,fromOrganization,readOnly=false}:{identity:A
       <div className="flex flex-wrap gap-3"><button className={buttonClass} disabled={mutation.isPending}>Confirmar finalización</button><button type="button" className={buttonClass} disabled={mutation.isPending} onClick={()=>setEnding(null)}>Cancelar finalización</button></div>
     </form>}
     <ConsolidationProvenance origins={row.consolidationOrigins}/>
-    <VerificationPanel identity={identity} readOnly={readOnly} path={'person-organization-relations/'+row.id} label={'vínculo de '+row.person.displayName+' con '+row.organization.name}/>
-    {history&&<DirectoryHistory identity={identity} path={'person-organization-relations/'+row.id+'/history'}/>}
-  </li>;
+    </div>
+    <VerificationPanel modern headingLevel={3} identity={identity} readOnly={readOnly} path={'person-organization-relations/'+row.id} label={'vínculo de '+row.person.displayName+' con '+row.organization.name}/>
+    {history&&<DirectoryHistory modern headingLevel={3} identity={identity} path={'person-organization-relations/'+row.id+'/history'}/>}
+  </DataListItem>;
 }
 export function PersonRelations({identity,personId,organizationId,readOnly=false}:{identity:AuthIdentity;personId?:string;organizationId?:string;readOnly?:boolean}) {
   const [status,setStatus]=useState('all'),[page,setPage]=useState(1),[creating,setCreating]=useState(false);
   const relations=usePersonRelations(identity,(personId?'people/'+personId+'/relations':'organizations/'+organizationId+'/people')+`?status=${status}&page=${page}`);
   return <section className="space-y-4"><h2 className="text-xl font-semibold">{personId?'Vínculos institucionales':'Personas vinculadas'}</h2>
-    {!readOnly&&personId&&identity.permissions.includes('directory.write')&&<button className={buttonClass} onClick={()=>setCreating(true)}>Registrar nuevo episodio</button>}
+    {!readOnly&&personId&&identity.permissions.includes('directory.write')&&<Button onClick={()=>setCreating(true)}>Registrar nuevo episodio</Button>}
     {creating&&personId&&<RelationForm identity={identity} personId={personId} saved={()=>setCreating(false)} cancel={()=>setCreating(false)}/>}
-    <Field label="Vigencia de vínculos"><select className={inputClass} value={status} onChange={e=>{setStatus(e.target.value);setPage(1);}}><option value="all">Vigentes e históricos</option><option value="current">Solo vigentes</option><option value="historical">Solo históricos / finalizados</option></select></Field>
+    <FormField label="Vigencia de vínculos">{control=><Select {...control} value={status} onChange={e=>{setStatus(e.target.value);setPage(1);}}><option value="all">Vigentes e históricos</option><option value="current">Solo vigentes</option><option value="historical">Solo históricos / finalizados</option></Select>}</FormField>
     <QueryState pending={relations.isPending} error={relations.isError} retry={relations.refetch}/>
     {relations.data?.total===0&&<p>No hay vínculos en esta selección.</p>}
-    <ul className="space-y-4">{relations.data?.items.map(row=><RelationCard key={row.id} identity={identity} row={row} fromOrganization={!!organizationId} readOnly={readOnly}/>)}</ul>
+    <DataList className="directory-episode-list">{relations.data?.items.map(row=><RelationCard key={row.id} identity={identity} row={row} fromOrganization={!!organizationId} readOnly={readOnly}/>)}</DataList>
     {relations.data&&<Pagination page={page} total={relations.data.total} onPage={setPage}/>}
   </section>;
 }
