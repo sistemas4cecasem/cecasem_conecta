@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
@@ -56,6 +56,27 @@ describe('Intenciones de contacto', () => {
   afterEach(() => { client.clear(); vi.unstubAllGlobals(); });
   function view(path = '/contact-intents') { return render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[path]}><AppRoutes /></MemoryRouter></QueryClientProvider>); }
   const writes = () => fetchMock.mock.calls.filter(([, options]) => options?.method === 'POST');
+  it('UI 2.6 presenta encabezado, creación autorizada y metadata sin enriquecer la consulta', async () => {
+    view(); const results = await screen.findByRole('region', { name: 'Resultados de intenciones' }); await within(results).findByRole('link', { name: row.purpose });
+    expect(screen.getByRole('heading', { level: 1, name: 'Intenciones de contacto' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Crear intención' })).toHaveAttribute('href', '/contact-intents/new');
+    expect(within(results).getByRole('link', { name: row.target.label })).toHaveAttribute('href', '/organizations/' + goal);
+    expect(results).toHaveTextContent(row.author.displayName); expect(within(results).getByText('Creación')).toBeVisible(); expect(within(results).getByText('Última actividad')).toBeVisible();
+    expect(results.querySelectorAll('time')).toHaveLength(2); expect(writes()).toHaveLength(0);
+  });
+  it('UI 2.6 oculta crear sin capability y conserva lectura', async () => {
+    identity = { ...initialIdentity, permissions: permissions.filter(p => p !== 'relationships.intent.create') }; client.setQueryData(AUTH_QUERY_KEY, identity); view();
+    await screen.findByRole('link', { name: row.purpose }); expect(screen.queryByRole('link', { name: 'Crear intención' })).not.toBeInTheDocument();
+  });
+  it.each(['ACTIVE', 'CONVERTED', 'CANCELLED', 'CLOSED'] as const)('UI 2.6 mantiene estado textual %s', async state => {
+    row.state = state; view(); const results = screen.getByRole('region', { name: 'Resultados de intenciones' }); await within(results).findByRole('link', { name: row.purpose });
+    expect(results).toHaveTextContent({ ACTIVE: 'Activa', CONVERTED: 'Convertida', CANCELLED: 'Cancelada', CLOSED: 'Cerrada' }[state]);
+  });
+  it('UI 2.6 conserva autor inactivo y cancelación como antecedentes', async () => {
+    row = { ...row, state: 'CANCELLED', author: { ...row.author, isActive: false }, cancelledBy: row.author, cancelledAt: row.createdAt };
+    view(); const results = screen.getByRole('region', { name: 'Resultados de intenciones' }); await within(results).findByRole('link', { name: row.purpose });
+    expect(results).toHaveTextContent('Ana Prueba (cuenta inactiva)'); expect(within(results).getByText('Cancelada por')).toBeVisible(); expect(results.querySelectorAll('time')).toHaveLength(3);
+  });
   it.each(['capability', 'contexto', 'cancelada', 'convertida', 'cerrada'])('no muestra convertir sin %s', async reason => {
     if (reason === 'capability') client.setQueryData(AUTH_QUERY_KEY, { ...identity, permissions: permissions.filter(p => !p.endsWith('.convert')) });
     if (reason === 'contexto') row.canConvert = false;

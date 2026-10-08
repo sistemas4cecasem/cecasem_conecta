@@ -55,6 +55,28 @@ describe('Procesos de relación frontend', () => {
   });
   afterEach(() => { client.clear(); vi.unstubAllGlobals(); });
   function view(path = '/relationship-processes') { return render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[path]}><AppRoutes /></MemoryRouter></QueryClientProvider>); }
+  it('UI 2.6 conserva encabezado, actor, creador, fechas y acceso principal', async () => {
+    view(); const results = screen.getByRole('region', { name: 'Resultados de procesos' });
+    expect(await within(results).findByRole('link', { name: row.purpose })).toHaveAttribute('href', '/relationship-processes/' + id);
+    expect(screen.getByRole('heading', { level: 1, name: 'Procesos de relación' })).toBeVisible(); expect(screen.getByRole('link', { name: 'Crear proceso' })).toHaveAttribute('href', '/relationship-processes/new');
+    expect(within(results).getByRole('link', { name: row.target.label })).toHaveAttribute('href', '/organizations/' + goal);
+    expect(within(results).getByText('Creador')).toBeVisible(); expect(within(results).getByText('Última actividad formal')).toBeVisible(); expect(results.querySelectorAll('time')).toHaveLength(2);
+  });
+  it('UI 2.6 solo ofrece creación con su capability', async () => {
+    identity = { ...initialIdentity, permissions: permissions.filter(p => p !== 'relationships.process.create') }; client.setQueryData(AUTH_QUERY_KEY, identity); view();
+    await screen.findByRole('link', { name: row.purpose }); expect(screen.queryByRole('link', { name: 'Crear proceso' })).not.toBeInTheDocument();
+  });
+  it.each(['PREPARATION', 'IN_PROGRESS', 'WAITING_RESPONSE', 'NEGOTIATION', 'CLOSED'] as const)('UI 2.6 preserva estado %s en resultados', async state => {
+    row.state = state; view(); const results = screen.getByRole('region', { name: 'Resultados de procesos' }); await within(results).findByRole('link', { name: row.purpose });
+    expect(results).toHaveTextContent({ PREPARATION: 'En preparación', IN_PROGRESS: 'En curso', WAITING_RESPONSE: 'Esperando respuesta', NEGOTIATION: 'En negociación', CLOSED: 'Cerrado' }[state]);
+  });
+  it('UI 2.6 preserva origen, cierre, observación y creador inactivo', async () => {
+    row = { ...closed(), sourceIntentId: goal, createdBy: { ...user, isActive: false } }; view(); const results = screen.getByRole('region', { name: 'Resultados de procesos' });
+    await within(results).findByRole('link', { name: row.purpose });
+    expect(within(results).getByRole('link', { name: 'Consultar intención de origen' })).toHaveAttribute('href', '/contact-intents/' + goal);
+    expect(results).toHaveTextContent('Resultado: Otro'); expect(results).toHaveTextContent('Cierre histórico'); expect(results).toHaveTextContent('Cerrado por Ana Prueba');
+    expect(results).toHaveTextContent('(cuenta inactiva)'); expect(results.querySelectorAll('time')).toHaveLength(3);
+  });
   it.each(['SENT_COMMUNICATION', 'RECEIVED_COMMUNICATION'] as const)('participante histórico por %s se distingue del creador', async origin => {
     row.participants.push({ user: { id: goal, displayName: 'Participante histórico', isActive: false }, joinedAt: timestamp, origin });
     view('/relationship-processes/' + id);
@@ -67,7 +89,8 @@ describe('Procesos de relación frontend', () => {
   function writes() { return fetchMock.mock.calls.filter(([, options]) => options?.method === 'POST'); }
   it('listado muestra contexto institucional y navegación', async () => {
     view(); expect(await screen.findByRole('link', { name: 'Propuesta de cooperación' })).toBeVisible(); expect(screen.getAllByRole('link', { name: 'Procesos' }).length).toBeGreaterThan(0);
-    expect(screen.getByText('Creador: Ana Prueba')).toBeVisible(); expect(screen.getByText('Estado: En preparación')).toBeVisible(); expect(screen.getByText(/Última actividad formal:/)).toBeVisible();
+    const results = within(screen.getByRole('region', { name: 'Resultados de procesos' }));
+    expect(results.getByText('Creador').parentElement).toHaveTextContent('Ana Prueba'); expect(results.getByText('En preparación')).toBeVisible(); expect(results.getByText('Última actividad formal')).toBeVisible();
   });
   it('estado filtra y reinicia página, paginación cambia solicitud', async () => {
     total = 30; view(); await screen.findByText('Página 1 de 2 · 30 registros'); await userEvent.click(screen.getByRole('button', { name: 'Siguiente' }));

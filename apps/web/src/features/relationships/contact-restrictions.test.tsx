@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
@@ -54,6 +54,30 @@ describe('Restricciones de no contacto frontend', () => {
   afterEach(() => { client.clear(); vi.unstubAllGlobals(); });
   function view(path = '/contact-restrictions') { return render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[path]}><AppRoutes /></MemoryRouter></QueryClientProvider>); }
   const writes = () => fetchMock.mock.calls.filter(([, options]) => options?.method === 'POST');
+  it('UI 2.6 jerarquiza objetivo y estado sin perder motivo, autor ni detalle', async () => {
+    view(); const results = screen.getByRole('region', { name: 'Resultados de restricciones' });
+    expect(await within(results).findByRole('link', { name: row.reason })).toHaveAttribute('href', '/contact-restrictions/' + id);
+    expect(within(results).getByRole('link', { name: row.target.label })).toHaveAttribute('href', '/organizations/' + goal);
+    expect(screen.getByRole('heading', { level: 1, name: 'Restricciones de no contacto' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Registrar restricción' })).toHaveAttribute('href', '/contact-restrictions/new');
+    expect(results).toHaveTextContent('Activa — no contactar'); expect(within(results).getByText('Registrada por')).toBeVisible(); expect(results.querySelectorAll('time')).toHaveLength(1);
+  });
+  it('UI 2.6 oculta registro sin capability y conserva historial de objetivo', async () => {
+    identity = { ...initialIdentity, permissions: permissions.filter(p => p !== 'relationships.restriction.create') }; client.setQueryData(AUTH_QUERY_KEY, identity); view();
+    await screen.findByRole('link', { name: row.reason }); expect(screen.queryByRole('link', { name: 'Registrar restricción' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ver historial de este objetivo' })).toBeVisible();
+  });
+  it('UI 2.6 mantiene levantamiento, motivo y autores inactivos como historia', async () => {
+    row = { ...row, state: 'LIFTED', registeredBy: { ...row.registeredBy, isActive: false }, liftedBy: { ...row.registeredBy, isActive: false }, liftedAt: timestamp, liftReason: 'Solicitud revocada expresamente' };
+    view(); const results = screen.getByRole('region', { name: 'Resultados de restricciones' }); await within(results).findByRole('link', { name: row.reason });
+    expect(results).toHaveTextContent('Levantada'); expect(results).toHaveTextContent('Motivo de levantamiento: Solicitud revocada expresamente'); expect(results).toHaveTextContent('(cuenta inactiva)'); expect(results.querySelectorAll('time')).toHaveLength(2);
+  });
+  it('UI 2.6 registro mantiene encabezado, regreso y error accesible sin escribir', async () => {
+    view('/contact-restrictions/new'); expect(screen.getByRole('heading', { level: 1, name: 'Registrar restricción de no contacto' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Volver al listado' })).toHaveAttribute('href', '/contact-restrictions');
+    await userEvent.click(screen.getByRole('button', { name: 'Revisar restricción' }));
+    expect(screen.getByLabelText('Motivo de restricción')).toHaveAttribute('aria-invalid', 'true'); expect(screen.getByLabelText('Motivo de restricción')).toHaveAttribute('aria-describedby'); expect(writes()).toHaveLength(0);
+  });
   it('listado carga', () => { mode = 'pending'; view(); expect(screen.getByText('Cargando…')).toBeVisible(); });
   it('listado vacío', async () => { total = 0; view(); expect(await screen.findByText('No hay restricciones para estos filtros.')).toBeVisible(); });
   it('listado error permite reintentar', async () => { mode = 'error'; view(); await screen.findByText('No se pudo cargar la información.'); mode = 'ok'; await userEvent.click(screen.getByRole('button', { name: 'Reintentar' })); expect(await screen.findByRole('link', { name: row.reason })).toBeVisible(); });

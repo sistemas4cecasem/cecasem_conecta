@@ -1,0 +1,29 @@
+@layer components {
+  .relationships-page { width: 100%; min-width: 0; overflow-wrap: anywhere; }
+  .relationships-page > * + * { margin-top: 1.5rem; }
+  .relationships-page .relationships-primary-action { color: white; background: var(--color-brand-primary); border-color: var(--color-brand-primary); }
+  .relationships-page .relationships-primary-action:hover { background: #18253d; }
+  .relationships-page .ui-filter-controls { grid-template-columns: minmax(0, 1fr); max-width: 24rem; }
+  .relationships-row-heading { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 0.5rem 1rem; }
+  .relationships-row-heading .ui-link-list { display: inline-flex; align-items: center; min-height: 2.75rem; flex: 1 1 24rem; min-width: 0; max-width: 100%; white-space: pre-wrap; font-size: 0.9375rem; }
+  .relationships-row-heading .ui-badge { margin-top: 0.5rem; }
+  .relationships-page .ui-data-list-item { padding-block: 0.75rem; }
+  .relationships-page .ui-metadata { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem 1.5rem; }
+  .relationships-page .ui-metadata > div { min-width: 0; }
+  .relationships-page .ui-metadata dd { color: var(--color-app-text); }
+  .relationships-page .ui-link-context { font-weight: 400; }
+  .relationships-page .ui-button-ghost { font-weight: 400; text-decoration: underline; text-underline-offset: 0.2em; }
+  .relationships-closure { font-size: 0.875rem; line-height: 1.6; padding-left: 0.75rem; border-left: 2px solid var(--color-app-border); }
+  .relationships-restriction-reason { white-space: pre-wrap; font-size: 0.875rem; line-height: 1.6; }
+  .relationships-restriction-create { max-width: 60rem; }
+  .relationships-restriction-create input[type=search] { border-color: var(--color-app-border); border-radius: var(--radius-control); font-size: 0.875rem; }
+  .relationships-restriction-create [aria-label="Seleccionar objetivo del Directorio"] { min-width: 0; font-size: 0.875rem; line-height: 1.6; }
+  .relationships-restriction-create [aria-label="Seleccionar objetivo del Directorio"] button { max-width: 100%; color: var(--color-brand-primary); border-color: var(--color-app-border); border-radius: var(--radius-control); font-size: 0.875rem; }
+  @media (max-width: 39.999rem) {
+    .relationships-page .ui-metadata { grid-template-columns: minmax(0, 1fr); }
+    .relationships-row-heading .ui-link-list { flex-basis: 100%; }
+    .relationships-row-heading .ui-badge { margin-top: 0; }
+    .relationships-page .ui-page-header .ui-actions { width: 100%; }
+    .relationships-page .ui-page-header .ui-actions > * { flex-basis: 100%; }
+  }
+}
