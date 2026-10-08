@@ -40,6 +40,67 @@ describe('Notificaciones propias', () => {
         <Route path="opportunities/:id" element={<Destination />} /></Routes>
     </MemoryRouter></QueryClientProvider>);
   }
+  it.each(['ADMINISTRATOR','BOARD','RESEARCH','PLANNING'] as const)('UI 2.11 %s conserva bandeja propia e indicador coherente',async role=>{
+    const current={...identity,role};client.setQueryData(AUTH_QUERY_KEY,current);
+    const original=fetchMock.getMockImplementation()!;fetchMock.mockImplementation((url,o)=>url.endsWith('/auth/me')?Promise.resolve(Response.json(current)):original(url,o));
+    render(<QueryClientProvider client={client}><MemoryRouter><NotificationIndicator identity={current}/><NotificationsPage/></MemoryRouter></QueryClientProvider>);
+    expect(await screen.findByText('Beca institucional')).toBeVisible();
+    expect(await screen.findByLabelText('1 notificaciones no leídas')).toBeVisible();
+    expect(screen.getByText('No leídas: 1')).toBeVisible();expect(screen.getByRole('button',{name:'Abrir oportunidad'})).toBeEnabled();
+    expect(fetchMock.mock.calls.some(([,o])=>o?.method==='PATCH')).toBe(false);
+  });
+  it('UI 2.11 cursor pendiente conserva filas y bloquea doble carga',async()=>{
+    let complete!:(r:Response)=>void;
+    fetchMock.mockImplementation(async url=>url.endsWith('/auth/me')?Response.json(identity):url.endsWith('/unread-count')?Response.json({count:1}):url.includes('after=cursor')?new Promise(resolve=>{complete=resolve;}):Response.json({items:[fixture],nextCursor:'cursor'}));
+    view();await userEvent.click(await screen.findByRole('button',{name:'Cargar más notificaciones'}));
+    expect(screen.getByRole('button',{name:'Cargando…'})).toBeDisabled();expect(screen.getByRole('button',{name:'Cargando…'})).toHaveAttribute('aria-busy','true');
+    expect(screen.getByText('Beca institucional')).toBeVisible();
+    await act(async()=>complete(Response.json({items:[],nextCursor:null})));
+    await waitFor(()=>expect(screen.queryByRole('button',{name:'Cargando…'})).not.toBeInTheDocument());
+    expect(fetchMock.mock.calls.filter(([url])=>url.includes('after=cursor'))).toHaveLength(1);
+  });
+  it('UI 2.11 presenta cabecera, filas mixtas y fechas sin marcar lectura al cargar',async()=>{
+    rows=[structuredClone(fixture),{...structuredClone(fixture),id:'44444444-4444-4444-8444-444444444444',readAt:'2026-10-04T10:01:00.000Z'}];
+    view(); await screen.findByRole('region',{name:'Listado de notificaciones'});
+    expect(screen.getAllByRole('heading',{level:1})).toHaveLength(1);
+    expect(screen.getAllByRole('heading',{name:'Nueva oportunidad',level:2})).toHaveLength(2);
+    expect(screen.getByText('No leída')).toBeVisible();expect(screen.getByText('Leída')).toBeVisible();
+    expect(screen.getAllByText('Generada')).toHaveLength(2);
+    expect(screen.getByLabelText('Mostrar')).toHaveValue('all');
+    expect(fetchMock.mock.calls.some(([,o])=>o?.method==='PATCH')).toBe(false);
+  });
+  it('UI 2.11 carga inicial es accesible y no ofrece acciones antes de recibir datos',async()=>{
+    let complete!:(r:Response)=>void;
+    fetchMock.mockImplementation(async url=>url.endsWith('/auth/me')?Response.json(identity):url.endsWith('/unread-count')?Response.json({count:0}):new Promise(resolve=>{complete=resolve;}));
+    view();expect(screen.getByRole('status')).toHaveTextContent('Cargando notificaciones…');
+    expect(screen.queryByRole('button',{name:'Abrir oportunidad'})).not.toBeInTheDocument();
+    await act(async()=>complete(Response.json({items:[],nextCursor:null})));
+    expect(await screen.findByText('No tienes notificaciones en este listado.')).toBeVisible();
+  });
+  it('UI 2.11 sin capability de lectura oculta indicador y no consulta avisos',async()=>{
+    const denied={...identity,permissions:[]}; client.setQueryData(AUTH_QUERY_KEY,denied);
+    fetchMock.mockImplementation(async()=>Response.json(denied));
+    render(<QueryClientProvider client={client}><MemoryRouter><NotificationIndicator identity={denied}/><NotificationsPage/></MemoryRouter></QueryClientProvider>);
+    expect(screen.getByRole('alert')).toHaveTextContent('No tienes acceso');
+    expect(screen.queryByRole('link',{name:/Notificaciones/})).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([url])=>url.includes('/notifications'))).toBe(false);
+  });
+  it('UI 2.11 abrir sin capability de marcado conserva navegación sin PATCH',async()=>{
+    const readonly={...identity,permissions:['notifications.read']};client.setQueryData(AUTH_QUERY_KEY,readonly);
+    const original=fetchMock.getMockImplementation()!;fetchMock.mockImplementation((url,o)=>url.endsWith('/auth/me')?Promise.resolve(Response.json(readonly)):original(url,o));
+    view();await userEvent.click(await screen.findByRole('button',{name:'Abrir oportunidad'}));
+    expect(await screen.findByText('Detalle de oportunidad · Lectura pendiente')).toBeVisible();
+    expect(fetchMock.mock.calls.some(([,o])=>o?.method==='PATCH')).toBe(false);
+  });
+  it('UI 2.11 lectura pendiente bloquea una segunda apertura sin cambiar contador anticipadamente',async()=>{
+    let complete!:(r:Response)=>void;const original=fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((url,o)=>o?.method==='PATCH'?new Promise(resolve=>{complete=resolve;}):original(url,o));
+    view();await userEvent.click(await screen.findByRole('button',{name:'Abrir oportunidad'}));
+    expect(screen.getByRole('button',{name:'Abriendo…'})).toBeDisabled();expect(screen.getByRole('button',{name:'Abriendo…'})).toHaveAttribute('aria-busy','true');
+    expect(screen.getByLabelText('1 notificaciones no leídas')).toBeVisible();
+    await act(async()=>{rows[0]!.readAt='2026-10-04T10:01:00.000Z';complete(Response.json(rows[0]));});
+    expect(await screen.findByText('Detalle de oportunidad')).toBeVisible();
+  });
   it('muestra badge accesible, oportunidad, fecha y no leído', async () => {
     view(); expect(await screen.findByLabelText('1 notificaciones no leídas')).toHaveTextContent('1');
     expect(await screen.findByText('Beca institucional')).toBeVisible(); expect(screen.getByText('No leída')).toBeVisible();

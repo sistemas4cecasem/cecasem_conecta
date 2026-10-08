@@ -1,3 +1,9 @@
+import { PageHeader, Surface, FilterBar } from '../../components/ui/layout';
+import { FormField, Select } from '../../components/ui/forms';
+import { Button } from '../../components/ui/actions';
+import { Alert, StatusBadge, QueryFeedback, EmptyState } from '../../components/ui/feedback';
+import { DataList, DataListItem, Metadata, LoadMore } from '../../components/ui/lists';
+import './notifications.css';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -49,34 +55,31 @@ function NotificationCenter({ identity }: { identity: AuthIdentity }) {
   }
 
   const items = query.data?.pages.flatMap(page => page.items) ?? [];
-  return <section className="space-y-5">
-    <h1 className="text-2xl font-semibold">Notificaciones</h1>
-    <p>Consulta los avisos institucionales dirigidos a tu usuario.</p>
-    {count.data && <p aria-live="polite">No leídas: {count.data.count}</p>}
-    <label className="flex flex-wrap items-center gap-2">Mostrar
-      <select value={status} onChange={event => setStatus(event.target.value)} className="min-h-11 rounded border px-3">
+  return <section className="notifications-page">
+    <PageHeader title="Notificaciones" eyebrow="CECASEM Conecta" description="Consulta los avisos institucionales dirigidos a tu usuario."
+      metadata={count.data && <p aria-live="polite" className="ui-description">No leídas: {count.data.count}</p>}/>
+    <FilterBar aria-label="Filtros de notificaciones"><FormField label="Mostrar">{control =>
+      <Select {...control} value={status} onChange={event => setStatus(event.target.value)}>
         <option value="all">Todas</option><option value="unread">No leídas</option><option value="read">Leídas</option>
-      </select>
-    </label>
-    {notice && <p role="alert">{notice}</p>}
-    {query.isPending && <p role="status">Cargando notificaciones…</p>}
-    {query.isError && <div><p role="alert">No se pudieron cargar las notificaciones. Revisa tu conexión.</p>
-      <button className="min-h-11 underline" onClick={() => void query.refetch()}>Reintentar</button></div>}
-    {query.isSuccess && !items.length && <p>No tienes notificaciones en este listado.</p>}
-    <ul className="space-y-3">
-      {items.map(row => <li key={row.id} className="space-y-2 break-words rounded border p-4">
-        <div className="flex flex-wrap justify-between gap-2"><strong>{notificationLabels[row.type]}</strong>
-          <span>{row.readAt ? 'Leída' : 'No leída'}</span></div>
+      </Select>}</FormField></FilterBar>
+    {notice && <Alert tone="warning" role="alert">{notice}</Alert>}
+    <QueryFeedback pending={query.isPending} pendingMessage="Cargando notificaciones…" error={query.isError}
+      errorMessage="No se pudieron cargar las notificaciones. Revisa tu conexión." retry={() => query.refetch()}/>
+    {query.isSuccess && !items.length && <EmptyState title="No tienes notificaciones en este listado."/>}
+    {items.length > 0 && <Surface aria-label="Listado de notificaciones"><DataList>
+      {items.map(row => <DataListItem key={row.id} className={row.readAt ? 'notification-row' : 'notification-row notification-unread'}>
+        <div className="notification-heading"><h2>{notificationLabels[row.type]}</h2>
+          <StatusBadge tone={row.readAt ? 'neutral' : 'info'}>{row.readAt ? 'Leída' : 'No leída'}</StatusBadge></div>
         <p>{row.process ? row.process.purpose : row.reminder ? row.reminder.purpose : row.meeting ? row.meeting.purpose : row.opportunity!.name}</p>
         {row.process && <><p>{row.process.context}</p><p>Concretado el {new Date(row.process.occurredAt).toLocaleString('es-BO')}</p></>}
         {row.reminder && <><p>{row.reminder.context}</p><p>Sin actividad desde {new Intl.DateTimeFormat('es-BO',{dateStyle:'medium',timeStyle:'short',timeZone:'UTC'}).format(new Date(row.reminder.inactivityAnchorAt))} UTC · Intervalo: {row.reminder.intervalDays} días</p></>}
         {row.meeting && <p>{new Intl.DateTimeFormat('es-BO',{dateStyle:'medium',timeStyle:'short',timeZone:row.meeting.timezone}).format(new Date(row.meeting.scheduledAt))} · {row.meeting.timezone}</p>}
-        <time dateTime={row.createdAt}>{new Date(row.createdAt).toLocaleString('es-BO')}</time>
-        <div><button disabled={opening !== null} className="min-h-11 rounded border px-3 py-2"
-          onClick={() => void open(row)}>{opening === row.id ? 'Abriendo…' : row.process ? 'Abrir proceso' : row.reminder ? row.reminder.intentId ? 'Abrir intención' : 'Abrir proceso' : row.meeting ? 'Abrir reunión' : 'Abrir oportunidad'}</button></div>
-      </li>)}
-    </ul>
-    {query.hasNextPage && <button disabled={query.isFetchingNextPage} className="min-h-11 rounded border px-3 py-2"
-      onClick={() => void query.fetchNextPage()}>{query.isFetchingNextPage ? 'Cargando…' : 'Cargar más notificaciones'}</button>}
+        <Metadata items={[{label:'Generada',value:<time dateTime={row.createdAt}>{new Date(row.createdAt).toLocaleString('es-BO')}</time>}]}/>
+        <div><Button disabled={opening !== null} pending={opening === row.id}
+          onClick={() => void open(row)}>{opening === row.id ? 'Abriendo…' : row.process ? 'Abrir proceso' : row.reminder ? row.reminder.intentId ? 'Abrir intención' : 'Abrir proceso' : row.meeting ? 'Abrir reunión' : 'Abrir oportunidad'}</Button></div>
+      </DataListItem>)}
+    </DataList></Surface>}
+    {query.hasNextPage && <LoadMore disabled={query.isFetchingNextPage} pending={query.isFetchingNextPage}
+      onClick={() => void query.fetchNextPage()}>{query.isFetchingNextPage ? 'Cargando…' : 'Cargar más notificaciones'}</LoadMore>}
   </section>;
 }

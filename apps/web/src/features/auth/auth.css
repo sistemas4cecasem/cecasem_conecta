@@ -1,0 +1,8 @@
+@layer components {
+  .auth-form-surface { width: 100%; max-width: 28rem; overflow-wrap: anywhere; }
+  .auth-form-surface h1 { color: var(--color-brand-primary); font-size: 1.5rem; line-height: 1.3; font-weight: 600; }
+  .auth-form-surface > * + * { margin-top: 1.25rem; }
+  .auth-form-surface form > * + * { margin-top: 1rem; }
+  .auth-form-surface .auth-submit { width: 100%; }
+  .auth-form-surface .auth-links { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; }
+}

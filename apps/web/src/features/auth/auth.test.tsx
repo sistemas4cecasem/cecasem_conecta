@@ -45,6 +45,34 @@ describe('Autenticación completa en interfaz', () => {
     await user.click(screen.getByRole('button', { name: 'Iniciar sesión' }));
   }
 
+  it('UI 2.11 presenta controles y orientación de recuperación sin nuevas solicitudes', async () => {
+    renderApp(); await screen.findByRole('heading', { name: 'Iniciar sesión' });
+    expect(screen.getAllByRole('heading', {level:1})).toHaveLength(1);
+    expect(screen.getByLabelText('Correo electrónico')).toHaveAttribute('autocomplete', 'username');
+    expect(screen.getByLabelText('Contraseña')).toHaveAttribute('type','password');
+    expect(screen.getByLabelText('Contraseña')).toHaveAttribute('autocomplete','current-password');
+    expect(screen.getByText(/solicita una credencial temporal al Administrador/)).toBeVisible();
+    expect(screen.getByRole('link',{name:'Primer acceso'})).toHaveAttribute('href','/first-access');
+    expect(screen.getByRole('link',{name:'Restablecer contraseña'})).toHaveAttribute('href','/reset-password');
+    expect(fetchMock.mock.calls.every(([url]:string[])=>url?.endsWith('/auth/me'))).toBe(true);
+  });
+  it('UI 2.11 asocia errores de campos con controles y permite corregirlos', async () => {
+    renderApp(); await screen.findByRole('heading',{name:'Iniciar sesión'});
+    await userEvent.click(screen.getByRole('button',{name:'Iniciar sesión'}));
+    await screen.findByText('Introduce un correo válido.');
+    expect(screen.getByLabelText('Correo electrónico')).toHaveAttribute('aria-invalid','true');
+    expect(screen.getByLabelText('Correo electrónico')).toHaveAccessibleDescription('Introduce un correo válido.');
+    expect(screen.getByLabelText('Contraseña')).toHaveAccessibleDescription('Introduce tu contraseña.');
+    await userEvent.type(screen.getByLabelText('Correo electrónico'),'fixture@example.test');
+    await waitFor(()=>expect(screen.getByLabelText('Correo electrónico')).not.toHaveAttribute('aria-invalid','true'));
+  });
+  it('UI 2.11 navegación a recuperación no inicia solicitudes ni consumo de credenciales', async()=>{
+    renderApp(); await screen.findByRole('heading',{name:'Iniciar sesión'});
+    await userEvent.click(screen.getByRole('link',{name:'Restablecer contraseña'}));
+    expect(await screen.findByRole('heading',{name:'Restablecer contraseña'})).toBeVisible();
+    expect(await screen.findByLabelText('Token de restablecimiento')).toHaveValue('');
+    expect(fetchMock.mock.calls.every(([url]:string[])=>url?.endsWith('/auth/me'))).toBe(true);
+  });
   it('redirects anonymous protected access to the login without flashing protected content', async () => {
     renderApp('/');
     expect(screen.getByRole('status')).toHaveTextContent('Comprobando sesión');
@@ -64,6 +92,7 @@ describe('Autenticación completa en interfaz', () => {
     loginResult = () => new Promise((resolve) => { finish = resolve; });
     renderApp(); await fillLogin();
     expect(screen.getByRole('button', { name: 'Ingresando…' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Ingresando…' })).toHaveAttribute('aria-busy','true');
     expect(screen.getByLabelText('Contraseña')).toHaveValue('');
     finish(new Response(null, { status: 401 }));
     expect(await screen.findByText('Credenciales no válidas. Revisa tu correo y contraseña.')).toBeVisible();

@@ -1,3 +1,7 @@
+import { AuthFormSurface } from './auth-form-surface';
+import { FormField, Input, FieldHelp, FormActions } from '../../components/ui/forms';
+import { Button } from '../../components/ui/actions';
+import { Alert, QueryFeedback } from '../../components/ui/feedback';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { useLayoutEffect, useRef, useState } from 'react';
@@ -81,33 +85,25 @@ export function CredentialPasswordForm({ flow }: { flow: keyof typeof flows }) {
     } finally { sending.current = false; setPending(false); }
   }
 
-  return <section className="w-full max-w-md" aria-labelledby="first-access-title">
-    <h1 id="first-access-title" className="text-3xl font-semibold">{configuration.title}</h1>
-    <p className="mt-3 text-slate-600">{configuration.description}</p>
-    {session.isPending ? <p role="status" className="mt-4">Comprobando sesión…</p> : session.isError ?
-      <div className="mt-4"><p role="alert">No se pudo comprobar la sesión. Revisa tu conexión.</p>
-        <button className="min-h-11 underline" onClick={() => void session.refetch()}>Reintentar</button></div> : session.data ?
-      <div className="mt-6 space-y-3"><p>Existe una sesión abierta de {session.data.givenNames} {session.data.familyNames} ({session.data.email}).</p>
+  return <AuthFormSurface title={configuration.title} titleId="first-access-title" description={configuration.description}>
+    {session.isPending || session.isError ? <QueryFeedback pending={session.isPending} pendingMessage="Comprobando sesión…" error={session.isError}
+      errorMessage="No se pudo comprobar la sesión. Revisa tu conexión." retry={() => session.refetch()}/> : session.data ?
+      <Alert tone="info"><p>Existe una sesión abierta de {session.data.givenNames} {session.data.familyNames} ({session.data.email}).</p>
         <p>Ciérrala para continuar con el formulario.</p>
-        <button disabled={pending} className="min-h-11 rounded border px-3 py-2" onClick={() => void logout()}>
-          {pending ? 'Cerrando sesión…' : 'Cerrar sesión y continuar'}</button></div> :
-      <form onSubmit={(event) => void handleSubmit(submit)(event)} noValidate className="mt-8 space-y-5">
-        <div><label htmlFor="first-access-token" className="block font-medium">{configuration.tokenLabel}</label>
-          <input id="first-access-token" type="password" autoComplete="off" {...register('token')} disabled={pending}
-            aria-invalid={!!errors.token} aria-describedby={errors.token ? 'token-error' : 'token-help'}
-            className="mt-2 min-h-11 w-full rounded border border-slate-400 px-3" />
-          <p id="token-help" className="mt-2 text-sm text-slate-600">Si no abriste un enlace, pega la credencial recibida. Al recargar tendrás que pegarla nuevamente.</p>
-          {errors.token && <p id="token-error" role="alert">{errors.token.message}</p>}</div>
-        <p className="text-sm text-slate-600">Usa entre 15 y 128 caracteres. Puedes incluir espacios y caracteres Unicode.</p>
-        {(['password', 'confirmPassword'] as const).map((field) => <div key={field}>
-          <label htmlFor={field} className="block font-medium">{field === 'password' ? 'Contraseña nueva' : 'Confirmar contraseña'}</label>
-          <input id={field} type="password" autoComplete="new-password" {...register(field)} disabled={pending}
-            aria-invalid={!!errors[field]} aria-describedby={errors[field] ? `${field}-error` : undefined}
-            className="mt-2 min-h-11 w-full rounded border border-slate-400 px-3" />
-          {errors[field] && <p id={`${field}-error`} role="alert">{errors[field].message}</p>}</div>)}
-        <button disabled={pending} type="submit" className="min-h-11 w-full rounded bg-slate-900 px-5 py-3 font-medium text-white disabled:opacity-60">
-          {pending ? 'Estableciendo contraseña…' : 'Establecer contraseña'}</button>
+        <FormActions><Button disabled={pending} pending={pending} onClick={() => void logout()}>
+          {pending ? 'Cerrando sesión…' : 'Cerrar sesión y continuar'}</Button></FormActions></Alert> :
+      <form onSubmit={(event) => void handleSubmit(submit)(event)} noValidate>
+        <FormField id="first-access-token" label={configuration.tokenLabel} error={errors.token?.message}
+          help="Si no abriste un enlace, pega la credencial recibida. Al recargar tendrás que pegarla nuevamente.">{control =>
+          <Input {...control} type="password" autoComplete="off" {...register('token')} disabled={pending}/>}</FormField>
+        <FieldHelp id="password-help">Usa entre 15 y 128 caracteres. Puedes incluir espacios y caracteres Unicode.</FieldHelp>
+        {(['password', 'confirmPassword'] as const).map(field => <FormField key={field} id={field}
+          label={field === 'password' ? 'Contraseña nueva' : 'Confirmar contraseña'} error={errors[field]?.message} describedBy="password-help">{control =>
+          <Input {...control} type="password" autoComplete="new-password" {...register(field)} disabled={pending}/>}</FormField>)}
+        <FormActions><Button disabled={pending} pending={pending} type="submit" variant="primary" className="auth-submit">
+          {pending ? 'Estableciendo contraseña…' : 'Establecer contraseña'}</Button></FormActions>
+        <FieldHelp>Si la credencial ya no está disponible, solicita otra al Administrador.</FieldHelp>
       </form>}
-    {error && <p role="alert" className="mt-4">{error}</p>}
-  </section>;
+    {error && <Alert tone="danger" role="alert">{error}</Alert>}
+  </AuthFormSurface>;
 }

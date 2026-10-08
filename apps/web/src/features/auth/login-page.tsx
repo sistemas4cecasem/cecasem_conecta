@@ -1,3 +1,7 @@
+import { AuthFormSurface } from './auth-form-surface';
+import { FormField, Input, FieldHelp, FormActions } from '../../components/ui/forms';
+import { Button, ActionLink } from '../../components/ui/actions';
+import { Alert } from '../../components/ui/feedback';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -54,26 +58,20 @@ export function LoginPage() {
   if (session.isPending) return <p role="status">Comprobando sesión…</p>;
   if (session.data) return <Navigate to="/" replace />;
 
-  return <section className="w-full max-w-md" aria-labelledby="login-title">
-    <h1 id="login-title" className="text-3xl font-semibold">Iniciar sesión</h1>
-    <p className="mt-3 text-slate-600">Accede con tu cuenta de CECASEM.</p>
-    {firstAccessCompleted && <p role="status" className="mt-4">Contraseña establecida correctamente. Ya puedes iniciar sesión.</p>}
-    {passwordResetCompleted && <p role="status" className="mt-4">Contraseña restablecida correctamente. Ya puedes iniciar sesión.</p>}
-    {session.isError && <p role="alert" className="mt-4">No se pudo comprobar la sesión. Puedes intentar iniciar sesión nuevamente.</p>}
-    <form onSubmit={handleSubmit(submit)} noValidate className="mt-8 space-y-5">
-      <div><label htmlFor="email" className="block font-medium">Correo electrónico</label>
-        <input id="email" type="email" autoComplete="username" {...register('email')} disabled={pending}
-          aria-invalid={!!errors.email} aria-describedby={errors.email ? 'email-error' : undefined}
-          className="mt-2 min-h-11 w-full rounded border border-slate-400 px-3" />
-        {errors.email && <p id="email-error" role="alert">{errors.email.message}</p>}</div>
-      <div><label htmlFor="password" className="block font-medium">Contraseña</label>
-        <input id="password" type="password" autoComplete="current-password" {...register('password')} disabled={pending}
-          aria-invalid={!!errors.password} aria-describedby={errors.password ? 'password-error' : undefined}
-          className="mt-2 min-h-11 w-full rounded border border-slate-400 px-3" />
-        {errors.password && <p id="password-error" role="alert">{errors.password.message}</p>}</div>
-      {error && <p role="alert">{error}</p>}
-      <button type="submit" disabled={pending} className="min-h-11 w-full rounded bg-slate-900 px-5 py-3 font-medium text-white disabled:opacity-60">
-        {pending ? 'Ingresando…' : 'Iniciar sesión'}</button>
+  return <AuthFormSurface title="Iniciar sesión" titleId="login-title" description="Accede con tu cuenta de CECASEM.">
+    {firstAccessCompleted && <Alert tone="success" role="status">Contraseña establecida correctamente. Ya puedes iniciar sesión.</Alert>}
+    {passwordResetCompleted && <Alert tone="success" role="status">Contraseña restablecida correctamente. Ya puedes iniciar sesión.</Alert>}
+    {session.isError && <Alert tone="danger" role="alert">No se pudo comprobar la sesión. Puedes intentar iniciar sesión nuevamente.</Alert>}
+    <form onSubmit={handleSubmit(submit)} noValidate>
+      <FormField id="email" label="Correo electrónico" error={errors.email?.message}>{control =>
+        <Input {...control} type="email" autoComplete="username" {...register('email')} disabled={pending}/>}</FormField>
+      <FormField id="password" label="Contraseña" error={errors.password?.message}>{control =>
+        <Input {...control} type="password" autoComplete="current-password" {...register('password')} disabled={pending}/>}</FormField>
+      {error && <Alert tone="danger" role="alert">{error}</Alert>}
+      <FormActions><Button type="submit" variant="primary" className="auth-submit" pending={pending} disabled={pending}>
+        {pending ? 'Ingresando…' : 'Iniciar sesión'}</Button></FormActions>
     </form>
-  </section>;
+    <FieldHelp>Para el primer acceso o recuperar tu contraseña, solicita una credencial temporal al Administrador.</FieldHelp>
+    <div className="auth-links"><ActionLink appearance="context" to="/first-access">Primer acceso</ActionLink><ActionLink appearance="context" to="/reset-password">Restablecer contraseña</ActionLink></div>
+  </AuthFormSurface>;
 }

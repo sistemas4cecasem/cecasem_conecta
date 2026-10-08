@@ -1,0 +1,10 @@
+@layer components {
+  .notifications-page { min-width: 0; overflow-wrap: anywhere; }
+  .notifications-page > * + * { margin-top: 1.5rem; }
+  .notifications-page .ui-filter-bar { max-width: 24rem; }
+  .notifications-page .notification-row { padding: 1rem; }
+  .notification-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: start; gap: 0.5rem 1rem; }
+  .notification-heading h2 { min-width: 0; font-size: 0.875rem; font-weight: 500; line-height: 1.5; }
+  .notification-unread { background: var(--color-app-background); border-left: 3px solid var(--color-brand-primary); }
+  .notification-unread .notification-heading h2 { font-weight: 600; }
+}
