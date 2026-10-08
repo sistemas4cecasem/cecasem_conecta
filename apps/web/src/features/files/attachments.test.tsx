@@ -27,9 +27,18 @@ describe('Adjuntos privados en interfaz y cliente binario', () => {
       return Promise.resolve(new Response(null, { status: 404 }));
     }); vi.stubGlobal('fetch', fetchMock);
   });
-  function view(blocked = false, resource: 'communications' | 'relationship-processes' = 'communications', current = identity) {
-    return render(<QueryClientProvider client={client}><Attachments identity={current} resource={resource} resourceId={id} processId={id} blocked={blocked} /></QueryClientProvider>);
+  function view(blocked = false, resource: 'communications' | 'relationship-processes' = 'communications', current = identity, modern = false) {
+    return render(<QueryClientProvider client={client}><Attachments modern={modern} identity={current} resource={resource} resourceId={id} processId={id} blocked={blocked} /></QueryClientProvider>);
   }
+  it('UI 2.7 carga con presentación moderna conserva FormData y limpia selección', async () => {
+    view(false, 'relationship-processes', identity, true); await screen.findByText(/Hasta 10 archivos/); await userEvent.upload(screen.getByLabelText('Seleccionar archivos'), new File(['acuerdo'], 'acuerdo.txt', { type: 'text/plain' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Incorporar adjuntos' })); await screen.findByRole('button', { name: 'Descargar acuerdo.txt' });
+    expect(fetchMock.mock.calls.find(([, options]) => options?.method === 'POST')?.[1]?.body).toBeInstanceOf(FormData); expect(screen.getByRole('button', { name: 'Incorporar adjuntos' })).toBeDisabled();
+  });
+  it('UI 2.7 adjuntos de proceso cerrado conservan descarga y omiten carga', async () => {
+    items = [metadata]; view(true, 'relationship-processes', identity, true); expect(await screen.findByRole('button', { name: 'Descargar acuerdo.txt' })).toBeVisible();
+    expect(screen.queryByLabelText('Seleccionar archivos')).not.toBeInTheDocument(); expect(screen.getByText(/El proceso está cerrado/)).toBeVisible();
+  });
   it('estado vacío y contexto de incorporación posterior', async () => { view(); await screen.findByText('No hay adjuntos registrados.'); expect(screen.getByText(/no forman parte del mensaje original/)).toBeInTheDocument(); });
   it('selección múltiple envía FormData, limpia selección e incorpora lista', async () => {
     view(); await screen.findByText(/Hasta 10 archivos/); await userEvent.upload(screen.getByLabelText('Seleccionar archivos'), [new File(['acuerdo'], 'acuerdo.txt', { type: 'text/plain' }), new File(['otro'], 'otro.csv', { type: 'text/csv' })]);

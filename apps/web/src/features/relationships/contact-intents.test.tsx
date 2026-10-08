@@ -92,7 +92,7 @@ describe('Intenciones de contacto', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Convertir en proceso' }));
     expect(screen.getByText(/Tú serás su creador/)).toBeVisible();
     await userEvent.click(screen.getByRole('button', { name: 'Confirmar conversión' }));
-    expect(await screen.findByRole('heading', { name: 'Proceso de relación' })).toBeVisible();
+    expect(await screen.findByRole('heading', { level: 1, name: row.purpose })).toBeVisible();
     expect(screen.getByRole('region', { name: 'Participantes' })).toHaveTextContent('Creador del proceso');
     expect(JSON.parse(writes()[0]?.[1]?.body as string)).toEqual({ expectedVersion: 1 });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['relationships', ownerId] });

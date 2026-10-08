@@ -1,9 +1,13 @@
 import { Attachments } from '../files/attachments';
 import { CommunicationTranslation } from './communication-translation';
 import { ReferralsPanel } from '../referrals/referrals-panel';
-import { Link, useParams } from 'react-router';
+import { useParams } from 'react-router';
 import { useSession, type AuthIdentity } from '../auth/session';
-import { buttonClass, QueryState } from '../directory/directory-ui';
+import { ActionLink } from '../../components/ui/actions';
+import { PageHeader, Surface } from '../../components/ui/layout';
+import { Alert, QueryFeedback, StatusBadge } from '../../components/ui/feedback';
+import { Metadata } from '../../components/ui/lists';
+import '../relationships/process-detail.css';
 import { communicationIdentityKey, useCommunication } from './queries';
 import { useProcess } from '../relationships/process-queries';
 import { communicationDate } from './contracts';
@@ -16,22 +20,29 @@ export function CommunicationDetailPage() {
 function CommunicationDetail({ identity, id }: { identity: AuthIdentity; id: string }) {
   const detail = useCommunication(identity, id), row = detail.data;
   const process = useProcess(identity, row?.processId ?? '');
-  return <section className="min-w-0 w-full space-y-4 break-words"><h1 className="text-2xl font-semibold">{row?.direction === 'RECEIVED' ? 'Comunicación recibida registrada' : 'Comunicación enviada registrada'}</h1>
-    <QueryState pending={detail.isPending} error={detail.isError} retry={detail.refetch} />
-    {row && <><Link className={buttonClass} to={'/relationship-processes/' + row.processId}>Volver al proceso</Link>
-      {identity.permissions.includes('opportunities.create') && <Link className={buttonClass} to={'/opportunities/new?processId=' + row.processId + '&communicationId=' + row.id}>Crear oportunidad desde esta comunicación</Link>}
-      <p>{row.direction === 'SENT' ? 'Enviada' : 'Recibida'} · {row.validity === 'INVALIDATED' ? 'INVALIDADA' : 'Registro válido'}</p>
-      {row.invalidation && <aside className="rounded border border-red-700 p-3"><p>Invalidada por {row.invalidation.author.displayName} · {new Date(row.invalidation.createdAt).toLocaleString('es-BO')}</p><p className="whitespace-pre-wrap">Motivo: {row.invalidation.content}</p></aside>}
-      <h2 className="font-semibold">Contenido original registrado</h2>{row.emailAccount && <p>Cuenta utilizada: {row.emailAccount.displayName} · {row.emailAccount.address}</p>}<p>Remitente: {row.sender}</p>
-      {row.direction === 'RECEIVED' && process.data?.state === 'CLOSED' && <aside role="status"><p>El proceso está cerrado. Esta respuesta puede requerir reapertura.</p>
-        {process.data.canReopen && identity.permissions.includes('relationships.process.reopen') && <Link className={buttonClass} to={'/relationship-processes/' + row.processId + '?action=reopen'}>Reabrir proceso</Link>}</aside>}
-      {(['TO', 'CC', 'BCC'] as const).map(type => <div key={type}><h2 className="font-semibold">{type === 'TO' ? 'Para' : type === 'CC' ? 'CC' : 'CCO'}</h2><ul>{row.recipients.filter(item => item.type === type).map(item => <li key={item.position}>{item.addressOriginal}{item.emailAccount && ' · Cuenta CECASEM: ' + item.emailAccount.displayName}</li>)}</ul>{!row.recipients.some(item => item.type === type) && <p>Sin destinatarios</p>}</div>)}
-      <h2 className="font-semibold">Asunto</h2><p className="whitespace-pre-wrap">{row.subject}</p>
-      <h2 className="font-semibold">Cuerpo original</h2><pre className="whitespace-pre-wrap break-words font-sans">{row.bodyOriginal}</pre>
+  return <section className="communication-detail">
+    <PageHeader eyebrow="Relaciones / Comunicaciones" title={row?.direction === 'RECEIVED' ? 'Comunicación recibida registrada' : 'Comunicación enviada registrada'}
+      description={row && <span className="whitespace-pre-wrap">{row.subject}</span>}
+      metadata={row && <p>{row.direction === 'SENT' ? 'Enviada' : 'Recibida'} · <StatusBadge tone={row.validity === 'INVALIDATED' ? 'warning' : 'neutral'}>{row.validity === 'INVALIDATED' ? 'INVALIDADA' : 'Registro válido'}</StatusBadge></p>}
+      actions={row && <><ActionLink appearance="context" to={'/relationship-processes/' + row.processId}>Volver al proceso</ActionLink>
+        {identity.permissions.includes('opportunities.create') && <ActionLink appearance="context" to={'/opportunities/new?processId=' + row.processId + '&communicationId=' + row.id}>Crear oportunidad desde esta comunicación</ActionLink>}</>} />
+    <QueryFeedback pending={detail.isPending} error={detail.isError} retry={detail.refetch} />
+    {row && <>
+      {row.invalidation && <Alert tone="warning"><p>Invalidada por {row.invalidation.author.displayName} · <time dateTime={row.invalidation.createdAt}>{new Date(row.invalidation.createdAt).toLocaleString('es-BO')}</time></p><p className="whitespace-pre-wrap">Motivo: {row.invalidation.content}</p></Alert>}
+      <Surface heading="Contenido original registrado" className="communication-original">
+      <Metadata items={[
+        { label: row.direction === 'SENT' ? 'Fecha real de envío' : 'Fecha real de recepción', value: <time dateTime={communicationDate(row)}>{new Date(communicationDate(row)).toLocaleString('es-BO')}</time> },
+        { label: 'Fecha de registro', value: <time dateTime={row.createdAt}>{new Date(row.createdAt).toLocaleString('es-BO')}</time> },
+      ]} />
+      {row.emailAccount && <p>Cuenta utilizada: {row.emailAccount.displayName} · {row.emailAccount.address}</p>}<p>Remitente: {row.sender}</p>
+      {row.direction === 'RECEIVED' && process.data?.state === 'CLOSED' && <Alert tone="neutral" role="status"><p>El proceso está cerrado. Esta respuesta puede requerir reapertura.</p>
+        {process.data.canReopen && identity.permissions.includes('relationships.process.reopen') && <ActionLink appearance="context" to={'/relationship-processes/' + row.processId + '?action=reopen'}>Reabrir proceso</ActionLink>}</Alert>}
+      {(['TO', 'CC', 'BCC'] as const).map(type => <div key={type}><h3 className="font-semibold">{type === 'TO' ? 'Para' : type === 'CC' ? 'CC' : 'CCO'}</h3><ul>{row.recipients.filter(item => item.type === type).map(item => <li key={item.position}>{item.addressOriginal}{item.emailAccount && ' · Cuenta CECASEM: ' + item.emailAccount.displayName}</li>)}</ul>{!row.recipients.some(item => item.type === type) && <p>Sin destinatarios</p>}</div>)}
+      <h3 className="font-semibold">Cuerpo original</h3><pre className="whitespace-pre-wrap break-words font-sans">{row.bodyOriginal}</pre>
       <CommunicationTranslation identity={identity} id={id} body={row.bodyOriginal} />
-      <p>{row.direction === 'SENT' ? 'Fecha real de envío' : 'Fecha real de recepción'}: {new Date(communicationDate(row)).toLocaleString('es-BO')}</p><p>Fecha de registro: {new Date(row.createdAt).toLocaleString('es-BO')}</p>
-      <p>Registrada por: {row.registeredBy.displayName}{!row.registeredBy.isActive && ' (cuenta inactiva)'}</p><p>El contenido original es histórico y no dispone de edición ordinaria.</p>
-      <Attachments identity={identity} resource='communications' resourceId={id} processId={row.processId} blocked={row.validity === 'INVALIDATED'} />
+      <p>Registrada por: {row.registeredBy.displayName}{!row.registeredBy.isActive && ' (cuenta inactiva)'}</p><Alert tone="neutral">El contenido original es histórico y no dispone de edición ordinaria.</Alert>
+      </Surface>
+      <Attachments modern identity={identity} resource='communications' resourceId={id} processId={row.processId} blocked={row.validity === 'INVALIDATED'} />
       <CommunicationAmendments identity={identity} row={row} />
       {identity.permissions.includes('referrals.read') && <ReferralsPanel identity={identity} row={row} />}
     </>}

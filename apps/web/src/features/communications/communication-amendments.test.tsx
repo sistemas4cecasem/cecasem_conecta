@@ -43,6 +43,14 @@ describe('Correcciones, observaciones e invalidaciones en interfaz', () => {
   const wrap = (content: React.ReactNode, route = '/') => <QueryClientProvider client={client}><MemoryRouter initialEntries={[route]}>{content}</MemoryRouter></QueryClientProvider>;
   const panel = (actor = identity, mail = row) => { client.setQueryData(AUTH_QUERY_KEY, actor); return render(wrap(<CommunicationAmendments identity={actor} row={mail} />)); };
   const posts = () => fetchMock.mock.calls.filter(([, options]) => options?.method === 'POST');
+  it.each(['SENT', 'RECEIVED'] as const)('UI 2.7 detalle %s mantiene original, dirección y fechas separadas', async direction => {
+    row = { ...row, direction, emailAccount: direction === 'SENT' ? { id, displayName: 'Buzón QA', address: 'qa@example.test' } : null, sentAt: direction === 'SENT' ? at : null, receivedAt: direction === 'RECEIVED' ? at : null, createdAt: '2026-10-01T12:00:00.000Z' };
+    render(wrap(<AppRoutes />, '/communications/' + id)); await screen.findByText('Contenido original registrado');
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1); expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(direction === 'SENT' ? 'Comunicación enviada' : 'Comunicación recibida');
+    const originalRegion = screen.getByRole('region', { name: 'Contenido original registrado' }); expect(originalRegion.querySelector('pre')?.textContent).toBe(row.bodyOriginal);
+    const times = originalRegion.querySelectorAll('time'); expect(times[0]).toHaveAttribute('datetime', at); expect(times[1]).toHaveAttribute('datetime', row.createdAt);
+    expect(screen.getByRole('link', { name: 'Volver al proceso' })).toHaveAttribute('href', '/relationship-processes/' + id); expect(posts()).toHaveLength(0);
+  });
   it('detalle muestra original literal y amendments sin reemplazarlo', async () => {
     items = [amendment('CORRECTION', 'Destinatario correcto'), amendment('ANNOTATION', 'Contexto específico')];
     render(wrap(<AppRoutes />, '/communications/' + id));
@@ -66,7 +74,7 @@ describe('Correcciones, observaciones e invalidaciones en interfaz', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Invalidar comunicación' })); expect(screen.getByText(/permanecerá visible en el historial/)).toBeVisible();
     await userEvent.type(screen.getByLabelText('Motivo obligatorio'), 'Duplicada'); await userEvent.click(screen.getByRole('button', { name: 'Confirmar invalidación' })); expect(posts()).toHaveLength(0);
     await userEvent.click(screen.getByRole('checkbox')); await userEvent.click(screen.getByRole('button', { name: 'Confirmar invalidación' }));
-    expect(await screen.findByText('Recibida · INVALIDADA')).toBeVisible(); expect(screen.getByText('Motivo: Duplicada')).toBeVisible(); expect(screen.getByText(row.bodyOriginal)).toBeVisible();
+    expect((await screen.findByText('INVALIDADA')).parentElement).toHaveTextContent('Recibida · INVALIDADA'); expect(screen.getByText('Motivo: Duplicada')).toBeVisible(); expect(screen.getByText(row.bodyOriginal)).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Agregar corrección' })).not.toBeInTheDocument(); expect(screen.queryByRole('button', { name: 'Invalidar comunicación' })).not.toBeInTheDocument(); expect(screen.getByRole('button', { name: 'Agregar observación' })).toBeVisible();
   });
   it('contenido vacío no envía', async () => {

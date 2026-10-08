@@ -77,6 +77,32 @@ describe('Procesos de relación frontend', () => {
     expect(results).toHaveTextContent('Resultado: Otro'); expect(results).toHaveTextContent('Cierre histórico'); expect(results).toHaveTextContent('Cerrado por Ana Prueba');
     expect(results).toHaveTextContent('(cuenta inactiva)'); expect(results.querySelectorAll('time')).toHaveLength(3);
   });
+  it('UI 2.7 identifica el propósito en un único h1 y conserva actor, fechas y origen', async () => {
+    row.sourceIntentId = goal; view('/relationship-processes/' + id);
+    expect(await screen.findByRole('heading', { level: 1, name: row.purpose })).toBeVisible(); expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.getByRole('link', { name: row.target.label })).toHaveAttribute('href', '/organizations/' + goal);
+    expect(screen.getByRole('link', { name: 'Consultar intención de origen' })).toHaveAttribute('href', '/contact-intents/' + goal);
+    expect(screen.getByText('Creación').parentElement?.querySelector('time')).toHaveAttribute('datetime', timestamp);
+    expect(screen.getByText('Última actividad formal').parentElement?.querySelector('time')).toHaveAttribute('datetime', timestamp);
+  });
+  it('UI 2.7 conserva las tres perspectivas históricas como regiones diferentes', async () => {
+    identity = { ...initialIdentity, permissions: [...permissions, 'communications.read'] }; client.setQueryData(AUTH_QUERY_KEY, identity);
+    view('/relationship-processes/' + id); await screen.findByRole('heading', { level: 1, name: row.purpose });
+    expect(screen.getByRole('region', { name: 'Conversación / Historial' })).toBeVisible(); expect(screen.getByRole('region', { name: 'Comunicaciones registradas' })).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Historial del proceso' })).toHaveTextContent('Cambios administrativos'); expect(screen.getByRole('complementary', { name: 'Recursos del proceso' })).toBeVisible();
+    expect(fetchMock.mock.calls.some(([url]) => url.includes('/events?page=1'))).toBe(false); expect(writes()).toHaveLength(0);
+  });
+  it('UI 2.7 cerrado conserva recibidas y contexto histórico sin ofrecer enviada', async () => {
+    identity = { ...initialIdentity, permissions: [...permissions, 'communications.received.create', 'communications.sent.create'] }; client.setQueryData(AUTH_QUERY_KEY, identity);
+    row = closed(); view('/relationship-processes/' + id); await screen.findByRole('heading', { level: 1, name: row.purpose });
+    expect(screen.queryByRole('link', { name: 'Registrar comunicación enviada' })).not.toBeInTheDocument(); expect(screen.getByRole('link', { name: 'Registrar comunicación recibida' })).toHaveAttribute('href', '/relationship-processes/' + id + '/communications/received');
+    expect(screen.getByRole('region', { name: 'Historial del proceso' })).toHaveTextContent('Resultado histórico: Otro'); expect(screen.getByRole('region', { name: 'Participantes' })).toBeVisible();
+  });
+  it('UI 2.7 cierre mantiene error asociado al control y permite cancelar sin escribir', async () => {
+    view('/relationship-processes/' + id); await screen.findByRole('heading', { level: 1, name: row.purpose }); await userEvent.click(screen.getByRole('button', { name: 'Cerrar proceso' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar cierre' })); expect(screen.getByLabelText('Resultado de cierre')).toHaveAttribute('aria-invalid', 'true'); expect(screen.getByLabelText('Resultado de cierre')).toHaveAttribute('aria-describedby');
+    await userEvent.click(screen.getByRole('button', { name: 'Volver sin guardar' })); expect(screen.queryByLabelText('Resultado de cierre')).not.toBeInTheDocument(); expect(writes()).toHaveLength(0);
+  });
   it.each(['SENT_COMMUNICATION', 'RECEIVED_COMMUNICATION'] as const)('participante histórico por %s se distingue del creador', async origin => {
     row.participants.push({ user: { id: goal, displayName: 'Participante histórico', isActive: false }, joinedAt: timestamp, origin });
     view('/relationship-processes/' + id);
@@ -113,7 +139,7 @@ describe('Procesos de relación frontend', () => {
   it('crea con selector existente y autor de sesión', async () => {
     view('/relationship-processes/new'); await userEvent.type(screen.getByLabelText('Buscar objetivo por nombre'), 'QA');
     await userEvent.click(await screen.findByRole('button', { name: 'Seleccionar organización: Fundación QA' })); await userEvent.type(screen.getByLabelText('Propósito'), 'Meta');
-    await userEvent.click(screen.getByRole('button', { name: 'Guardar proceso' })); await screen.findByRole('heading', { name: 'Proceso de relación' });
+    await userEvent.click(screen.getByRole('button', { name: 'Guardar proceso' })); await screen.findByRole('heading', { level: 1, name: row.purpose });
     expect(JSON.parse(String(writes()[0]![1]?.body))).toEqual({ purpose: 'Meta', organizationId: goal });
   });
   it.each([403, 409])('creación %s preserva borrador y objetivo', async failure => {
@@ -137,7 +163,7 @@ describe('Procesos de relación frontend', () => {
     view('/relationship-processes/' + id); await screen.findByText(row.purpose); await userEvent.click(screen.getByRole('button', { name: 'Cambiar estado' }));
     const select = screen.getByLabelText('Estado de destino'); expect(within(select).queryByRole('option', { name: 'Cerrado' })).not.toBeInTheDocument(); expect(within(select).queryByRole('option', { name: 'En negociación' })).not.toBeInTheDocument();
     await userEvent.selectOptions(select, 'IN_PROGRESS'); await userEvent.click(screen.getByRole('button', { name: 'Confirmar cambio de estado' }));
-    expect(await screen.findByText('Estado: En curso')).toBeVisible(); expect(JSON.parse(String(writes()[0]![1]?.body))).toEqual({ state: 'IN_PROGRESS', expectedVersion: 1 });
+    expect(await screen.findByText('En curso')).toBeVisible(); expect(JSON.parse(String(writes()[0]![1]?.body))).toEqual({ state: 'IN_PROGRESS', expectedVersion: 1 });
   });
   it('cierre exige resultado y Otro exige observación', async () => {
     view('/relationship-processes/' + id); await screen.findByText(row.purpose); await userEvent.click(screen.getByRole('button', { name: 'Cerrar proceso' }));
@@ -145,13 +171,13 @@ describe('Procesos de relación frontend', () => {
     await userEvent.selectOptions(screen.getByLabelText('Resultado de cierre'), 'OTHER'); await userEvent.click(screen.getByRole('button', { name: 'Confirmar cierre' }));
     expect(await screen.findByText('Explica el resultado Otro.')).toBeVisible(); expect(writes()).toHaveLength(0);
     await userEvent.type(screen.getByLabelText('Observación de cierre (obligatoria para Otro)'), 'Razón conservada'); await userEvent.click(screen.getByRole('button', { name: 'Confirmar cierre' }));
-    expect(await screen.findByText('Estado: Cerrado')).toBeVisible(); expect(JSON.parse(String(writes()[0]![1]?.body))).toEqual({ result: 'OTHER', observation: 'Razón conservada', expectedVersion: 1 });
+    expect(await screen.findByText('Cerrado')).toBeVisible(); expect(JSON.parse(String(writes()[0]![1]?.body))).toEqual({ result: 'OTHER', observation: 'Razón conservada', expectedVersion: 1 });
   });
   it('reapertura exige estado explícito, motivo y confirmación, conservando cierre previo', async () => {
     row = closed(); view('/relationship-processes/' + id); await screen.findByText(row.purpose); await userEvent.click(screen.getByRole('button', { name: 'Reabrir proceso' }));
     await userEvent.click(screen.getByRole('button', { name: 'Confirmar reapertura' })); expect(await screen.findByText('Selecciona un estado abierto.')).toBeVisible();
     await userEvent.selectOptions(screen.getByLabelText('Estado de destino'), 'NEGOTIATION'); await userEvent.type(screen.getByLabelText('Motivo de reapertura'), 'Respuesta tardía');
-    await userEvent.click(screen.getByRole('button', { name: 'Confirmar reapertura' })); expect(await screen.findByText('Estado: En negociación')).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar reapertura' })); expect(await screen.findByText('En negociación')).toBeVisible();
     expect(screen.getByText('Cierre histórico')).toBeVisible(); expect(screen.getByText('Resultado histórico: Otro')).toBeVisible();
     expect(JSON.parse(String(writes()[0]![1]?.body))).toEqual({ state: 'NEGOTIATION', reason: 'Respuesta tardía', expectedVersion: 2 });
   });

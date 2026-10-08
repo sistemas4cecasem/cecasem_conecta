@@ -1,0 +1,47 @@
+@layer components {
+  .process-detail, .communication-detail { min-width: 0; width: 100%; overflow-wrap: anywhere; }
+  .process-detail > * + *, .communication-detail > * + * { margin-top: 1.5rem; }
+  .process-detail .ui-page-header h1, .communication-detail .ui-page-header h1 { white-space: pre-wrap; }
+  .process-primary-action { background: var(--color-brand-primary); border-color: var(--color-brand-primary); color: white; }
+  .process-detail .process-primary-action:hover { background: #18253d; }
+  .process-summary { padding-block: 1rem; border-block: 1px solid var(--color-app-border); }
+  .process-summary .ui-metadata { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
+  .process-summary > * + * { margin-top: 1rem; }
+  .process-state-actions > * + * { margin-top: 0.75rem; }
+  .process-workspace { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(18rem, 1fr); gap: 1.5rem; align-items: start; }
+  .process-workspace > *, .process-resources > *, .communication-detail .ui-metadata > div { min-width: 0; }
+  .process-resources > * + * { margin-top: 1.25rem; }
+  .process-resources h2, .process-timeline h2, .process-detail .ui-surface h2 { font-size: 1rem; }
+  .process-resources [aria-label="Reuniones vinculadas"] h2 { font-size: 0.9375rem; }
+  .process-participants li + li { border-top: 1px solid var(--color-app-border); margin-top: 0.75rem; padding-top: 0.75rem; }
+  .process-participants li p + p, .process-timeline-entry > p { font-size: 0.875rem; line-height: 1.6; }
+  .process-timeline > * + * { margin-top: 1rem; }
+  .process-timeline-list { margin-left: 0.5rem; border-left: 2px solid var(--color-app-border); padding-left: 1.25rem; }
+  .process-timeline-entry { position: relative; padding-block: 1rem; border-bottom: 1px solid var(--color-app-border); min-width: 0; overflow-wrap: anywhere; }
+  .process-timeline-entry::before { content: ''; position: absolute; left: -1.65rem; top: 1.4rem; width: 0.65rem; height: 0.65rem; border-radius: 50%; background: var(--color-brand-primary); border: 2px solid var(--color-app-background); }
+  .process-timeline-entry > * + * { margin-top: 0.5rem; }
+  .process-timeline-entry > a { display: inline-flex; min-height: 2.75rem; align-items: center; margin-right: 0.75rem; }
+  .process-timeline-entry h3 { font-size: 0.875rem; }
+  .process-timeline-note { background: var(--color-app-background); padding-inline: 0.75rem; border-left: 2px dashed var(--color-app-border); }
+  .process-note-form { padding-top: 1rem; border-top: 1px solid var(--color-app-border); }
+  .process-note-form .ui-form-section { background: var(--color-app-background); }
+  .process-detail .process-history ol > li { border: 0; border-bottom: 1px solid var(--color-app-border); border-radius: 0; }
+  .process-detail [aria-label="Adjuntos privados"], .communication-detail [aria-label="Adjuntos privados"] { background: white; border-color: var(--color-app-border); border-radius: var(--radius-panel); font-size: 0.875rem; }
+  .process-detail [aria-label="Adjuntos privados"] input[type=file], .communication-detail input[type=file] { max-width: 100%; min-height: 2.75rem; }
+  .communication-detail .ui-metadata { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+  .communication-original > * + * { margin-top: 1rem; }
+  .communication-original pre { line-height: 1.7; font-size: 0.9375rem; }
+  .communication-amendments > * + * { margin-top: 1rem; }
+  .communication-amendments ol > li { padding-block: 0.75rem; border-bottom: 1px solid var(--color-app-border); }
+  @media (max-width: 63.999rem) {
+    .process-workspace { grid-template-columns: minmax(0, 1fr); }
+    .process-summary .ui-metadata { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 39.999rem) {
+    .process-summary .ui-metadata, .communication-detail .ui-metadata { grid-template-columns: minmax(0, 1fr); }
+    .process-detail .ui-page-header .ui-actions, .communication-detail .ui-page-header .ui-actions { width: 100%; }
+    .process-detail .ui-page-header .ui-actions > *, .communication-detail .ui-page-header .ui-actions > * { width: 100%; }
+    .process-timeline-list { padding-left: 1rem; }
+    .process-timeline-entry::before { left: -1.4rem; }
+  }
+}

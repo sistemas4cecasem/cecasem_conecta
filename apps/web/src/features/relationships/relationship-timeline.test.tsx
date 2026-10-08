@@ -64,6 +64,15 @@ describe('Conversación institucional y notas internas', () => {
   const wrap = (content: React.ReactNode) => <QueryClientProvider client={client}><MemoryRouter>{content}</MemoryRouter></QueryClientProvider>;
   const panel = (actor = identity) => render(wrap(<RelationshipTimeline identity={actor} processId={id} />));
   const reads = () => fetchMock.mock.calls.filter(([url]) => url.includes('/timeline?'));
+  it('UI 2.7 diferencia fecha del hecho y registro en comunicaciones y notas', async () => {
+    items = [mail('SENT_COMMUNICATION'), note()]; panel(); const entries = await screen.findAllByRole('listitem');
+    for (const [index, entry] of entries.entries()) { const times = entry.querySelectorAll('time'); expect(times).toHaveLength(2); expect(times[0]).toHaveAttribute('datetime', items[index]!.occurredAt); expect(times[1]).toHaveAttribute('datetime', items[index]!.registeredAt); }
+    expect(entries[1]).toHaveTextContent('Contexto interno; no es una comunicación enviada ni recibida.');
+  });
+  it('UI 2.7 nota inválida mantiene asociación accesible y no registra una actuación', async () => {
+    panel(); await screen.findByText('No hay hechos registrados en este historial.'); await userEvent.click(screen.getByRole('button', { name: 'Guardar nota interna' }));
+    expect(screen.getByLabelText('Contenido de la nota interna')).toHaveAttribute('aria-invalid', 'true'); expect(screen.getByLabelText('Contenido de la nota interna')).toHaveAttribute('aria-describedby'); expect(fetchMock.mock.calls.some(([, options]) => options?.method === 'POST')).toBe(false);
+  });
   it('vacío, sin insinuar contacto ni mensajería', async () => { panel(); expect(await screen.findByText('No hay hechos registrados en este historial.')).toBeVisible(); expect(screen.getByText(/no se envía al contacto/)).toBeVisible(); });
   it('loading', () => { mode = 'pending'; panel(); expect(screen.getByRole('status')).toHaveTextContent('Cargando historial'); });
   it('error permite reintentar', async () => { mode = 'error'; panel(); await screen.findByText('No se pudo cargar el historial.'); mode = 'ok'; await userEvent.click(screen.getByRole('button', { name: 'Reintentar historial' })); expect(await screen.findByText('No hay hechos registrados en este historial.')).toBeVisible(); });
