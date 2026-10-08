@@ -35,36 +35,53 @@ Compose. Sus contraseñas son ejemplos compartidos, no credenciales de producci�
 
 | Variable | Uso |
 | --- | --- |
-| `WEB_PORT` | Único puerto publicado; ejemplo `8080` |
-| `WEB_BIND_ADDRESS` | Interfaz de publicación; `127.0.0.1` local o `0.0.0.0` para LAN |
+| `WEB_PORT` | Puerto del host publicado para la Web; ejemplo `3000` |
 | `APP_PORT` | Puerto interno API, también configurado en Nginx; ejemplo `3000` |
-| `POSTGRES_DB` | Nombre de la base de aplicación |
-| `POSTGRES_USER` | Cuenta de aplicación, distinta de `postgres` |
-| `POSTGRES_PASSWORD` | Contraseña de esa cuenta |
-| `POSTGRES_ADMIN_PASSWORD` | Contraseña diferente para el usuario administrador `postgres` |
-| `DATABASE_URL` | URL de aplicación; debe coincidir con las variables DB y usar `db:5432` |
+| `DB_HOST` | Host de TablePlus; conserva `localhost` |
+| `DB_PORT` | Puerto local publicado para TablePlus; ejemplo `5432` |
+| `DB_NAME` | Nombre de la base de aplicación |
+| `DB_USER` | Usuario de aplicación, con permisos limitados |
+| `DB_PASSWORD` | Contraseña del usuario de aplicación |
+| `DB_ADMIN_PASSWORD` | Contraseña diferente para la cuenta administradora `postgres` |
 | `SESSION_COOKIE_SECURE` | Selección obligatoria: `false` solo para HTTP de prueba; `true` detrás de HTTPS |
 
-Codifica los caracteres especiales del usuario/contraseña de `DATABASE_URL`
-como componentes URL. Las variables DB conservan los valores originales.
-No uses `localhost` como host de base dentro de Compose. Las variables se inyectan
-en runtime; no se copian archivos `.env` ni se incorporan secretos al build.
+Compose genera la conexión interna de la API a partir de `DB_NAME`, `DB_USER` y
+`DB_PASSWORD`, usando el host de servicio `db`. No hace falta definir
+`DATABASE_URL` en `.env`. Usa usuario y contraseña con letras, números, guion o
+guion bajo para que Compose pueda formar esa conexión sin ambigüedades. Las variables se
+inyectan en runtime; no se copian archivos `.env` ni se incorporan secretos al build.
 `apps/api/.env.example` corresponde a ejecución local sin Docker;
 `apps/web/.env.example` documenta el proxy Vite de desarrollo.
 Los archivos `.env` antiguos deben declarar explícitamente `SESSION_COOKIE_SECURE`;
 producción usa `infra/production/.env` y no reutiliza la configuración local.
 
-## Construir y levantar
+## Construir y entrar por primera vez
 
 ```sh
 docker compose --project-name cecasem_conecta --env-file .env -f docker-compose.yml config --quiet
 docker compose --project-name cecasem_conecta --env-file .env -f docker-compose.yml build
+docker compose --project-name cecasem_conecta --env-file .env -f docker-compose.yml up -d --wait db
+docker compose --project-name cecasem_conecta --env-file .env -f docker-compose.yml -f infra/compose.migrations.yml run --build --rm api yarn workspace @cecasem-conecta/api prisma:migrate:deploy
 docker compose --project-name cecasem_conecta --env-file .env -f docker-compose.yml up -d --wait --wait-timeout 120
+docker compose --project-name cecasem_conecta --env-file .env -f docker-compose.yml exec api node dist/bootstrap-admin.js --given-names "Nombres" --family-names "Apellidos" --email "admin@example.org"
 docker compose --project-name cecasem_conecta --env-file .env -f docker-compose.yml ps
 ```
 
-Abre `http://localhost:8080` o el puerto configurado. Solo Web publica un puerto;
-API y DB se comunican por nombres de servicio en la red privada de Compose.
+Antes de estos comandos, copia `.env.example` a `.env`. En una base nueva,
+`migrate deploy` crea las tablas y `bootstrap-admin` crea el único Administrador
+inicial. El último comando devuelve un token temporal de primer acceso; abre la
+ruta `/first-access#token=...` en `http://localhost:<WEB_PORT>` y define tu propia
+contraseña. No hay usuarios ni contraseñas demo. Conserva ese token fuera de Git
+y no lo compartas en capturas o registros.
+
+Compose publica la Web en todas las interfaces del computador sin requerir una
+IP en `.env`. En el computador que ejecuta Docker, abre
+`http://localhost:<WEB_PORT>`; desde otro equipo de la LAN, abre
+`http://<IP-LAN-del-computador>:<WEB_PORT>`. En desarrollo local, TablePlus usa
+`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` y `DB_PASSWORD` del `.env`; el host
+es `localhost`. PostgreSQL solo acepta conexiones desde el computador donde
+corre Docker. API y DB se comunican por el nombre de servicio `db` dentro de
+la red privada de Compose.
 Nginx sirve los assets React, conserva el fallback SPA y dirige `/api/` a NestJS.
 La API ejecuta su build con `NODE_ENV=production`; Swagger permanece deshabilitado
 según su política actual. No hay servidores de desarrollo Vite/Nest en runtime.

@@ -4,14 +4,20 @@ services:
   db:
     image: postgres:18.6-bookworm@sha256:3725f4e2499eef5134592b3b4ab79a543ed7f8e533b05b5b637af926630f6650
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:?Configure POSTGRES_DB}
+      POSTGRES_DB: ${DB_NAME:?Configure DB_NAME}
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Configure POSTGRES_ADMIN_PASSWORD}
-      POSTGRES_APP_USER: ${POSTGRES_USER:?Configure POSTGRES_USER}
-      POSTGRES_APP_PASSWORD: ${POSTGRES_PASSWORD:?Configure POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${DB_ADMIN_PASSWORD:?Configure DB_ADMIN_PASSWORD}
+      POSTGRES_APP_USER: ${DB_USER:?Configure DB_USER}
+      POSTGRES_APP_PASSWORD: ${DB_PASSWORD:?Configure DB_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql
       - ./infra/postgres/init-app.sql:/docker-entrypoint-initdb.d/10-init-app.sql:ro
+    # TablePlus connects with localhost; only the local host can reach this port.
+    ports:
+      - target: 5432
+        published: ${DB_PORT:-5432}
+        host_ip: 127.0.0.1
+        protocol: tcp
     healthcheck:
       test: [CMD-SHELL, 'pg_isready -h 127.0.0.1 -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
       interval: 5s
@@ -21,6 +27,7 @@ services:
     restart: unless-stopped
     networks:
       - data
+      - tableplus
 
   api:
     image: ${COMPOSE_PROJECT_NAME:-cecasem_conecta}-api:local
@@ -41,7 +48,7 @@ services:
       LIBRETRANSLATE_API_KEY: ${LIBRETRANSLATE_API_KEY:-}
       TRANSLATION_TIMEOUT_MS: ${TRANSLATION_TIMEOUT_MS:-10000}
       FILE_MAX_BYTES: ${FILE_MAX_BYTES:-20971520}
-      DATABASE_URL: ${DATABASE_URL:?Configure DATABASE_URL con hostname db}
+      DATABASE_URL: postgresql://${DB_USER:?Configure DB_USER}:${DB_PASSWORD:?Configure DB_PASSWORD}@db:5432/${DB_NAME:?Configure DB_NAME}
     volumes:
       - private_files:${FILE_STORAGE_ROOT:-/app/storage/private}
     depends_on:
@@ -69,8 +76,7 @@ services:
       API_PORT: ${APP_PORT:-3000}
     ports:
       - target: 80
-        published: ${WEB_PORT:-8080}
-        host_ip: ${WEB_BIND_ADDRESS:-127.0.0.1}
+        published: ${WEB_PORT:-3000}
         protocol: tcp
     depends_on:
       api:
@@ -91,5 +97,10 @@ volumes:
 
 networks:
   edge:
+  tableplus:
+    name: ${COMPOSE_PROJECT_NAME:-cecasem_conecta}_tableplus
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "false"
   data:
     internal: true

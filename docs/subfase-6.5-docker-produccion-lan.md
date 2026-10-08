@@ -22,7 +22,7 @@ Genera el archivo local una sola vez. El comando no sobrescribe archivos y no im
 node scripts/lan/create-env.mjs --http-lan
 ```
 
-Para HTTP el modo debe elegirse de manera expresa. Si existe un terminador TLS interno delante de Nginx, configura la cookie segura con `--secure-cookie` y conserva ese terminador en el despliegue. El script genera contraseñas PostgreSQL aleatorias distintas, URL-escapables, y escribe `infra/production/.env` con permisos POSIX `0600`. En Windows, conserva el ACL privado del usuario. El archivo está ignorado por Git y excluido de los contextos Docker.
+Para HTTP el modo debe elegirse de manera expresa. Si existe un terminador TLS interno delante de Nginx, configura la cookie segura con `--secure-cookie` y conserva ese terminador en el despliegue. El script genera contraseñas PostgreSQL aleatorias distintas y escribe `infra/production/.env` con permisos POSIX `0600`. En Windows, conserva el ACL privado del usuario. El archivo está ignorado por Git y excluido de los contextos Docker.
 
 La plantilla sin secretos es `infra/production/.env.example`. No la uses directamente: sus credenciales están vacías y Compose debe rechazarlas. El archivo real `infra/production/.env` es distinto del `.env` local y de `.env.demo`.
 
@@ -33,11 +33,11 @@ node scripts/lan/validate-compose-config.mjs --env-file infra/production/.env --
 docker compose --project-name cecasem_conecta --env-file infra/production/.env -f docker-compose.yml config --quiet
 ```
 
-El validador comprueba URL y credenciales de DB, nombre de base/rol, cookie, bind, redes internas, puertos, volumen de uploads, healthchecks y `NODE_ENV`. `docker compose config` sin `--quiet` puede mostrar secretos interpolados; no compartas esa salida.
+El validador comprueba las credenciales únicas `DB_*`, la URL interna que Compose genera para la API, nombre de base/rol, cookie, publicación de puertos, redes internas, volumen de uploads, healthchecks y `NODE_ENV`. `docker compose config` sin `--quiet` puede mostrar secretos interpolados; no compartas esa salida.
 
-Variables obligatorias: `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_ADMIN_PASSWORD`, `DATABASE_URL` y `SESSION_COOKIE_SECURE`. La URL debe apuntar a `db:5432` y coincidir con la base, rol y password de aplicación; `POSTGRES_USER` no puede ser `postgres`. Contraseñas de muestra como `development_only`, `password`, `secret` o `changeme` son rechazadas por el validador.
+Variables obligatorias: `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_ADMIN_PASSWORD` y `SESSION_COOKIE_SECURE`. Compose conserva una cuenta administradora `postgres` separada y genera la URL interna de API con el host `db:5432`. Contraseñas de muestra como `development_only`, `password`, `secret` o `changeme` son rechazadas por el validador.
 
-Con defaults seguros/opciones: `WEB_BIND_ADDRESS`, `WEB_PORT`, `APP_PORT`, `FILE_STORAGE_ROOT`, `FILE_MAX_BYTES` y TTL. Compose usa `127.0.0.1` si no se configura `WEB_BIND_ADDRESS`; el asistente genera `0.0.0.0:8080` como override explícito para una futura prueba LAN y permite restringirlo a una IP del host. Traducción es opcional, desactivada por defecto y no bloquea el stack.
+Con defaults seguros/opciones: `WEB_PORT`, `APP_PORT`, `FILE_STORAGE_ROOT`, `FILE_MAX_BYTES` y TTL. Compose publica la Web en todas las interfaces del host; cada usuario entra con la IP LAN actual del computador y el puerto configurado, sin guardar esa IP en el proyecto. El acceso remoto sigue sujeto al firewall del host. Traducción es opcional, desactivada por defecto y no bloquea el stack.
 
 No existe una clave estática `SESSION_SECRET`: las sesiones usan tokens aleatorios revocables almacenados como hash. La autenticación depende de PostgreSQL y de la cuenta de aplicación.
 
@@ -65,7 +65,7 @@ El comando no acepta ni establece password. Devuelve un token temporal de primer
 
 ## Servicios, puertos y health
 
-Web es el único servicio publicado al host. Compose usa `127.0.0.1:8080` por defecto; el archivo generado para la futura prueba LAN fija explícitamente `WEB_BIND_ADDRESS=0.0.0.0`. API (3000) y PostgreSQL (5432) no publican puertos. API comparte la red `edge` con Nginx y la red `data` con PostgreSQL; `data` es interna y Web no está conectada a ella.
+La Web se publica en todas las interfaces usando `WEB_PORT` (8080 en la plantilla de producción). PostgreSQL solo acepta conexiones desde el computador host; TablePlus se conecta con `localhost` y `DB_PORT`. La API no publica puertos al host. API comparte la red `edge` con Nginx y la red `data` con PostgreSQL; `data` es interna y Web no está conectada a ella.
 
 Nginx sirve `/`, aplica SPA fallback a rutas como `/login` y proxifica `/api/` al API. El tamaño límite proxy es 210 MiB para hasta diez archivos de 20 MiB más el overhead multipart. Timeouts proxy son 5 s de conexión y 120 s de envío/lectura. Assets Vite con nombre hash se comprimen con gzip y se cachean como inmutables; `index.html` se revalida.
 
