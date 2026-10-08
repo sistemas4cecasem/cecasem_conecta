@@ -57,6 +57,82 @@ describe('Administración de usuarios y permisos', () => {
   }
   async function card(name: string) { return within(await screen.findByRole('article', { name })); }
 
+  it('UI 2.9 identifica cuenta y acceso por separado con una cabecera única', async () => {
+    app(); const row = await card('Pendiente Prueba');
+    expect(screen.getAllByRole('heading', {level:1})).toHaveLength(1);
+    expect(screen.getByRole('heading', {level:1, name:'Usuarios'})).toBeVisible();
+    expect(screen.getByText('Administra las cuentas y los permisos de acceso a CECASEM Conecta.')).toBeVisible();
+    expect(screen.getByRole('list', {name:'Usuarios registrados'})).toBeVisible();
+    expect(row.getByText('Activo')).toBeVisible(); expect(row.getByText('Pendiente de primer acceso')).toBeVisible();
+    expect(row.getByText(pending.username)).toBeVisible(); expect(row.getByText(pending.email)).toBeVisible();
+    expect(row.getByRole('region', {name:`Operaciones de acceso de ${pending.username}`})).toBeVisible();
+    expect(row.getByRole('region', {name:`Estado de cuenta de ${pending.username}`})).toBeVisible();
+  });
+  it('UI 2.9 creación asocia errores al campo y mantiene la normalización', async () => {
+    app(); await card('Diego Prueba'); const form = within(screen.getByRole('form', {name:'Crear usuario'}));
+    await userEvent.click(form.getByRole('button', {name:'Crear cuenta'}));
+    const input = form.getByLabelText(/^Nombres/); expect(input).toHaveAttribute('aria-invalid','true');
+    expect(input).toHaveAccessibleDescription('Completa este campo.'); expect(input).toHaveAttribute('aria-required','true');
+    await userEvent.type(input, '  María  '); await userEvent.type(form.getByLabelText(/^Apellidos/), '  QA  ');
+    await userEvent.type(form.getByLabelText(/^Correo electrónico/), '  MARIA@EXAMPLE.TEST  ');
+    await userEvent.click(form.getByRole('button', {name:'Crear cuenta'})); await screen.findByRole('article',{name:'María QA'});
+    const call = fetchMock.mock.calls.find(([url, options]) => url.endsWith('/users') && options?.method === 'POST');
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({givenNames:'María',familyNames:'QA',email:'maria@example.test',role:'RESEARCH'});
+    expect(form.getByLabelText(/^Nombres/)).toHaveValue('');
+  });
+  it('UI 2.9 seleccionar rol no guarda ni presenta la selección como aplicada', async () => {
+    app(); const row = await card('Diego Prueba'); await userEvent.selectOptions(row.getByLabelText('Nuevo rol'),'PLANNING');
+    expect(row.getByText('Búsqueda', {selector:'dd'})).toBeVisible(); expect(row.getByLabelText('Nuevo rol')).toHaveValue('PLANNING');
+    expect(row.getByLabelText('Nuevo rol')).toHaveAccessibleDescription('El rol actual se mantiene hasta guardar la selección.');
+    expect(fetchMock.mock.calls.some(([,options]) => options?.method === 'PATCH')).toBe(false);
+  });
+  it('UI 2.9 desactivación conserva la confirmación y cancelar no ejecuta comandos', async () => {
+    app(); const row = await card('Diego Prueba'); expect(row.getByRole('button',{name:'Desactivar'})).toHaveClass('ui-button-danger');
+    await userEvent.click(row.getByRole('button',{name:'Desactivar'}));
+    expect(row.getByRole('group',{name:'Confirmar cambio de estado'})).toBeVisible();
+    expect(row.getByRole('button',{name:'Confirmar desactivación'})).toHaveClass('ui-button-danger');
+    await userEvent.click(row.getByRole('button',{name:'Cancelar'}));
+    expect(row.queryByRole('group',{name:'Confirmar cambio de estado'})).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([url]) => url.endsWith('/deactivate'))).toBe(false);
+  });
+  it('UI 2.9 cuenta inactiva ofrece reactivación existente y no emite credenciales', async () => {
+    rows=[{...established,isActive:false}]; app(); const row=await card('Diego Prueba'); expect(row.getByText('Inactivo')).toBeVisible();
+    expect(row.getByText('Contraseña establecida')).toBeVisible(); expect(row.queryByRole('button',{name:'Iniciar restablecimiento'})).not.toBeInTheDocument();
+    await userEvent.click(row.getByRole('button',{name:'Reactivar'}));
+    expect(fetchMock.mock.calls.some(([url]) => url.endsWith('/reactivate'))).toBe(false);
+    await userEvent.click(row.getByRole('button',{name:'Confirmar reactivación'}));
+    await waitFor(()=>expect(fetchMock.mock.calls.some(([url,options])=>url.endsWith('/reactivate') && options?.method==='POST')).toBe(true));
+  });
+  it.each([
+    ['users.role.update','Guardar rol'], ['users.status.update','Desactivar'], ['users.mailboxes.manage','Gestionar buzones'],
+    ['auth.first_access.issue','Generar primer acceso'], ['auth.password_reset.issue','Iniciar restablecimiento'],
+  ])('UI 2.9 oculta %s al faltar su capability', async (permission, label) => {
+    current={...current,permissions:permissions.filter(value=>value!==permission)}; app(); await card('Diego Prueba');
+    expect(screen.queryByRole('button',{name:label})).not.toBeInTheDocument();
+  });
+  it('UI 2.9 lectura sola no deja agrupaciones administrativas vacías', async () => {
+    current={...current,permissions:['users.read']}; app(); const row=await card('Diego Prueba');
+    expect(row.queryByRole('region')).not.toBeInTheDocument(); expect(row.queryByRole('button')).not.toBeInTheDocument();
+  });
+  it('UI 2.9 bloquea creación y controles durante la petición', async () => {
+    app(); await card('Diego Prueba'); const form=within(screen.getByRole('form',{name:'Crear usuario'}));
+    await userEvent.type(form.getByLabelText(/^Nombres/),'Nueva'); await userEvent.type(form.getByLabelText(/^Apellidos/),'QA');
+    await userEvent.type(form.getByLabelText(/^Correo electrónico/),'new@example.test');
+    const original=fetchMock.getMockImplementation()!; let complete!:(response:Response)=>void;
+    fetchMock.mockImplementation((url,options)=>url.endsWith('/users') && options?.method==='POST' ? new Promise(resolve=>{complete=resolve;}) : original(url,options));
+    await userEvent.click(form.getByRole('button',{name:'Crear cuenta'})); expect(form.getByLabelText(/^Nombres/)).toBeDisabled();
+    expect(form.getByRole('button',{name:'Creando…'})).toBeDisabled(); expect(form.getByRole('button',{name:'Creando…'})).toHaveAttribute('aria-busy','true');
+    await act(async()=>complete(Response.json(pending,{status:201})));
+  });
+  it('UI 2.9 buzones conserva estado, proveedor y asociación accesible de errores', async () => {
+    assigned=true; app(); const row=await card('Diego Prueba'); await userEvent.click(row.getByRole('button',{name:'Gestionar buzones'}));
+    const panel=within(await row.findByRole('region',{name:'Buzones del usuario'})); expect(panel.getByText('Activo')).toBeVisible();
+    const form=within(panel.getByRole('form',{name:'Registrar buzón'})); await userEvent.click(form.getByRole('button',{name:'Registrar buzón'}));
+    expect(form.getByLabelText(/^Correo del buzón/)).toHaveAttribute('aria-invalid','true');
+    expect(form.getByLabelText(/^Nombre del buzón/)).toHaveAccessibleDescription('Completa este campo.');
+    expect(fetchMock.mock.calls.some(([url,options])=>url.endsWith('/email-accounts') && options?.method==='POST')).toBe(false);
+    await userEvent.click(row.getByRole('button',{name:'Cerrar buzones'})); expect(row.queryByRole('region',{name:'Buzones del usuario'})).not.toBeInTheDocument();
+  });
   it.each(['RESEARCH','PLANNING'])('%s no ve navegación ni ejecuta consultas administrativas', async role => {
     current = { ...current, role, permissions: [] }; app();
     expect(await screen.findByRole('heading', { name: 'Acceso denegado' })).toBeVisible();
@@ -79,8 +155,8 @@ describe('Administración de usuarios y permisos', () => {
     await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url?.endsWith('status=inactive'))).toBe(true));
     await user.selectOptions(screen.getByLabelText('Mostrar usuarios'), 'all');
     const form = within(screen.getByRole('form', { name: 'Crear usuario' }));
-    await user.type(form.getByLabelText('Nombres'), 'Nueva'); await user.type(form.getByLabelText('Apellidos'), 'Persona');
-    await user.type(form.getByLabelText('Correo electrónico'), 'new@example.test'); await user.click(form.getByRole('button', { name: 'Crear cuenta' }));
+    await user.type(form.getByLabelText(/^Nombres/), 'Nueva'); await user.type(form.getByLabelText(/^Apellidos/), 'Persona');
+    await user.type(form.getByLabelText(/^Correo electrónico/), 'new@example.test'); await user.click(form.getByRole('button', { name: 'Crear cuenta' }));
     await screen.findByRole('article', { name: 'Nueva Persona' });
     const call = fetchMock.mock.calls.find(([url, options]) => url.endsWith('/users') && options?.method === 'POST');
     expect(JSON.parse(String(call?.[1]?.body))).toEqual({ givenNames: 'Nueva', familyNames: 'Persona', email: 'new@example.test', role: 'RESEARCH' });
@@ -143,7 +219,7 @@ describe('Administración de usuarios y permisos', () => {
     await user.click(await row.findByRole('button', { name: `Retirar ${account.address}` }));
     await user.click(await row.findByRole('button', { name: `Asignar ${account.address}` }));
     const form = within(row.getByRole('form', { name: 'Registrar buzón' }));
-    await user.type(form.getByLabelText('Nombre del buzón'), 'Cooperación'); await user.type(form.getByLabelText('Correo del buzón'), 'cooperacion@example.test');
+    await user.type(form.getByLabelText(/^Nombre del buzón/), 'Cooperación'); await user.type(form.getByLabelText(/^Correo del buzón/), 'cooperacion@example.test');
     await user.click(form.getByRole('button', { name: 'Registrar buzón' }));
     await waitFor(() => expect(fetchMock.mock.calls.some(([url, options]) => url.endsWith('/email-accounts') && options?.method === 'POST')).toBe(true));
   });

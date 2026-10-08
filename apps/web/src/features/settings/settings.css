@@ -1,0 +1,6 @@
+@layer components {
+  .settings-page { min-width: 0; overflow-wrap: anywhere; }
+  .settings-page > * + * { margin-top: 1.5rem; }
+  .settings-page .settings-form-surface { max-width: 44rem; }
+  .settings-page .settings-form-surface > * + * { margin-top: 1.25rem; }
+}

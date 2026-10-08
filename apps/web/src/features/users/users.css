@@ -1,0 +1,31 @@
+@layer components {
+  .users-page { min-width: 0; overflow-wrap: anywhere; }
+  .users-page > * + * { margin-top: 1.5rem; }
+  .users-page .user-creation { max-width: 54rem; }
+  .users-page .administration-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+  .users-page .user-creation .administration-fields { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .users-page .administration-fields > * + * { margin-top: 0; }
+  .users-page .ui-metadata dd { color: var(--color-app-text); }
+  .users-page form > * + * { margin-top: 1rem; }
+  .users-page .ui-metadata { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem 1.5rem; margin-block: 1rem; }
+  .users-page .user-name { font-size: 1rem; font-weight: 600; }
+  .users-page h3 { font-size: 0.875rem; font-weight: 600; }
+  .users-page .user-access-actions, .users-page .user-state-actions, .users-page .user-mailboxes { border-top: 1px solid var(--color-app-border); padding-top: 0.75rem; margin-top: 0.75rem; }
+  .users-page .user-access-controls { display: flex; flex-wrap: wrap; align-items: start; gap: 1rem; margin-top: 0.5rem; }
+  .users-page .user-role-form { display: flex; flex-wrap: wrap; align-items: start; gap: 0.5rem; }
+  .users-page .user-role-form > * + * { margin-top: 0; }
+  .users-page .user-state-actions > .ui-button { margin-top: 0.5rem; }
+  .users-page .ui-confirmation, .users-page .temporary-credential { margin-top: 0.75rem; }
+  .users-page .ui-confirmation > .ui-button { margin-top: 0.75rem; margin-right: 0.5rem; }
+  .users-page .user-mailboxes > * + * { margin-top: 0.75rem; }
+  .users-page .mailbox-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.75rem; }
+  .users-page .mailbox-row > div { min-width: 0; }
+  @media (max-width: 63.999rem) {
+    .users-page .user-creation .administration-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 39.999rem) {
+    .users-page .administration-fields, .users-page .user-creation .administration-fields, .users-page .ui-metadata { grid-template-columns: minmax(0, 1fr); }
+    .users-page .user-access-controls, .users-page .user-role-form { flex-direction: column; }
+    .users-page .user-role-form, .users-page .user-role-form .ui-field { width: 100%; }
+  }
+}

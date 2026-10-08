@@ -1,3 +1,7 @@
+import { Button } from '../../components/ui/actions';
+import { FormField, Input, FormSection, FormActions } from '../../components/ui/forms';
+import { Alert, StatusBadge, QueryFeedback } from '../../components/ui/feedback';
+import { DataList, DataListItem } from '../../components/ui/lists';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
@@ -22,32 +26,33 @@ export function MailboxesPanel({ actorId, userId }: { actorId: string; userId: s
   const { register, handleSubmit, reset, formState: { errors } } = useForm<z.infer<typeof createMailboxSchema>>({
     resolver: zodResolver(createMailboxSchema), defaultValues: { address: '', displayName: '', provider: '' },
   });
-  if (catalog.isPending || assignments.isPending) return <p role="status">Cargando buzones…</p>;
-  if (catalog.isError || assignments.isError) return <div><p role="alert">No se pudieron cargar los buzones.</p>
-    <button className="min-h-11 underline" onClick={() => { void catalog.refetch(); void assignments.refetch(); }}>Reintentar buzones</button></div>;
-  return <section aria-label="Buzones del usuario" className="mt-4 border-t pt-3">
-    <h3 className="font-semibold">Buzones institucionales</h3>
+  if (catalog.isPending || assignments.isPending) return <QueryFeedback pending pendingMessage="Cargando buzones…" error={false}/>;
+  if (catalog.isError || assignments.isError) return <Alert tone="danger" role="alert"><p>No se pudieron cargar los buzones.</p>
+    <Button onClick={() => { void catalog.refetch(); void assignments.refetch(); }}>Reintentar buzones</Button></Alert>;
+  const availableMailboxes = catalog.data.filter(account => !assignments.data.some(assigned => assigned.id === account.id));
+  return <section aria-label="Buzones del usuario" className="user-mailboxes">
+    <h3 className="user-mailboxes-heading">Buzones institucionales</h3>
     <p>Estas asignaciones registran disponibilidad institucional; no modifican el acceso al proveedor de correo.</p>
     {!assignments.data.length && <p>No hay buzones asignados.</p>}
-    {assignments.data.map(account => <div key={account.id} className="flex flex-wrap items-center gap-3"><span>{account.displayName} — {account.address}</span>
-      <button className="min-h-11 underline" disabled={action.pending} onClick={() => void action.run(async () => {
+    {!!assignments.data.length && <DataList aria-label="Buzones asignados">{assignments.data.map(account => <DataListItem key={account.id} className="mailbox-row"><div><p>{account.displayName} — {account.address}</p><StatusBadge tone={account.isActive ? 'success' : 'neutral'}>{account.isActive ? 'Activo' : 'Inactivo'}</StatusBadge>{account.provider && <p className="ui-description">Proveedor: {account.provider}</p>}</div>
+      <Button variant="ghost" disabled={action.pending} onClick={() => void action.run(async () => {
         await apiRequest(`users/${userId}/email-accounts/${account.id}`, { method: 'DELETE' }); await client.invalidateQueries({ queryKey: key });
-      })}>Retirar {account.address}</button></div>)}
-    {catalog.data.filter(account => !assignments.data.some(assigned => assigned.id === account.id)).map(account =>
-      <button key={account.id} className="mr-3 min-h-11 underline" disabled={action.pending} onClick={() => void action.run(async () => {
+      })}>Retirar {account.address}</Button></DataListItem>)}</DataList>}
+    {!!availableMailboxes.length && <FormActions aria-label="Asignar buzones disponibles">{availableMailboxes.map(account =>
+      <Button key={account.id} disabled={action.pending} onClick={() => void action.run(async () => {
         await apiRequest(`users/${userId}/email-accounts/${account.id}`, { method: 'PUT' }); await client.invalidateQueries({ queryKey: key });
-      })}>Asignar {account.address}</button>)}
-    <form aria-label="Registrar buzón" noValidate className="mt-3 grid gap-3 sm:grid-cols-3" onSubmit={handleSubmit(fields => action.run(async () => {
+      })}>Asignar {account.address}</Button>)}</FormActions>}
+    <form aria-label="Registrar buzón" noValidate className="mailbox-form" onSubmit={handleSubmit(fields => action.run(async () => {
       await apiRequest('email-accounts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address: fields.address, displayName: fields.displayName, ...(fields.provider ? { provider: fields.provider } : {}) }) });
       reset(); await client.invalidateQueries({ queryKey: ['email-accounts', actorId] });
     }))}>
-      {(['displayName', 'address', 'provider'] as const).map((field, index) => <div key={field}>
-        <label htmlFor={`mail-${userId}-${field}`}>{['Nombre del buzón', 'Correo del buzón', 'Proveedor (opcional)'][index]}</label>
-        <input id={`mail-${userId}-${field}`} {...register(field)} disabled={action.pending} type={field === 'address' ? 'email' : 'text'}
-          aria-invalid={!!errors[field]} className="min-h-11 w-full rounded border px-2" />
-        {errors[field] && <p role="alert">{errors[field].message}</p>}</div>)}
-      <button className="min-h-11 rounded border px-3" disabled={action.pending}>Registrar buzón</button>
-    </form>{action.error && <p role="alert">{action.error}</p>}
+      <FormSection heading="Registrar buzón institucional" className="administration-fields">
+      {(['displayName', 'address', 'provider'] as const).map(field => <FormField key={field}
+        label={{displayName:'Nombre del buzón', address:'Correo del buzón', provider:'Proveedor (opcional)'}[field]} id={`mail-${userId}-${field}`} error={errors[field]?.message} required={field !== 'provider'}>
+        {control => <Input {...control} aria-required={field !== 'provider' || undefined} {...register(field)} disabled={action.pending} type={field === 'address' ? 'email' : 'text'}/>}
+      </FormField>)}
+      </FormSection><FormActions><Button type="submit" variant="primary" pending={action.pending} disabled={action.pending}>Registrar buzón</Button></FormActions>
+    </form>{action.error && <Alert tone="danger" role="alert">{action.error}</Alert>}
   </section>;
 }

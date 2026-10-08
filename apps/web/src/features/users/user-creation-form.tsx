@@ -1,3 +1,7 @@
+import { Surface } from '../../components/ui/layout';
+import { FormField, Input, Select, FormSection, FormActions, FieldHelp } from '../../components/ui/forms';
+import { Button } from '../../components/ui/actions';
+import { Alert } from '../../components/ui/feedback';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
@@ -12,22 +16,21 @@ export function UserCreationForm({ actorId }: { actorId: string }) {
   const { register, handleSubmit, reset, formState: { errors } } = useForm<z.infer<typeof createUserSchema>>({
     resolver: zodResolver(createUserSchema), defaultValues: { givenNames: '', familyNames: '', email: '', role: 'RESEARCH' },
   });
-  return <form aria-label="Crear usuario" noValidate className="my-6 grid gap-3 rounded border p-4 sm:grid-cols-2"
+  return <Surface heading="Crear usuario" className="user-creation"><form aria-label="Crear usuario" noValidate
     onSubmit={handleSubmit(fields => action.run(async () => {
       await apiRequest('users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fields) });
       reset(); await client.invalidateQueries({ queryKey: ['users', actorId] });
     }))}>
-    <h2 className="text-xl font-semibold sm:col-span-2">Crear usuario</h2>
-    {(['givenNames', 'familyNames', 'email'] as const).map((field, index) => <div key={field}>
-      <label htmlFor={`create-${field}`}>{['Nombres', 'Apellidos', 'Correo electrónico'][index]}</label>
-      <input id={`create-${field}`} type={field === 'email' ? 'email' : 'text'} {...register(field)} disabled={action.pending}
-        aria-invalid={!!errors[field]} aria-describedby={errors[field] ? `error-${field}` : undefined} className="min-h-11 w-full rounded border px-2" />
-      {errors[field] && <p role="alert" id={`error-${field}`}>{errors[field].message}</p>}
-    </div>)}
-    <div><label htmlFor="create-role">Rol</label><select id="create-role" {...register('role')} disabled={action.pending} className="min-h-11 w-full rounded border px-2">
-      {roles.map(role => <option key={role} value={role}>{roleLabels[role]}</option>)}</select></div>
-    <p className="sm:col-span-2">La cuenta se crea pendiente de primer acceso. Genera la credencial cuando vayas a entregarla.</p>
-    {action.error && <p role="alert">{action.error}</p>}
-    <button disabled={action.pending} className="min-h-11 rounded bg-slate-900 px-3 text-white">{action.pending ? 'Creando…' : 'Crear cuenta'}</button>
-  </form>;
+    <FormSection heading="Datos de la cuenta" className="administration-fields">
+    {(['givenNames', 'familyNames', 'email'] as const).map(field => <FormField key={field}
+      label={{givenNames:'Nombres', familyNames:'Apellidos', email:'Correo electrónico'}[field]} id={`create-${field}`} error={errors[field]?.message} required>
+      {control => <Input {...control} aria-required="true" type={field === 'email' ? 'email' : 'text'} {...register(field)} disabled={action.pending}/>}
+    </FormField>)}
+    <FormField label="Rol" id="create-role">{control => <Select {...control} {...register('role')} disabled={action.pending}>
+      {roles.map(role => <option key={role} value={role}>{roleLabels[role]}</option>)}</Select>}</FormField>
+    </FormSection>
+    <FieldHelp>La cuenta se crea pendiente de primer acceso. Genera la credencial cuando vayas a entregarla.</FieldHelp>
+    {action.error && <Alert tone="danger" role="alert">{action.error}</Alert>}
+    <FormActions><Button type="submit" variant="primary" pending={action.pending} disabled={action.pending}>{action.pending ? 'Creando…' : 'Crear cuenta'}</Button></FormActions>
+  </form></Surface>;
 }

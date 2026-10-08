@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
@@ -22,6 +22,26 @@ describe('Configuración administrativa de recordatorios',()=>{
     return Response.json(config);
   });vi.stubGlobal('fetch',fetchMock);});
   function view(){client.setQueryData(AUTH_QUERY_KEY,identity);render(<QueryClientProvider client={client}><MemoryRouter><ReminderSettingsPage/></MemoryRouter></QueryClientProvider>);}
+  it('UI 2.9 muestra valor vigente y unidad sin codificar el valor inicial',async()=>{
+    config={intervalDays:14,version:3};view();const input=await screen.findByLabelText('Intervalo de inactividad (días)');
+    expect(input).toHaveValue(14);expect(input).toHaveAccessibleDescription('Días enteros, de 1 a 36500.');
+    expect(screen.getAllByRole('heading',{level:1})).toHaveLength(1);expect(screen.getByRole('heading',{level:1,name:'Recordatorios de inactividad'})).toBeVisible();
+    expect(screen.getByText(/Guardar no modifica sus estados ni los recordatorios históricos/)).toBeVisible();
+    expect(screen.queryByText(/inicial es 7/)).not.toBeInTheDocument();
+  });
+  it.each([[0,'El mínimo es 1 día.'],[36501,'El límite técnico es 36500 días.'],[1.5,'Use días enteros.']])('UI 2.9 valida %s y asocia el error',async(value,message)=>{
+    view();const input=await screen.findByRole('spinbutton');fireEvent.change(input,{target:{value:String(value)}});
+    fireEvent.submit(input.closest('form')!);expect(await screen.findByText(message)).toBeVisible();expect(input).toHaveAttribute('aria-invalid','true');
+    expect(input).toHaveAccessibleDescription('Días enteros, de 1 a 36500. '+message);expect(fetchMock.mock.calls.some(([,o])=>o?.method==='PATCH')).toBe(false);
+  });
+  it('UI 2.9 guardar es explícito y bloquea el botón durante pending',async()=>{
+    view();const input=await screen.findByRole('spinbutton');fireEvent.change(input,{target:{value:'9'}});
+    expect(fetchMock.mock.calls.some(([,o])=>o?.method==='PATCH')).toBe(false);
+    const original=fetchMock.getMockImplementation()!;let complete!:(r:Response)=>void;
+    fetchMock.mockImplementation((url,o)=>o?.method==='PATCH'?new Promise(resolve=>{complete=resolve;}):original(url,o));
+    await userEvent.click(screen.getByRole('button',{name:'Guardar intervalo'}));expect(screen.getByRole('button',{name:'Guardando…'})).toBeDisabled();
+    expect(screen.getByRole('button',{name:'Guardando…'})).toHaveAttribute('aria-busy','true');await act(async()=>complete(Response.json(config)));
+  });
   it('muestra siete días y guarda propuesta con confirmación',async()=>{view();const input=await screen.findByLabelText('Intervalo de inactividad (días)');expect(input).toHaveValue(7);await userEvent.clear(input);await userEvent.type(input,'5');await userEvent.click(screen.getByRole('button',{name:'Guardar intervalo'}));expect(await screen.findByText(/Intervalo guardado/)).toBeVisible();expect(config).toEqual({intervalDays:5,version:2});});
   it.each(['RESEARCH','BOARD','PLANNING'] as const)('oculta formulario y no consulta settings a %s',async role=>{identity={...admin,role,permissions:[]};view();expect(await screen.findByRole('alert')).toHaveTextContent('No tiene permiso');expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument();expect(fetchMock.mock.calls.some(([url])=>url.endsWith('settings/reminders'))).toBe(false);});
   it('valida mínimo sin enviar',async()=>{view();const input=await screen.findByRole('spinbutton');await userEvent.clear(input);await userEvent.type(input,'0');await userEvent.click(screen.getByRole('button',{name:'Guardar intervalo'}));expect(config.intervalDays).toBe(7);expect(fetchMock.mock.calls.some(([,options])=>options?.method==='PATCH')).toBe(false);});
