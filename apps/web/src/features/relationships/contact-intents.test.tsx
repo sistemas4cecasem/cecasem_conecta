@@ -56,6 +56,23 @@ describe('Intenciones de contacto', () => {
   afterEach(() => { client.clear(); vi.unstubAllGlobals(); });
   function view(path = '/contact-intents') { return render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[path]}><AppRoutes /></MemoryRouter></QueryClientProvider>); }
   const writes = () => fetchMock.mock.calls.filter(([, options]) => options?.method === 'POST');
+  it('UI 2.12 refleja CLOSED recibido por URL sin mostrar Todas', async () => {
+    total = 0; view('/contact-intents?state=CLOSED');
+    await screen.findByText('No hay intenciones para estos filtros.');
+    expect(screen.getByLabelText('Estado de intenciones')).toHaveValue('CLOSED');
+    expect(screen.getByRole('option', { name: 'Cerradas' })).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([url]) => url.includes('page=1&state=CLOSED'))).toBe(true);
+    expect(writes()).toHaveLength(0);
+  });
+  it('UI 2.12 permite seleccionar Cerradas y regresar a Todas sin escribir datos', async () => {
+    view(); await screen.findByRole('link', { name: row.purpose });
+    const filter = screen.getByLabelText('Estado de intenciones');
+    await userEvent.selectOptions(filter, 'CLOSED');
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url.includes('page=1&state=CLOSED'))).toBe(true));
+    expect(filter).toHaveValue('CLOSED');
+    await userEvent.selectOptions(filter, 'all');
+    expect(filter).toHaveValue('all'); expect(writes()).toHaveLength(0);
+  });
   it('UI 2.6 presenta encabezado, creación autorizada y metadata sin enriquecer la consulta', async () => {
     view(); const results = await screen.findByRole('region', { name: 'Resultados de intenciones' }); await within(results).findByRole('link', { name: row.purpose });
     expect(screen.getByRole('heading', { level: 1, name: 'Intenciones de contacto' })).toBeVisible();

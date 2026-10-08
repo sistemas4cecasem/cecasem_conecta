@@ -37,7 +37,7 @@ function IntentsList({ identity }: { identity: AuthIdentity }) {
     <PageHeader eyebrow="Relaciones" title="Intenciones de contacto" description="Consulta los acercamientos previstos, sus objetivos y su actividad."
       primaryAction={identity.permissions.includes('relationships.intent.create') && <ActionLink appearance="action" className="relationships-primary-action" to="/contact-intents/new">Crear intención</ActionLink>} />
     <FilterBar aria-label="Filtros de intenciones"><FormField label="Estado de intenciones">{control => <Select {...control} value={state} onChange={e => { const next = new URLSearchParams(params); if (e.target.value === 'all') next.delete('state'); else next.set('state', e.target.value); next.delete('page'); setParams(next); setPage(1); }}>
-      <option value="all">Todas</option><option value="ACTIVE">Activas</option><option value="CONVERTED">Convertidas</option><option value="CANCELLED">Canceladas</option></Select>}</FormField></FilterBar>
+      <option value="all">Todas</option><option value="ACTIVE">Activas</option><option value="CONVERTED">Convertidas</option><option value="CANCELLED">Canceladas</option><option value="CLOSED">Cerradas</option></Select>}</FormField></FilterBar>
     <Surface aria-label="Resultados de intenciones">
     <QueryFeedback pending={list.isPending} error={list.isError} retry={list.refetch} />
     {list.data?.total === 0 && <EmptyState title="No hay intenciones para estos filtros." />}

@@ -53,6 +53,16 @@ describe('UI 2.5 fichas institucionales', () => {
     client.setQueryData(AUTH_QUERY_KEY, identity); client.setQueryDefaults(AUTH_QUERY_KEY, { staleTime: Infinity });
     render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[`/${kind}/${kind === 'people' ? 'person' : 'org'}`]}><AppRoutes /></MemoryRouter></QueryClientProvider>);
   }
+  it('UI 2.12 cancelar desactivación devuelve el foco sin cambiar estado ni escribir', async () => {
+    view('organizations');
+    const trigger = await screen.findByRole('button', { name: 'Desactivar organización' });
+    await userEvent.click(trigger);
+    await userEvent.click(screen.getByRole('button', { name: 'Volver sin cambiar estado' }));
+    expect(screen.queryByRole('button', { name: 'Confirmar desactivación' })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    expect(screen.getByText('Activa')).toBeVisible();
+    expect(fetchMock.mock.calls.some(([, options]) => options?.method && options.method !== 'GET')).toBe(false);
+  });
   it('organización conserva identidad, matriz, categorías inactivas y sede navegable', async () => {
     view('organizations'); expect(await screen.findByRole('heading', { level: 1, name: organization.name })).toBeVisible();
     const summary = within(screen.getByRole('region', { name: 'Información institucional' }));

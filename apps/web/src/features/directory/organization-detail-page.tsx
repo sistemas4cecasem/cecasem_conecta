@@ -1,6 +1,6 @@
 import { DuplicatePanel } from './duplicate-panel';
 import { VerificationPanel } from './verification-panel';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useParams } from 'react-router';
 import { useSession } from '../auth/session';
 import { organizationSchema, type Organization } from './contracts';
@@ -18,6 +18,7 @@ import { PersonRelations } from './person-relations';
 import { ContactSection } from './contact-section';
 export function OrganizationDetailPage() {
   const { id = '' } = useParams(); const session = useSession(); const identity = session.data;
+  const statusAction = useRef<HTMLButtonElement>(null);
   const detail = useOrganization(identity, id); const mutation = useDirectoryMutation(identity);
   const [editing, setEditing] = useState<Organization | null>(null); const [page, setPage] = useState(1); const [confirmStatusChange, setConfirmStatusChange] = useState(false);
   const children = useOrganizations(identity, `organizations/${id}/children?status=all&page=${page}`);
@@ -43,7 +44,7 @@ export function OrganizationDetailPage() {
     <PageHeader eyebrow="Directorio / Organizaciones" title={row.name}
       metadata={<StatusBadge tone={row.isActive?'success':'neutral'}>{row.isActive?'Activa':'Inactiva'}</StatusBadge>}
       actions={<>{!row.duplicateOfId && identity.permissions.includes('directory.write') && <Button onClick={() => setEditing(row)}>Editar ficha</Button>}
-      {!row.duplicateOfId && identity.permissions.includes('directory.status.update') && <Button variant="ghost" disabled={mutation.isPending} onClick={() => { mutation.reset(); setConfirmStatusChange(true); }}>{row.isActive ? 'Desactivar organización' : 'Reactivar organización'}</Button>}</>} />
+      {!row.duplicateOfId && identity.permissions.includes('directory.status.update') && <Button ref={statusAction} variant="ghost" disabled={mutation.isPending} onClick={() => { mutation.reset(); setConfirmStatusChange(true); }}>{row.isActive ? 'Desactivar organización' : 'Reactivar organización'}</Button>}</>} />
     {row.dataImportBatch && <Alert role="status" tone="info">Dato importado desde Excel · pendiente de verificación · lote {row.dataImportBatch.id} · {row.dataImportBatch.originalFilename}</Alert>}
     {row.duplicateOf && <Alert role="status" tone="warning">Este registro fue consolidado en: <Link className="underline" to={'/organizations/'+row.duplicateOf.id}>{row.duplicateOf.name}</Link>. Su historial permanece disponible.</Alert>}
     {!!row.consolidatedRecords?.length && <p>Fichas consolidadas: {row.consolidatedRecords.map(item=><Link key={item.id} className="inline-flex min-h-11 items-center px-2 underline" to={'/organizations/'+item.id}>{item.name}</Link>)}</p>}
@@ -51,7 +52,7 @@ export function OrganizationDetailPage() {
     {!row.duplicateOfId && identity.permissions.includes('directory.status.update') && confirmStatusChange && <ConfirmationPanel role="group" title={row.isActive ? 'Confirmar desactivación de organización' : 'Confirmar reactivación de organización'}>
       <p>{row.isActive ? 'La ficha quedará inactiva. Sus datos y gestiones históricas se conservarán; podrás reactivarla después.' : 'La ficha volverá a estar activa para nuevas gestiones. Su historial se conservará.'}</p>
       <div className="flex flex-wrap gap-3"><Button disabled={mutation.isPending || !!mutation.error} onClick={() => void changeStatus()}>{mutation.isPending ? 'Actualizando…' : row.isActive ? 'Confirmar desactivación' : 'Confirmar reactivación'}</Button>
-        <Button disabled={mutation.isPending} onClick={() => setConfirmStatusChange(false)}>Volver sin cambiar estado</Button></div>
+        <Button disabled={mutation.isPending} onClick={() => { setConfirmStatusChange(false); statusAction.current?.focus(); }}>Volver sin cambiar estado</Button></div>
     </ConfirmationPanel>}
     <MutationError modern error={mutation.error} reload={async () => { await detail.refetch(); mutation.reset(); }} />
     <div className="directory-detail-main">
