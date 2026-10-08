@@ -1,0 +1,19 @@
+@layer components {
+  .opportunities-page { min-width: 0; overflow-wrap: anywhere; }
+  .opportunities-page > * + * { margin-top: 1.5rem; }
+  .opportunities-page .ui-page-header h1 { white-space: pre-wrap; }
+  .opportunities-page .ui-page-header .ui-link-action { background: var(--color-brand-primary); border-color: var(--color-brand-primary); color: white; }
+  .opportunities-page .planning-row-heading { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
+  .opportunities-page .ui-metadata { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+  .opportunities-page .ui-data-list-item > * + *, .opportunities-page .ui-surface > * + * { margin-top: 0.75rem; }
+  .opportunities-page .ui-data-list-item h2 { font-size: 0.875rem; }
+  .opportunity-deadline { font-weight: 600; color: var(--color-app-text); }
+  .opportunities-page .planning-history ol > li { border: 0; border-bottom: 1px solid var(--color-app-border); border-radius: 0; }
+  .opportunities-page input[type=file] { max-width: 100%; }
+  .opportunities-page form { border-color: var(--color-app-border); }
+  @media (max-width: 39.999rem) {
+    .opportunities-page .ui-metadata { grid-template-columns: minmax(0, 1fr); }
+    .opportunities-page .planning-row-heading { flex-wrap: wrap; }
+    .opportunities-page .ui-page-header .ui-actions, .opportunities-page .ui-page-header .ui-actions > * { width: 100%; }
+  }
+}

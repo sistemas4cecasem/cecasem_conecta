@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -53,6 +53,54 @@ describe('Oportunidades: flujos, conflictos y privacidad de identidad', () => {
     vi.stubGlobal('fetch', fetchMock);
   });
   function view(path = '/opportunities/' + id) { return render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[path]}><Routes><Route path="opportunities" element={<OpportunitiesPage />}/><Route path="opportunities/new" element={<OpportunityCreatePage />}/><Route path="opportunities/:id" element={<OpportunityDetailPage />}/></Routes></MemoryRouter></QueryClientProvider>); }
+  it.each([[0, '0 oportunidades encontradas'], [1, '1 oportunidad encontrada'], [3, '3 oportunidades encontradas']] as const)('contador concuerda con %i oportunidades', async (total, expected) => {
+    const original = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((url, options) => url.includes('/opportunities?') ? Promise.resolve(Response.json({ items: total ? [row] : [], total, page: 1, pageSize: 25 })) : original(url, options));
+    view('/opportunities');
+    expect(await screen.findByText(expected)).toBeVisible();
+  });
+  it('UI 2.8 listado conserva cabecera única, contexto, fecha civil y navegación', async () => {
+    view('/opportunities'); const link = await screen.findByRole('link', { name: fixture.name });
+    expect(link).toHaveAttribute('href', '/opportunities/'+id); expect(screen.getAllByRole('heading',{level:1})).toHaveLength(1);
+    expect(screen.getByRole('heading',{level:1})).toHaveTextContent('Oportunidades'); expect(screen.getByText('Planificación y seguimiento')).toBeVisible();
+    expect(link.closest('li')?.querySelector('time')).toHaveAttribute('datetime','2026-12-31'); expect(screen.getByText('Organización regional')).toBeVisible();
+    expect(screen.getByRole('region',{name:'Filtros de oportunidades'})).toHaveTextContent('1 oportunidad encontrada');
+  });
+  it.each(['ADMINISTRATOR','RESEARCH','BOARD','PLANNING'] as const)('UI 2.8 %s respeta capabilities de creación y modificación', async role => {
+    const reader = {...identity,role,permissions:['opportunities.read']}; client.setQueryData(AUTH_QUERY_KEY,reader);
+    const original=fetchMock.getMockImplementation()!; fetchMock.mockImplementation((url,options)=>url.endsWith('/auth/me')?Promise.resolve(Response.json(reader)):original(url,options));
+    row={...row,canEdit:false,allowedStatuses:[]}; view(); await screen.findByRole('heading',{level:1,name:fixture.name});
+    expect(screen.queryByRole('button',{name:'Editar descripción y organizaciones'})).not.toBeInTheDocument(); expect(screen.queryByLabelText('Nuevo estado')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('link',{name:'Volver a oportunidades'})); await screen.findByRole('heading',{level:1,name:'Oportunidades'});
+    expect(screen.queryByRole('link',{name:'Crear oportunidad'})).not.toBeInTheDocument();
+  });
+  it('UI 2.8 detalle separa fecha civil, registro y antecedentes sin consultas nuevas', async () => {
+    row={...row,deadline:'2026-01-01',process:{id:orgId,purpose:'Antecedente institucional'},communication:{id:orgId,subject:'Respuesta original',processId:orgId,validity:'INVALIDATED'}};
+    view(); await screen.findByRole('heading',{level:1,name:fixture.name}); const region=screen.getByRole('region',{name:'Identificación y seguimiento'});
+    expect(region.querySelector('time')).toHaveAttribute('datetime','2026-01-01'); expect(within(region).getByText('Fecha vencida')).toBeVisible();
+    expect(within(region).getByText('Fecha de registro').parentElement?.querySelector('time')).toHaveAttribute('datetime',fixture.createdAt);
+    expect(screen.getByRole('link',{name:'Proceso: Antecedente institucional'})).toHaveAttribute('href','/relationship-processes/'+orgId);
+    expect(screen.getByRole('link',{name:'Comunicación: Respuesta original'})).toHaveAttribute('href','/communications/'+orgId);
+    expect(fetchMock.mock.calls.some(([url])=>url.includes('/relationship-processes/')||url.includes('/communications/'))).toBe(false);
+  });
+  it('UI 2.8 sin fecha no fabrica vencimiento y muestra vacío paginado', async () => {
+    row={...row,deadline:null}; const original=fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((url,options)=>url.includes('/opportunities?')?Promise.resolve(Response.json({items:[],total:0,page:1,pageSize:25})):original(url,options));
+    view('/opportunities'); await screen.findByText('No hay oportunidades para estos filtros.'); expect(screen.getByRole('button',{name:'Siguiente'})).toBeDisabled();
+    expect(screen.queryByText('Fecha vencida')).not.toBeInTheDocument();
+  });
+  it('UI 2.8 filtro conserva origen URL y reinicia página tras paginar', async () => {
+    const original=fetchMock.getMockImplementation()!; fetchMock.mockImplementation((url,options)=>url.includes('/opportunities?')?Promise.resolve(Response.json({items:[row],total:26,page:1,pageSize:25})):original(url,options));
+    view('/opportunities?organizationId='+orgId+'&status=PREPARING'); await screen.findByRole('link',{name:fixture.name}); await userEvent.click(screen.getByRole('button',{name:'Siguiente'}));
+    await waitFor(()=>expect(fetchMock.mock.calls.some(([url])=>url.includes('page=2'))).toBe(true)); await userEvent.selectOptions(screen.getByLabelText('Filtrar por estado'),'SUBMITTED');
+    await waitFor(()=>expect(fetchMock.mock.calls.some(([url])=>url.includes('page=1&status=SUBMITTED')&&url.includes('organizationId='+orgId))).toBe(true));
+  });
+  it('UI 2.8 formulario asocia error al control y conserva fecha al enviar', async () => {
+    view(); await userEvent.click(await screen.findByRole('button',{name:'Editar descripción y organizaciones'})); await userEvent.clear(screen.getByLabelText('Nombre')); await userEvent.click(screen.getByRole('button',{name:'Guardar cambios'}));
+    expect(screen.getByLabelText('Nombre')).toHaveAttribute('aria-invalid','true'); expect(screen.getByLabelText('Nombre')).toHaveAttribute('aria-describedby');
+    await userEvent.type(screen.getByLabelText('Nombre'),'Nombre válido'); await userEvent.click(screen.getByRole('button',{name:'Guardar cambios'}));
+    await screen.findByRole('heading',{level:1,name:'Nombre válido'}); expect(JSON.parse(fetchMock.mock.calls.find(([,o])=>o?.method==='PATCH')?.[1]?.body as string)).toMatchObject({deadline:'2026-12-31',expectedVersion:1});
+  });
   it('lista con estado, fecha civil, organizaciones y filtro', async () => { view('/opportunities'); await screen.findByRole('link', { name: 'Beca regional' }); expect(screen.getByText(/31\/12\/2026/)).toBeInTheDocument(); await userEvent.selectOptions(screen.getByLabelText('Filtrar por estado'), 'SUBMITTED'); await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url.includes('status=SUBMITTED'))).toBe(true)); });
   it('edita con versión y conserva el borrador frente a 409', async () => { status = 409; view(); await screen.findByRole('button', { name: 'Editar descripción y organizaciones' }); await userEvent.click(screen.getByRole('button', { name: 'Editar descripción y organizaciones' })); await userEvent.clear(screen.getByLabelText('Nombre')); await userEvent.type(screen.getByLabelText('Nombre'), 'Borrador conservado'); await userEvent.click(screen.getByRole('button', { name: 'Guardar cambios' })); await screen.findByText(/La oportunidad cambió/); expect(screen.getByLabelText('Nombre')).toHaveValue('Borrador conservado'); const patch = fetchMock.mock.calls.find(([, options]) => options?.method === 'PATCH'); expect(JSON.parse(patch?.[1]?.body as string)).toMatchObject({ expectedVersion: 1, name: 'Borrador conservado', organizationIds: [orgId] }); });
   it('crea con organización real y clave idempotente, sin inventar origen', async () => { view('/opportunities/new'); await screen.findByLabelText('Nombre'); await userEvent.type(screen.getByLabelText('Nombre'), 'Nueva beca'); await userEvent.type(screen.getByLabelText('Buscar objetivo por nombre'), 'regional'); await userEvent.click(await screen.findByRole('button', { name: 'Seleccionar organización: Organización regional' })); await userEvent.click(screen.getByRole('button', { name: 'Crear oportunidad' })); await screen.findByRole('heading', { name: 'Nueva beca' }); const post = fetchMock.mock.calls.find(([, options]) => options?.method === 'POST'); expect(JSON.parse(post?.[1]?.body as string)).toMatchObject({ name: 'Nueva beca', organizationIds: [orgId], processId: null, communicationId: null }); expect(new Headers(post?.[1]?.headers).get('Idempotency-Key')).toMatch(/^[0-9a-f-]{36}$/); });
