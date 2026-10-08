@@ -1,3 +1,9 @@
+import { PageHeader, Surface } from '../../components/ui/layout';
+import { FormSection, FormField, Input, Select, FormActions, FieldHelp } from '../../components/ui/forms';
+import { Button } from '../../components/ui/actions';
+import { Alert, StatusBadge } from '../../components/ui/feedback';
+import { DataList, DataListItem, Metadata } from '../../components/ui/lists';
+import './data-exchange.css';
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, apiRequest } from '../../lib/api/client';
@@ -53,7 +59,7 @@ export function ImportsPage() {
     catch (failure) { setError(failure instanceof ApiError ? failure.message : 'No se pudo consultar el lote.'); }
     finally { setPending(false); }
   }
-  if (!identity?.permissions.includes('data_exchange.import.execute')) return <p role="alert">No tienes permiso para importar archivos históricos.</p>;
+  if (!identity?.permissions.includes('data_exchange.import.execute')) return <section className="data-exchange-page"><PageHeader title="Importar Excel" eyebrow="Herramientas"/><Alert tone="danger" role="alert">No tienes permiso para importar archivos históricos.</Alert></section>;
 
   async function inspect() {
     if (!file) return;
@@ -80,48 +86,54 @@ export function ImportsPage() {
     } catch (failure) { setError(failure instanceof ApiError ? failure.message : 'No se pudo aplicar el lote.'); }
     finally { setPending(false); }
   }
-  return <section aria-label="Importación Excel histórica" className="min-w-0 space-y-6 break-words">
-    <h1 className="text-2xl font-semibold">Importación Excel histórica</h1>
-    <p>Solo se aceptan archivos XLSX. La inspección no los almacena y el preview solo guarda el análisis; la confirmación es una acción distinta que escribe datos.</p>
-    <section className="space-y-4 rounded border p-4" aria-label="Seleccionar y analizar archivo">
-      <label className="block">Archivo XLSX<input className="mt-1 block w-full" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={event => { setFile(event.target.files?.[0] ?? null); setInspection(null); setBatch(null); }} /></label>
-      <button className="min-h-11 rounded border px-3" disabled={!file || pending} onClick={() => void inspect()}>{pending ? 'Analizando…' : 'Inspeccionar archivo'}</button>
-      {inspection && <>
-        <label className="block">Hoja<select className="mt-1 block min-h-11 w-full rounded border p-2" value={worksheetName} onChange={event => { setWorksheetName(event.target.value); setHeaderRow(1); setMapping({}); }}>
-          {inspection.sheets.map(item => <option key={item.name} value={item.name}>{item.name} · {item.rowCount} filas</option>)}</select></label>
-        <label className="block">Fila de encabezados<select className="mt-1 block min-h-11 w-full rounded border p-2" value={headerRow} onChange={event => { setHeaderRow(Number(event.target.value)); setMapping({}); }}>
-          {sheet?.sample.map(row => <option key={row.rowNumber} value={row.rowNumber}>Fila {row.rowNumber}: {row.cells.map(headerLabel).join(' · ')}</option>)}</select></label>
-        <label className="block">Tipo de datos<select className="mt-1 block min-h-11 w-full rounded border p-2" value={kind} onChange={event => { setKind(event.target.value as Kind); setMapping({}); }}>
-          {Object.entries(kindLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-        <p className="text-sm text-slate-700">Mapea solo las columnas que correspondan. Deja las demás en «Sin asignar» para ignorarlas como datos de negocio; sus valores originales se conservan y aparecerán como advertencia en el preview.</p>
-        <div className="grid gap-3 sm:grid-cols-2">{fieldOptions[kind].map(field => <label key={field.key} className="block">{field.label}<select className="mt-1 block min-h-11 w-full rounded border p-2" value={mapping[field.key] ?? ''} onChange={event => setMapping(current => { const next = { ...current }; if (event.target.value) next[field.key] = Number(event.target.value); else delete next[field.key]; return next; })}>
-          <option value="">Sin asignar</option>{headers.map(header => <option key={header.column} disabled={selectedColumns.has(header.column) && mapping[field.key] !== header.column} value={header.column}>Columna {header.column}: {headerLabel(header)}</option>)}</select></label>)}</div>
-        <button className="min-h-11 rounded border px-3" disabled={pending || !headers.length} onClick={() => void preview()}>{pending ? 'Creando preview…' : 'Analizar y crear preview'}</button>
-      </>}
-    </section>
-    {batches.data && batches.data.items.length > 0 && <section className="space-y-3 rounded border p-4" aria-label="Lotes anteriores"><h2 className="text-xl font-semibold">Lotes anteriores · {batches.data.total}</h2>
-      <ul className="space-y-2">{batches.data.items.map(item => <li key={item.id} className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded border p-3"><span className="break-all">{item.originalFilename} · {statusLabel(item.status)} · {item.importedRows}/{item.analyzedRows}</span><button className="min-h-11 rounded border px-3" disabled={pending} onClick={() => void openBatch(item.id)}>Ver lote</button></li>)}</ul>
-    </section>}
-    {error && <p role="alert" className="rounded border border-red-600 p-3">{error}</p>}
-    {batch && <section className="min-w-0 space-y-4 rounded border p-4" aria-label="Preview del lote">
-      <h2 className="text-xl font-semibold">{batch.status === 'IMPORTED' ? 'Resultado del lote' : 'Revisión previa a importar'}</h2>
+  return <section aria-label="Importación Excel histórica" className="data-exchange-page">
+    <PageHeader title="Importar Excel" eyebrow="Herramientas" description="Importa información institucional desde un archivo XLSX mediante el mapeo de columnas disponible."/>
+    <Alert tone="info">Solo se aceptan archivos XLSX. La inspección no los almacena y el preview solo guarda el análisis; la confirmación es una acción distinta que escribe datos.</Alert>
+    <Surface heading="Selección del archivo" aria-label="Seleccionar y analizar archivo" className="exchange-form-surface">
+      <FormField label="Archivo XLSX" help="Formato .xlsx. Tamaño máximo admitido por el servidor: 20 MB.">{control =>
+        <Input {...control} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={event => { setFile(event.target.files?.[0] ?? null); setInspection(null); setBatch(null); }}/>}</FormField>
+      {file && <Metadata items={[{label:'Archivo seleccionado',value:file.name},{label:'Tamaño',value:file.size+' bytes'}]}/>}
+      <FormActions><Button disabled={!file || pending} pending={pending} onClick={() => void inspect()}>{pending ? 'Analizando…' : 'Inspeccionar archivo'}</Button></FormActions>
+    </Surface>
+    {inspection && <Surface heading="Mapeo de columnas" className="exchange-form-surface">
+      <FormSection heading="Origen y tipo de datos" className="exchange-fields">
+        <FormField label="Hoja">{control => <Select {...control} value={worksheetName} onChange={event => { setWorksheetName(event.target.value); setHeaderRow(1); setMapping({}); }}>
+          {inspection.sheets.map(item => <option key={item.name} value={item.name}>{item.name} · {item.rowCount} filas</option>)}</Select>}</FormField>
+        <FormField label="Fila de encabezados">{control => <Select {...control} value={headerRow} onChange={event => { setHeaderRow(Number(event.target.value)); setMapping({}); }}>
+          {sheet?.sample.map(row => <option key={row.rowNumber} value={row.rowNumber}>Fila {row.rowNumber}: {row.cells.map(headerLabel).join(' · ')}</option>)}</Select>}</FormField>
+        <FormField label="Tipo de datos">{control => <Select {...control} value={kind} onChange={event => { setKind(event.target.value as Kind); setMapping({}); }}>
+          {Object.entries(kindLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select>}</FormField>
+      </FormSection>
+      {sheet && <Metadata items={[{label:'Filas de la hoja',value:sheet.rowCount},{label:'Columnas de la hoja',value:sheet.columnCount}]}/>}
+      <FieldHelp>Mapea solo las columnas que correspondan. Deja las demás en «Sin asignar» para ignorarlas como datos de negocio; sus valores originales se conservan y aparecerán como advertencia en el preview.</FieldHelp>
+      <FormSection heading="Campos de destino en CECASEM Conecta" description="Para cada campo de destino, selecciona su columna de origen en el Excel." className="exchange-fields">
+        {fieldOptions[kind].map(field => <FormField key={field.key} label={field.label} help="Columna de origen en Excel">{control => <Select {...control} value={mapping[field.key] ?? ''} onChange={event => setMapping(current => { const next = { ...current }; if (event.target.value) next[field.key] = Number(event.target.value); else delete next[field.key]; return next; })}>
+          <option value="">Sin asignar</option>{headers.map(header => <option key={header.column} disabled={selectedColumns.has(header.column) && mapping[field.key] !== header.column} value={header.column}>Columna {header.column}: {headerLabel(header)}</option>)}</Select>}</FormField>)}
+      </FormSection>
+      <FormActions><Button variant="primary" pending={pending} disabled={pending || !headers.length} onClick={() => void preview()}>{pending ? 'Creando preview…' : 'Analizar y crear preview'}</Button></FormActions>
+    </Surface>}
+    {batches.data && batches.data.items.length > 0 && <Surface heading={`Lotes anteriores · ${batches.data.total}`} aria-label="Lotes anteriores">
+      <DataList>{batches.data.items.map(item => <DataListItem key={item.id} className="exchange-batch-row"><div><p>{item.originalFilename}</p><StatusBadge>{statusLabel(item.status)}</StatusBadge><p className="ui-description">Filas importadas/analizadas: {item.importedRows}/{item.analyzedRows}</p></div><Button disabled={pending} onClick={() => void openBatch(item.id)}>Ver lote</Button></DataListItem>)}</DataList>
+    </Surface>}
+    {error && <Alert tone="danger" role="alert">{error}</Alert>}
+    {batch && <Surface heading={batch.status === 'IMPORTED' ? 'Resultado del lote' : 'Revisión previa a importar'} aria-label="Preview del lote">
       <p>Archivo: {batch.originalFilename} · {kindLabels[batch.recordKind]}</p><p>Lote: {batch.id} · Estado: {statusLabel(batch.status)}</p>
-      <dl className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{[['Filas analizadas', batch.analyzedRows], ['Listas', batch.readyRows], ['Revisión', batch.reviewRows], ['Inválidas', batch.invalidRows], ['Importadas', batch.importedRows]].map(([label, value]) => <div key={label}><dt className="font-semibold">{label}</dt><dd>{value}</dd></div>)}</dl>
+      <Metadata items={[{label:'Filas analizadas',value:batch.analyzedRows},{label:'Listas',value:batch.readyRows},{label:'Revisión',value:batch.reviewRows},{label:'Inválidas',value:batch.invalidRows},{label:'Importadas',value:batch.importedRows}]}/>
       {batch.status === 'ANALYZED' && <p className="text-sm text-slate-700">Las filas en «Revisión» contienen advertencias o coincidencias. Las posibles coincidencias requieren una decisión antes de escribir los datos; las filas inválidas no se importan.</p>}
       {batch.status === 'ANALYZED' && unresolvedDecisions.length > 0 && <p role="status">Resuelve {unresolvedDecisions.length} {unresolvedDecisions.length === 1 ? 'coincidencia' : 'coincidencias'} pendiente{unresolvedDecisions.length === 1 ? '' : 's'} para habilitar la importación.</p>}
-      <ul className="space-y-3">{batch.rows.map(row => <li key={row.rowNumber} className="min-w-0 space-y-2 rounded border p-3"><h3 className="font-semibold">Fila {row.rowNumber} · {statusLabel(row.status)}</h3>
+      <DataList className="exchange-preview-rows">{batch.rows.map(row => <DataListItem key={row.rowNumber}><h3 className="font-semibold">Fila {row.rowNumber} · {statusLabel(row.status)}</h3>
         <dl className="grid gap-1 sm:grid-cols-2">{Object.entries(row.normalizedValues ?? row.sourceValues).map(([field, value]) => <div key={field}><dt className="font-medium">{row.normalizedValues ? previewFieldLabel(batch.recordKind, field) : field}</dt><dd>{value === null || value === '' ? 'Sin dato' : String(value)}</dd></div>)}</dl>
-        {row.errors.map((item, index) => <p key={`e${index}`} role="alert">{item.field ? `${item.field}: ` : ''}{item.message}</p>)}
-        {row.warnings.map((item, index) => <p key={`w${index}`}>Advertencia{item.field ? ` · ${item.field}` : ''}: {item.message}</p>)}
+        {row.errors.map((item, index) => <Alert key={`e${index}`} tone="danger" role="alert">{item.field ? `${item.field}: ` : ''}{item.message}</Alert>)}
+        {row.warnings.map((item, index) => <Alert key={`w${index}`} tone="warning">Advertencia{item.field ? ` · ${item.field}` : ''}: {item.message}</Alert>)}
         {row.matches.map((match, index) => <div key={`${match.id}:${index}`} className="rounded border p-2"><p>{match.kind === 'POSSIBLE' ? 'Posible coincidencia' : match.kind === 'EXACT' ? 'Coincidencia exacta' : 'El medio de contacto ya existe'}: {match.label}{match.score !== null ? ` · ${Math.round(match.score * 100)}%` : ''}</p></div>)}
         {row.status !== 'IMPORTED' && decisionFieldsFor(row).map(field => {
           const candidates = row.matches.filter(match => match.field === field && (match.kind === 'POSSIBLE' || match.kind === 'EXACT'));
-          return <label key={field} className="block">Decisión para {previewFieldLabel(batch.recordKind, field)}<select className="mt-1 block min-h-11 w-full rounded border p-2" value={decisions[`${row.rowNumber}:${field}`] ?? ''} onChange={event => setDecisions(current => ({ ...current, [`${row.rowNumber}:${field}`]: event.target.value }))}>
-            <option value="">Selecciona una decisión</option><option value="CREATE_NEW">Crear una ficha nueva, sin fusionar</option>{candidates.map(candidate => <option key={candidate.id} value={candidate.id}>Relacionar con {candidate.label}{candidate.kind === 'POSSIBLE' && candidate.score !== null ? ` · ${Math.round(candidate.score * 100)}%` : ''}</option>)}</select></label>;
+          return <FormField key={field} label={`Decisión para ${previewFieldLabel(batch.recordKind, field)}`}>{control => <Select {...control} value={decisions[`${row.rowNumber}:${field}`] ?? ''} onChange={event => setDecisions(current => ({ ...current, [`${row.rowNumber}:${field}`]: event.target.value }))}>
+            <option value="">Selecciona una decisión</option><option value="CREATE_NEW">Crear una ficha nueva, sin fusionar</option>{candidates.map(candidate => <option key={candidate.id} value={candidate.id}>Relacionar con {candidate.label}{candidate.kind === 'POSSIBLE' && candidate.score !== null ? ` · ${Math.round(candidate.score * 100)}%` : ''}</option>)}</Select>}</FormField>;
         })}
-      </li>)}</ul>
-      {batch.status === 'ANALYZED' && <button className="min-h-11 rounded border border-blue-700 px-4 font-semibold" disabled={pending || batch.readyRows + batch.reviewRows === 0 || unresolvedDecisions.length > 0} onClick={() => { if (window.confirm(`Se escribirán ${batch.readyRows + batch.reviewRows} filas válidas del lote ${batch.id}. ¿Deseas aplicar la importación?`)) void confirm(); }}>{pending ? 'Aplicando…' : 'Confirmar y escribir datos'}</button>}
-      {batch.status === 'IMPORTED' && <p role="status">Importación confirmada: {batch.importedRows} filas aplicadas. El lote ya no admite otra confirmación.</p>}
-    </section>}
+      </DataListItem>)}</DataList>
+      {batch.status === 'ANALYZED' && <Button variant="primary" pending={pending} disabled={pending || batch.readyRows + batch.reviewRows === 0 || unresolvedDecisions.length > 0} onClick={() => { if (window.confirm(`Se escribirán ${batch.readyRows + batch.reviewRows} filas válidas del lote ${batch.id}. ¿Deseas aplicar la importación?`)) void confirm(); }}>{pending ? 'Aplicando…' : 'Confirmar y escribir datos'}</Button>}
+      {batch.status === 'IMPORTED' && <Alert tone="info" role="status">Importación confirmada: {batch.importedRows} filas aplicadas. El lote ya no admite otra confirmación.</Alert>}
+    </Surface>}
   </section>;
 }

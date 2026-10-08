@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -35,6 +35,92 @@ describe('Importación Excel en el navegador', () => {
     return render(<QueryClientProvider client={client}><MemoryRouter><ImportsPage /></MemoryRouter></QueryClientProvider>);
   }
 
+  async function inspectFixture() {
+    const file = new File(['xlsx fixture'], 'historial.xlsx', {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    await userEvent.upload(screen.getByLabelText('Archivo XLSX'), file);
+    await userEvent.click(screen.getByRole('button',{name:'Inspeccionar archivo'}));
+    await screen.findByLabelText('Nombre de organización (obligatorio)'); return file;
+  }
+  it('UI 2.10 cabecera y selección accesible no ejecutan operaciones automáticamente',async()=>{
+    view();expect(screen.getAllByRole('heading',{level:1})).toHaveLength(1);expect(screen.getByRole('heading',{name:'Importar Excel'})).toBeVisible();
+    const input=screen.getByLabelText('Archivo XLSX');expect(input).toHaveAttribute('accept','.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    expect(input).toHaveAccessibleDescription('Formato .xlsx. Tamaño máximo admitido por el servidor: 20 MB.');
+    expect(screen.getByRole('button',{name:'Inspeccionar archivo'})).toBeDisabled();
+    await userEvent.upload(input,new File(['contenido'], 'archivo-seguro.xlsx',{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+    expect(screen.getByText('archivo-seguro.xlsx')).toBeVisible();expect(screen.getByText('9 bytes')).toBeVisible();
+    expect(fetchMock.mock.calls.some(([,o])=>o?.method==='POST')).toBe(false);
+    expect(screen.queryByRole('heading',{name:'Mapeo de columnas'})).not.toBeInTheDocument();
+  });
+  it.each(['BOARD','RESEARCH','PLANNING'] as const)('UI 2.10 %s sin capability no consulta lotes ni muestra controles',role=>{
+    view({...admin,role,permissions:[]});expect(screen.getByRole('alert')).toHaveTextContent('No tienes permiso');
+    expect(screen.queryByLabelText('Archivo XLSX')).not.toBeInTheDocument();expect(screen.getAllByRole('heading',{level:1})).toHaveLength(1);
+    expect(fetchMock.mock.calls.some(([url])=>url.includes('/data-exchange/imports'))).toBe(false);
+  });
+  it('UI 2.10 mapeo distingue destino y origen, conserva vacíos y evita repetir columnas',async()=>{
+    view();await inspectFixture();const name=screen.getByLabelText('Nombre de organización (obligatorio)');
+    expect(screen.getByRole('group',{name:'Campos de destino en CECASEM Conecta'})).toBeVisible();
+    expect(name).toHaveAccessibleDescription('Columna de origen en Excel');expect(name).toHaveValue('');
+    await userEvent.selectOptions(name,'1');const country=screen.getByLabelText('País');
+    expect(within(country).getByRole('option',{name:'Columna 1: Nombre'})).toBeDisabled();
+    await userEvent.selectOptions(name,'');expect(within(country).getByRole('option',{name:'Columna 1: Nombre'})).toBeEnabled();
+    expect(fetchMock.mock.calls.some(([url])=>url.endsWith('/preview'))).toBe(false);
+  });
+  it('UI 2.10 mapeo enviado mantiene archivo, hoja, encabezado y tipo',async()=>{
+    view();const file=await inspectFixture();await userEvent.selectOptions(screen.getByLabelText('Nombre de organización (obligatorio)'),'1');
+    await userEvent.selectOptions(screen.getByLabelText('País'),'2');await userEvent.click(screen.getByRole('button',{name:'Analizar y crear preview'}));
+    await screen.findByRole('heading',{name:'Revisión previa a importar'});const data=fetchMock.mock.calls.find(([url])=>url.endsWith('/preview'))?.[1]?.body as FormData;
+    expect((data.get('file') as File).name).toBe(file.name);expect(data.get('worksheetName')).toBe('Historial');expect(data.get('headerRow')).toBe('1');
+    expect(data.get('recordKind')).toBe('ORGANIZATION');expect(JSON.parse(String(data.get('columnMapping')))).toEqual({name:1,country:2});
+  });
+  it('UI 2.10 cambiar tipo borra el mapeo y conserva campos existentes',async()=>{
+    view();await inspectFixture();await userEvent.selectOptions(screen.getByLabelText('Nombre de organización (obligatorio)'),'1');
+    await userEvent.selectOptions(screen.getByLabelText('Tipo de datos'),'CONTACT');expect(screen.getByLabelText('Tipo de contacto (obligatorio)')).toHaveValue('');
+    expect(screen.getByLabelText('Valor de contacto (obligatorio)')).toHaveValue('');
+    await userEvent.selectOptions(screen.getByLabelText('Tipo de datos'),'ORGANIZATION');expect(screen.getByLabelText('Nombre de organización (obligatorio)')).toHaveValue('');
+  });
+  it('UI 2.10 reemplazar archivo elimina inspección y revisión anterior',async()=>{
+    view();await inspectFixture();await userEvent.click(screen.getByRole('button',{name:'Analizar y crear preview'}));await screen.findByRole('heading',{name:'Revisión previa a importar'});
+    await userEvent.upload(screen.getByLabelText('Archivo XLSX'),new File(['nuevo'], 'otro.xlsx',{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+    expect(screen.queryByRole('heading',{name:'Mapeo de columnas'})).not.toBeInTheDocument();expect(screen.queryByRole('heading',{name:'Revisión previa a importar'})).not.toBeInTheDocument();
+  });
+  it('UI 2.10 muestra error de inspección y permite reintentar sin crear lote',async()=>{
+    view();const original=fetchMock.getMockImplementation()!;fetchMock.mockImplementation(url=>url.endsWith('/inspect')?Promise.resolve(new Response(null,{status:400})):original(url));
+    await userEvent.upload(screen.getByLabelText('Archivo XLSX'),new File(['inválido'],'historial.xlsx',{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+    await userEvent.click(screen.getByRole('button',{name:'Inspeccionar archivo'}));expect(await screen.findByRole('alert')).toBeVisible();
+    expect(screen.queryByRole('heading',{name:'Mapeo de columnas'})).not.toBeInTheDocument();fetchMock.mockImplementation(original);
+    await userEvent.click(screen.getByRole('button',{name:'Inspeccionar archivo'}));await screen.findByRole('heading',{name:'Mapeo de columnas'});
+  });
+  it('UI 2.10 inspección pendiente bloquea la acción y expone pending',async()=>{
+    view();const original=fetchMock.getMockImplementation()!;let complete!:(r:Response)=>void;
+    fetchMock.mockImplementation(url=>url.endsWith('/inspect')?new Promise(resolve=>{complete=resolve;}):original(url));
+    await userEvent.upload(screen.getByLabelText('Archivo XLSX'),new File(['xlsx'],'historial.xlsx',{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+    await userEvent.click(screen.getByRole('button',{name:'Inspeccionar archivo'}));expect(screen.getByRole('button',{name:'Analizando…'})).toBeDisabled();
+    expect(screen.getByRole('button',{name:'Analizando…'})).toHaveAttribute('aria-busy','true');await act(async()=>complete(Response.json({sheets:[]})));
+  });
+  it('UI 2.10 errores y advertencias conservan fila real y contadores sin simular éxito',async()=>{
+    view();await inspectFixture();const original=fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(url=>url.endsWith('/preview')?Promise.resolve(Response.json({...preview,analyzedRows:2,readyRows:1,invalidRows:1,rows:[preview.rows[0],{...preview.rows[0],rowNumber:42,status:'INVALID',normalizedValues:null,sourceValues:{Nombre:''},errors:[{field:'name',message:'Nombre requerido',value:null}],warnings:[{field:'country',message:'Revisar país',value:null}]}]})):original(url));
+    await userEvent.click(screen.getByRole('button',{name:'Analizar y crear preview'}));await screen.findByRole('heading',{name:'Fila 42 · Inválida'});
+    expect(screen.getByRole('alert')).toHaveTextContent('name: Nombre requerido');expect(screen.getByText('Advertencia · country: Revisar país')).toBeVisible();
+    expect(screen.getByText('Importadas').nextElementSibling).toHaveTextContent('0');expect(screen.queryByText(/Importación confirmada/)).not.toBeInTheDocument();
+  });
+  it('UI 2.10 lote sin filas válidas no permite confirmar',async()=>{
+    currentPreview={...preview,readyRows:0,invalidRows:1};view();await inspectFixture();await userEvent.click(screen.getByRole('button',{name:'Analizar y crear preview'}));
+    expect(await screen.findByRole('button',{name:'Confirmar y escribir datos'})).toBeDisabled();
+  });
+  it('UI 2.10 cancelar confirmación no escribe y conserva revisión',async()=>{
+    view();await inspectFixture();await userEvent.click(screen.getByRole('button',{name:'Analizar y crear preview'}));await screen.findByRole('heading',{name:'Revisión previa a importar'});
+    vi.stubGlobal('confirm',vi.fn(()=>false));await userEvent.click(screen.getByRole('button',{name:'Confirmar y escribir datos'}));
+    expect(confirmed).toBe(false);expect(screen.getByRole('heading',{name:'Revisión previa a importar'})).toBeVisible();
+    expect(fetchMock.mock.calls.some(([url])=>url.endsWith('/confirm'))).toBe(false);
+  });
+  it('UI 2.10 consulta lote existente importado sin permitir otra confirmación',async()=>{
+    const original=fetchMock.getMockImplementation()!;confirmed=true;
+    fetchMock.mockImplementation(url=>url.includes('/imports?page=')?Promise.resolve(Response.json({items:[{...preview,status:'IMPORTED',importedRows:1}],total:1,page:1,pageSize:25})):original(url));
+    view();await userEvent.click(await screen.findByRole('button',{name:'Ver lote'}));await screen.findByRole('heading',{name:'Resultado del lote'});
+    expect(screen.getByRole('status')).toHaveTextContent('El lote ya no admite otra confirmación.');
+    expect(screen.queryByRole('button',{name:'Confirmar y escribir datos'})).not.toBeInTheDocument();
+  });
   it('bloquea la operación a roles sin capability explícita', () => {
     view({ ...admin, id: 'research', role: 'RESEARCH', permissions: [] });
     expect(screen.getByRole('alert')).toHaveTextContent('No tienes permiso');

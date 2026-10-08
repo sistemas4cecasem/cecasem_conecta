@@ -1,0 +1,19 @@
+@layer components {
+  .data-exchange-page { min-width: 0; overflow-wrap: anywhere; }
+  .data-exchange-page > * + * { margin-top: 1.5rem; }
+  .data-exchange-page .exchange-form-surface { max-width: 52rem; }
+  .data-exchange-page .ui-surface > * + * { margin-top: 1rem; }
+  .data-exchange-page .exchange-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+  .data-exchange-page .exchange-fields > * + * { margin-top: 0; }
+  .data-exchange-page .exchange-fields > .ui-description { grid-column: 1 / -1; }
+  .data-exchange-page .ui-metadata { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem 1.5rem; }
+  .data-exchange-page .ui-metadata dd { color: var(--color-app-text); }
+  .data-exchange-page .exchange-batch-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+  .data-exchange-page .exchange-batch-row > div { min-width: 0; }
+  .data-exchange-page .exchange-preview-rows dl { overflow-wrap: anywhere; }
+  .data-exchange-page input[type=file] { max-width: 100%; }
+  @media (max-width: 39.999rem) {
+    .data-exchange-page .exchange-fields, .data-exchange-page .ui-metadata { grid-template-columns: minmax(0, 1fr); }
+    .data-exchange-page .exchange-batch-row { flex-wrap: wrap; }
+  }
+}

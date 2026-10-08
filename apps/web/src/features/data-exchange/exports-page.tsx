@@ -1,3 +1,8 @@
+import { PageHeader, Surface } from '../../components/ui/layout';
+import { FormField, Input, Select, FormSection, FormActions } from '../../components/ui/forms';
+import { Button } from '../../components/ui/actions';
+import { Alert } from '../../components/ui/feedback';
+import './data-exchange.css';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ApiError, apiRequest } from '../../lib/api/client';
@@ -72,43 +77,42 @@ export function ExportsPage() {
     finally { setPending(false); }
   }
 
-  const input = (label: string, name: keyof ExportFilters, placeholder = '') => <label className="block min-w-0">{label}<input className="mt-1 block min-h-11 w-full rounded border px-3" value={String(filters[name] ?? '')} placeholder={placeholder} onChange={event => update(name, event.target.value)} /></label>;
-  const select = (label: string, name: keyof ExportFilters, options: [string, string][]) => <label className="block min-w-0">{label}<select className="mt-1 block min-h-11 w-full rounded border p-2" value={String(filters[name] ?? '')} onChange={event => update(name, event.target.value)}><option value="">Cualquiera</option>{options.map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select></label>;
+  const input = (label: string, name: keyof ExportFilters, placeholder = '') => <FormField label={label}>{control => <Input {...control} value={String(filters[name] ?? '')} placeholder={placeholder} onChange={event => update(name, event.target.value)} />}</FormField>;
+  const select = (label: string, name: keyof ExportFilters, options: [string, string][]) => <FormField label={label}>{control => <Select {...control} value={String(filters[name] ?? '')} onChange={event => update(name, event.target.value)}><option value="">Cualquiera</option>{options.map(([value, text]) => <option key={value} value={value}>{text}</option>)}</Select>}</FormField>;
 
-  return <section aria-label="Exportación Excel" className="min-w-0 space-y-6 break-words">
-    <h1 className="text-2xl font-semibold">Exportación Excel</h1>
+  return <section aria-label="Exportación Excel" className="data-exchange-page"><PageHeader title="Exportar Excel" eyebrow="Herramientas" description="Exporta información institucional en archivos XLSX según las opciones disponibles."/>
     <p>Prepara archivos .xlsx estructurados desde la información que puedes consultar. Se exportan todos los resultados de los filtros, aunque el listado esté paginado.</p>
     {!available.length ? <p role="status">Tu perfil no tiene dominios disponibles para exportar.</p> : <>
-      <section className="max-w-3xl space-y-4 rounded border p-4" aria-label="Configurar exportación">
-        <label className="block">Tipo de información<select aria-label="Tipo de información" className="mt-1 block min-h-11 w-full rounded border p-2" value={type} onChange={event => { setType(event.target.value as ExportType); setPreview(null); setError(''); }}>
+      <Surface heading="Configurar exportación" aria-label="Configurar exportación" className="exchange-form-surface">
+        <FormField label="Tipo de información">{control => <Select {...control} value={type} onChange={event => { setType(event.target.value as ExportType); setPreview(null); setError(''); }}>
           <option value="">Selecciona un tipo</option>{available.map(item => <option key={item.type} value={item.type}>{item.label}</option>)}
-        </select></label>
-        {type === 'organizations' && <div className="grid gap-3 sm:grid-cols-2">
+        </Select>}</FormField>
+        {type === 'organizations' && <FormSection heading="Filtros de exportación" className="exchange-fields">
           {input('Nombre contiene', 'name')}{input('País', 'country')}
-          <label className="block min-w-0">Categoría<select className="mt-1 block min-h-11 w-full rounded border p-2" value={filters.categoryId ?? ''} onChange={event => update('categoryId', event.target.value)}><option value="">Todas</option>{(categories.data ?? []).map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+          <FormField label="Categoría">{control => <Select {...control} value={filters.categoryId ?? ''} onChange={event => update('categoryId', event.target.value)}><option value="">Todas</option>{(categories.data ?? []).map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</Select>}</FormField>
           {select('Estado', 'organizationStatus', [['active', 'Activas'], ['inactive', 'Inactivas'], ['all', 'Todas']])}
           {select('Verificación', 'verificationStatus', [['CURRENT', 'Vigente'], ['REVIEW_DUE', 'Revisión pendiente'], ['NEVER_VERIFIED', 'Sin verificar']])}
           {select('Comunicaciones registradas', 'withCommunications', [['true', 'Con comunicaciones'], ['false', 'Sin comunicaciones']])}
-        </div>}
-        {type === 'contacts' && <div className="grid gap-3 sm:grid-cols-2">
+        </FormSection>}
+        {type === 'contacts' && <FormSection heading="Filtros de exportación" className="exchange-fields">
           {input('Nombre contiene', 'name')}
           {select('Estado de persona', 'personStatus', [['active', 'Activas'], ['inactive', 'Inactivas'], ['all', 'Todas']])}
           {select('Tipo de medio', 'contactType', [['EMAIL', 'Correo electrónico'], ['PHONE', 'Teléfono'], ['LINKEDIN', 'LinkedIn'], ['WEBSITE', 'Sitio web'], ['WEB_FORM', 'Formulario web'], ['OTHER', 'Otro']])}
           {select('Vínculos institucionales', 'relationStatus', [['current', 'Vigentes'], ['historical', 'Históricos'], ['all', 'Todos']])}
-        </div>}
-        {type === 'processes' && <div className="grid gap-3 sm:grid-cols-2">
+        </FormSection>}
+        {type === 'processes' && <FormSection heading="Filtros de exportación" className="exchange-fields">
           {select('Estado del proceso', 'processState', [['PREPARATION', 'En preparación'], ['IN_PROGRESS', 'En curso'], ['WAITING_RESPONSE', 'Esperando respuesta'], ['NEGOTIATION', 'En negociación'], ['CLOSED', 'Cerrado'], ['all', 'Todos']])}
           {input('Identificador de organización', 'processOrganizationId', 'UUID')}{input('Identificador de persona', 'processPersonId', 'UUID')}{input('Identificador de creador', 'createdByUserId', 'UUID')}
-        </div>}
-        {type === 'opportunities' && <div className="grid gap-3 sm:grid-cols-2">
+        </FormSection>}
+        {type === 'opportunities' && <FormSection heading="Filtros de exportación" className="exchange-fields">
           {select('Estado de oportunidad', 'opportunityStatus', [['PENDING_REVIEW', 'Pendiente de revisión'], ['PREPARING', 'En preparación'], ['SUBMITTED', 'Postulada'], ['DISCARDED', 'Descartada'], ['FINISHED', 'Finalizada'], ['all', 'Todos']])}
           {input('Identificador de organización', 'opportunityOrganizationId', 'UUID')}{input('Identificador de proceso', 'opportunityProcessId', 'UUID')}
-        </div>}
-        <div className="flex flex-wrap gap-3"><button className="min-h-11 rounded border px-4" disabled={!type || pending} onClick={() => void calculatePreview()}>{pending ? 'Consultando…' : 'Calcular resumen'}</button>
-          {preview && preview.count > 0 && <button className="min-h-11 rounded border border-blue-700 px-4 font-semibold" disabled={pending} onClick={() => void download()}>{pending ? 'Preparando XLSX…' : 'Descargar XLSX'}</button>}</div>
-      </section>
-      {preview && <section className="max-w-3xl rounded border p-4" aria-label="Resumen de exportación"><h2 className="text-lg font-semibold">Resumen</h2><p>Tipo: {exportTypes.find(item => item.type === preview.type)?.label}</p><p>Filtros: {filterSummary(type as ExportType, filters)}</p><p>{preview.unit}: {preview.count}</p>{preview.count === 0 && <p role="status">No hay resultados para esos filtros. Ajusta la búsqueda antes de descargar.</p>}</section>}
+        </FormSection>}
+        <FormActions><Button pending={pending} disabled={!type || pending} onClick={() => void calculatePreview()}>{pending ? 'Consultando…' : 'Calcular resumen'}</Button>
+          {preview && preview.count > 0 && <Button variant="primary" pending={pending} disabled={pending} onClick={() => void download()}>{pending ? 'Preparando XLSX…' : 'Descargar XLSX'}</Button>}</FormActions>
+      </Surface>
+      {preview && <Surface heading="Resumen" className="exchange-form-surface" aria-label="Resumen de exportación"><p>Tipo: {exportTypes.find(item => item.type === preview.type)?.label}</p><p>Filtros: {filterSummary(type as ExportType, filters)}</p><p>{preview.unit}: {preview.count}</p>{preview.count === 0 && <p role="status">No hay resultados para esos filtros. Ajusta la búsqueda antes de descargar.</p>}</Surface>}
     </>}
-    {error && <p role="alert" className="max-w-3xl rounded border border-red-600 p-3">{error}</p>}
+    {error && <Alert tone="danger" role="alert" className="exchange-form-surface">{error}</Alert>}
   </section>;
 }
