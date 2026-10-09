@@ -11,23 +11,36 @@ import { DirectoryHistoryService, type FieldChange, type HistoryValue } from './
 import { DirectoryService } from './directory.service';
 import { DirectoryError } from './directory.errors';
 import { assertVersion } from './directory.rules';
-import { calendarDate, personFields, relationFields } from './people.rules';
+import { calendarDate, classifyPersonInstitutionalStatus, personFields, relationFields } from './people.rules';
 import type { DirectoryStatusDto, PageQueryDto } from './directory.dto';
-import type { PeopleQueryDto, PersonEditDto, PersonInputDto, RelationCreateDto, RelationEditDto, RelationEndDto, RelationsQueryDto } from './people.dto';
+import type { PeopleQueryDto, PersonEditDto, PersonInputDto, RelationCreateDto, RelationEditDto, RelationEndDto, RelationsQueryDto, OrganizationPersonCreateDto } from './people.dto';
 
 const personSelect = { id:true, displayName:true, givenNames:true, familyNames:true, isActive:true, version:true,
   duplicateOfId:true, duplicateOf:{select:{id:true,displayName:true}},consolidatedRecords:{select:{id:true,displayName:true}}, createdAt:true, updatedAt:true, lastVerifiedAt:true,
-  dataImportBatchId:true, dataImportBatch:{select:{id:true,originalFilename:true,createdAt:true}}, _count:{select:{relations:{where:{isCurrent:true}}}} } satisfies Prisma.PersonSelect;
+  dataImportBatchId:true, dataImportBatch:{select:{id:true,originalFilename:true,createdAt:true}},
+  relations:{where:{isCurrent:false},select:{id:true},take:1}, _count:{select:{relations:{where:{isCurrent:true}}}} } satisfies Prisma.PersonSelect;
 const relationSelect = { reconciliationTargets:relationOrigins,id:true, personId:true, organizationId:true, positionTitle:true, area:true, isCurrent:true, startDate:true, endDate:true,
   sourceDescription:true, sourceUrl:true, notes:true, version:true, createdAt:true, updatedAt:true, lastVerifiedAt:true,
   person:{select:{id:true,displayName:true,isActive:true,duplicateOfId:true}}, organization:{select:{id:true,name:true,isActive:true,duplicateOfId:true}} } satisfies Prisma.PersonOrganizationRelationSelect;
 type PersonRow = Prisma.PersonGetPayload<{select:typeof personSelect}>;
 type RelationRow = Prisma.PersonOrganizationRelationGetPayload<{select:typeof relationSelect}>;
-function personContract(row:PersonRow) { const {_count,...fields}=row; return {...fields,currentRelationsCount:_count.relations}; }
+function personContract(row:PersonRow) {
+  const {_count,relations,...fields}=row; const currentRelationsCount=_count.relations;
+  return {...fields,currentRelationsCount,institutionalStatus:classifyPersonInstitutionalStatus(currentRelationsCount,relations.length>0)};
+}
 function dateValue(value:Date|null) { return value?.toISOString().slice(0,10) ?? null; }
 function relationContract(row:RelationRow) { const {reconciliationTargets,...fields}=row;return {...fields,startDate:dateValue(row.startDate),endDate:dateValue(row.endDate),consolidationOrigins:provenanceContract(reconciliationTargets??[])}; }
 function paging(query:PageQueryDto) { return {skip:(query.page-1)*query.pageSize,take:query.pageSize}; }
 function historyValue(value:string|boolean|Date|null):HistoryValue { return value instanceof Date ? dateValue(value) : value; }
+function institutionalWhere(filter:PeopleQueryDto['institutionalStatus']):Prisma.PersonWhereInput {
+  switch(filter) {
+    case 'without-current': return {relations:{none:{isCurrent:true}}};
+    case 'none': return {relations:{none:{}}};
+    case 'historical-only': return {AND:[{relations:{some:{isCurrent:false}}},{relations:{none:{isCurrent:true}}}]};
+    case 'current': return {relations:{some:{isCurrent:true}}};
+    default: return {};
+  }
+}
 
 @Injectable()
 export class PeopleService {
@@ -48,7 +61,7 @@ export class PeopleService {
   }
   async list(query:PeopleQueryDto) {
     const where:Prisma.PersonWhereInput={...(query.status==='all'?{}:{isActive:query.status==='active'}),
-      ...(query.name?{displayName:{contains:query.name,mode:'insensitive'}}:{})};
+      ...(query.name?{displayName:{contains:query.name,mode:'insensitive'}}:{}),...institutionalWhere(query.institutionalStatus)};
     const [rows,total]=await this.prisma.$transaction([this.prisma.person.findMany({where,select:personSelect,orderBy:[{displayName:'asc'},{id:'asc'}],...paging(query)}),
       this.prisma.person.count({where})],{isolationLevel:Prisma.TransactionIsolationLevel.RepeatableRead});
     return {items:rows.map(personContract),total,page:query.page,pageSize:query.pageSize};
@@ -58,6 +71,26 @@ export class PeopleService {
     const fields=personFields(input);
     return this.prisma.$transaction(async tx=>{await this.authorize(actorId,PERMISSIONS.DIRECTORY_WRITE,tx);
       return personContract(await tx.person.create({data:fields,select:personSelect}));});
+  }
+  async createInOrganization(organizationId:string,input:OrganizationPersonCreateDto,actorId:string) {
+    const relation=relationFields(input),newPerson=input.personMode==='new'?personFields(input.person!):null;
+    return this.prisma.$transaction(async tx=>{
+      await this.authorize(actorId,PERMISSIONS.DIRECTORY_WRITE,tx);
+      await this.actors.writable('organization',organizationId,tx);
+      let personId:string;
+      if(input.personMode==='new') {
+        const created=await tx.person.create({data:newPerson!,select:{id:true}}); personId=created.id;
+        const changes:FieldChange[]=[];
+        if(newPerson!.givenNames!==null) changes.push({field:'givenNames',previousValue:null,newValue:newPerson!.givenNames});
+        if(newPerson!.familyNames!==null) changes.push({field:'familyNames',previousValue:null,newValue:newPerson!.familyNames});
+        if(changes.length) await this.history.record({personId},actorId,changes,tx);
+      } else {
+        personId=input.personId!;
+        await this.actors.writable('person',personId,tx);
+      }
+      const episode=await this.createRelationInTransaction(personId,organizationId,relation,actorId,tx);
+      return {person:personContract(await this.person(personId,tx)),relation:relationContract(episode)};
+    });
   }
   async edit(id:string,input:PersonEditDto,actorId:string) {
     const fields=personFields(input);
@@ -103,15 +136,18 @@ export class PeopleService {
     const fields=relationFields(input);
     return this.prisma.$transaction(async tx=>{
       await this.authorize(actorId,PERMISSIONS.DIRECTORY_WRITE,tx);await this.actors.writable('person',personId,tx);await this.actors.writable('organization',input.organizationId,tx);
-      if(!await tx.organization.findUnique({where:{id:input.organizationId},select:{id:true}})) throw new DirectoryError('ORGANIZATION_NOT_FOUND');
-      const row=await tx.personOrganizationRelation.create({data:{...fields,personId,organizationId:input.organizationId},select:relationSelect});
-      const changes:FieldChange[]=[{field:'relationCreated',previousValue:null,newValue:input.organizationId}];
-      for(const field of ['positionTitle','area','startDate','endDate','sourceDescription','sourceUrl','notes'] as const) {
-        const value=historyValue(row[field]);if(value!==null)changes.push({field,previousValue:null,newValue:value});
-      }
-      await this.history.record({personRelationId:row.id},actorId,changes,tx);
-      return relationContract(row);
+      return relationContract(await this.createRelationInTransaction(personId,input.organizationId,fields,actorId,tx));
     });
+  }
+  private async createRelationInTransaction(personId:string,organizationId:string,fields:ReturnType<typeof relationFields>,actorId:string,tx:Prisma.TransactionClient) {
+    if(!await tx.organization.findUnique({where:{id:organizationId},select:{id:true}})) throw new DirectoryError('ORGANIZATION_NOT_FOUND');
+    const row=await tx.personOrganizationRelation.create({data:{...fields,personId,organizationId},select:relationSelect});
+    const changes:FieldChange[]=[{field:'relationCreated',previousValue:null,newValue:organizationId}];
+    for(const field of ['positionTitle','area','startDate','endDate','sourceDescription','sourceUrl','notes'] as const) {
+      const value=historyValue(row[field]);if(value!==null)changes.push({field,previousValue:null,newValue:value});
+    }
+    await this.history.record({personRelationId:row.id},actorId,changes,tx);
+    return row;
   }
   async editRelation(id:string,input:RelationEditDto,actorId:string) {
     const fields=relationFields(input);

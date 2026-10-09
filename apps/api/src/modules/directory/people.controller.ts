@@ -5,7 +5,7 @@ import { PERMISSIONS } from '../auth/authorization/permission';
 import type { AuthenticatedRequest } from '../auth/session.guard';
 import { DirectoryErrorFilter } from './directory-error.filter';
 import { DirectoryStatusDto, PageQueryDto } from './directory.dto';
-import { PeopleQueryDto, PersonEditDto, PersonInputDto, RelationCreateDto, RelationEditDto, RelationEndDto, RelationsQueryDto } from './people.dto';
+import { PeopleQueryDto, PersonEditDto, PersonInputDto, RelationCreateDto, RelationEditDto, RelationEndDto, RelationsQueryDto, OrganizationPersonCreateDto } from './people.dto';
 import { PeopleService } from './people.service';
 
 @ApiTags('people') @ApiCookieAuth('cecasem_session') @UseFilters(DirectoryErrorFilter) @Controller('people')
@@ -48,4 +48,9 @@ export class OrganizationPeopleController {
   constructor(private readonly people:PeopleService) {}
   @Get(':id/people') @Header('Cache-Control','no-store') @RequirePermissions(PERMISSIONS.DIRECTORY_READ)
   list(@Param('id',new ParseUUIDPipe()) id:string,@Query() query:RelationsQueryDto) {return this.people.relationsOfOrganization(id,query);}
+  @Post(':id/people') @RequirePermissions(PERMISSIONS.DIRECTORY_WRITE)
+  @ApiOperation({summary:'Crear una persona y su episodio inicial o vincular una persona existente desde esta organización'})
+  create(@Param('id',new ParseUUIDPipe()) id:string,@Body() body:OrganizationPersonCreateDto,@Req() req:AuthenticatedRequest) {
+    return this.people.createInOrganization(id,body,req.authenticatedUser.id);
+  }
 }

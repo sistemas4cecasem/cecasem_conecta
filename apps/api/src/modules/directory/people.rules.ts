@@ -1,6 +1,10 @@
 import { institutionalText, website } from './directory.rules';
 import { DirectoryError } from './directory.errors';
 import type { PersonInputDto, RelationFieldsDto } from './people.dto';
+export type PersonInstitutionalStatus = 'NO_KNOWN_LINKS' | 'HISTORICAL_ONLY' | 'CURRENT';
+export function classifyPersonInstitutionalStatus(currentRelationsCount:number,hasHistoricalRelations:boolean):PersonInstitutionalStatus {
+  return currentRelationsCount>0?'CURRENT':hasHistoricalRelations?'HISTORICAL_ONLY':'NO_KNOWN_LINKS';
+}
 export function calendarDate(value?: string | null): Date | null {
   if (value == null || value === '') return null;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value < '0001-01-01') throw new DirectoryError('INVALID_DIRECTORY');

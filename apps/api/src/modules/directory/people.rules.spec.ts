@@ -1,8 +1,8 @@
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 import { assertVersion } from './directory.rules';
-import { calendarDate,personFields,relationFields } from './people.rules';
-import { PersonInputDto,RelationCreateDto,PeopleQueryDto } from './people.dto';
+import { calendarDate,classifyPersonInstitutionalStatus,personFields,relationFields } from './people.rules';
+import { OrganizationPersonCreateDto,PersonInputDto,RelationCreateDto,PeopleQueryDto } from './people.dto';
 describe('Reglas mínimas de personas y episodios',()=>{
   it('persona independiente requiere solo presentación y no inventa apellidos',()=>{
     expect(personFields({displayName:'  Nombre   conocido '})).toEqual({displayName:'Nombre conocido',givenNames:null,familyNames:null});
@@ -26,6 +26,26 @@ describe('Reglas mínimas de personas y episodios',()=>{
   it('DTO no exige organización en persona y sí en episodio',()=>{
     expect(validateSync(plainToInstance(PersonInputDto,{displayName:'Ana'}))).toEqual([]);
     expect(validateSync(plainToInstance(RelationCreateDto,{positionTitle:'Directora'})).some(error=>error.property==='organizationId')).toBe(true);
+  });
+  it('el alta contextual valida exactamente una persona nueva o existente',()=>{
+    const options={whitelist:true,forbidNonWhitelisted:true};
+    expect(validateSync(plainToInstance(OrganizationPersonCreateDto,{personMode:'new',person:{displayName:'Ana'},isCurrent:true}),options)).toEqual([]);
+    expect(validateSync(plainToInstance(OrganizationPersonCreateDto,{personMode:'existing',personId:'11111111-1111-4111-8111-111111111111',isCurrent:true}),options)).toEqual([]);
+    expect(validateSync(plainToInstance(OrganizationPersonCreateDto,{personMode:'new',person:{displayName:'Ana'},personId:'11111111-1111-4111-8111-111111111111'}),options).length).toBeGreaterThan(0);
+    expect(validateSync(plainToInstance(OrganizationPersonCreateDto,{personMode:'existing',isCurrent:true}),options).length).toBeGreaterThan(0);
+    expect(validateSync(plainToInstance(OrganizationPersonCreateDto,{personMode:'new',person:{displayName:'Ana'},organizationId:'11111111-1111-4111-8111-111111111111'}),options).some(error=>error.property==='organizationId')).toBe(true);
+  });
+  it.each([
+    [0,false,'NO_KNOWN_LINKS'],[0,true,'HISTORICAL_ONLY'],[1,false,'CURRENT'],[2,true,'CURRENT'],
+  ] as const)('clasifica episodios vigentes e históricos (%s, %s)',(current,history,expected)=>{
+    expect(classifyPersonInstitutionalStatus(current,history)).toBe(expected);
+  });
+  it.each(['all','without-current','none','historical-only','current'])('acepta filtro institucional %s',institutionalStatus=>{
+    expect(validateSync(plainToInstance(PeopleQueryDto,{institutionalStatus})).filter(error=>error.property==='institutionalStatus')).toEqual([]);
+  });
+  it('rechaza filtro institucional desconocido y conserva all como valor predeterminado',()=>{
+    expect(plainToInstance(PeopleQueryDto,{}).institutionalStatus).toBe('all');
+    expect(validateSync(plainToInstance(PeopleQueryDto,{institutionalStatus:'independent'})).some(error=>error.property==='institutionalStatus')).toBe(true);
   });
   it('paginación de personas mantiene límites del directorio',()=>{expect(validateSync(plainToInstance(PeopleQueryDto,{pageSize:101}))).not.toEqual([]);});
 });

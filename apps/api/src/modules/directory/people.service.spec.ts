@@ -15,7 +15,8 @@ describe('Episodios institucionales en aplicación',()=>{
     episodes=new Map();record=jest.fn<Promise<string>,Parameters<DirectoryHistoryService['record']>>().mockResolvedValue(randomUUID());
     const tx={
       $queryRaw:jest.fn().mockResolvedValue([]),
-      person:{findUnique:jest.fn().mockImplementation(()=>Promise.resolve({id:personId,displayName:'Ana',givenNames:null,familyNames:null,isActive:true,version:1,createdAt:new Date(),updatedAt:new Date(),lastVerifiedAt:null,_count:{relations:[...episodes.values()].filter(row=>row.isCurrent).length}}))},
+      person:{findUnique:jest.fn().mockImplementation(()=>Promise.resolve({id:personId,displayName:'Ana',givenNames:null,familyNames:null,isActive:true,version:1,createdAt:new Date(),updatedAt:new Date(),lastVerifiedAt:null,
+        relations:[...episodes.values()].filter(row=>!row.isCurrent).slice(0,1).map(row=>({id:row.id})),_count:{relations:[...episodes.values()].filter(row=>row.isCurrent).length}}))},
       organization:{findUnique:jest.fn().mockResolvedValue({id:orgA})},
       personOrganizationRelation:{
         create:jest.fn().mockImplementation(({data}:{data:RelationCreateDto&{personId:string}})=>{const row={...data,id:randomUUID(),version:1,createdAt:new Date(),updatedAt:new Date(),person:{id:personId,displayName:'Ana',isActive:true},organization:{id:data.organizationId,name:'Organización',isActive:true}} as unknown as Episode;episodes.set(row.id,row);return Promise.resolve(row);}),

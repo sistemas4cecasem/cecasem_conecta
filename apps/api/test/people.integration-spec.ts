@@ -9,42 +9,163 @@ import { configureApplication } from '../src/config/application';
 import { validateEnvironment } from '../src/config/environment';
 import { validateDatabaseUrl } from '../src/config/database-url';
 import { PrismaService } from '../src/database/prisma.service';
-import { AuditAction,UserRole,Prisma } from '../src/generated/prisma/client';
+import { AuditAction,ContactType,UserRole,Prisma } from '../src/generated/prisma/client';
 import { UsersService } from '../src/modules/users/users.service';
 import { PasswordService } from '../src/modules/auth/password.service';
 import { SessionsService } from '../src/modules/auth/sessions.service';
 import { DirectoryService } from '../src/modules/directory/directory.service';
 import { PeopleService } from '../src/modules/directory/people.service';
+import { ContactsService } from '../src/modules/directory/contacts.service';
 import { DirectoryHistoryService } from '../src/modules/directory/directory-history.service';
 import { AuditService } from '../src/modules/audit/audit.service';
 
 const databaseUrl=validateDatabaseUrl(process.env.DATABASE_URL);
 if(!new URL(databaseUrl).pathname.endsWith('_test')) throw new Error('Personas requiere una base aislada _test.');
 function barrier(){let release!:()=>void;const promise=new Promise<void>(resolve=>{release=resolve;});return {promise,release};}
+type ContextualPersonResponse={person:{id:string;displayName:string;givenNames:string|null;familyNames:string|null;currentRelationsCount:number;institutionalStatus:string;lastVerifiedAt:string|null};
+  relation:{id:string;personId:string;organizationId:string;isCurrent:boolean;positionTitle:string|null;area:string|null;lastVerifiedAt:string|null}};
+type PeoplePageResponse={total:number;items:Array<{id:string;institutionalStatus:string}>};
 describe('Personas PostgreSQL y HTTP',()=>{
-  let app:INestApplication<Server>,prisma:PrismaService,users:UsersService,directory:DirectoryService,people:PeopleService,history:DirectoryHistoryService,audit:AuditService,passwordHash:string;
-  const password=randomBytes(24).toString('base64url');const userIds:string[]=[],personIds:string[]=[],organizationIds:string[]=[];
+  let app:INestApplication<Server>,prisma:PrismaService,users:UsersService,directory:DirectoryService,people:PeopleService,contacts:ContactsService,history:DirectoryHistoryService,audit:AuditService,passwordHash:string;
+  const password=randomBytes(24).toString('hex')+'Aa!';const userIds:string[]=[],personIds:string[]=[],organizationIds:string[]=[],contactMethodIds:string[]=[];
   beforeAll(async()=>{
     const moduleRef=await Test.createTestingModule({imports:[AppModule]}).overrideProvider(ConfigService).useValue(new ConfigService(validateEnvironment({NODE_ENV:'test',DATABASE_URL:databaseUrl}))).compile();
     app=moduleRef.createNestApplication<INestApplication<Server>>();configureApplication(app);await app.init();
-    prisma=app.get(PrismaService);users=app.get(UsersService);directory=app.get(DirectoryService);people=app.get(PeopleService);history=app.get(DirectoryHistoryService);audit=app.get(AuditService);
+    prisma=app.get(PrismaService);users=app.get(UsersService);directory=app.get(DirectoryService);people=app.get(PeopleService);contacts=app.get(ContactsService);history=app.get(DirectoryHistoryService);audit=app.get(AuditService);
     passwordHash=await app.get(PasswordService).hashNew(password);
   });
   afterEach(async()=>{
     jest.restoreAllMocks();await prisma.$transaction([
       prisma.auditEvent.deleteMany({where:{actorUserId:{in:userIds}}}),prisma.directoryChange.deleteMany({where:{actorUserId:{in:userIds}}}),
-      prisma.personOrganizationRelation.deleteMany({where:{personId:{in:personIds}}}),prisma.person.deleteMany({where:{id:{in:personIds}}}),
+      prisma.person.updateMany({where:{id:{in:personIds}},data:{duplicateOfId:null}}),
+      prisma.personContact.deleteMany({where:{personId:{in:personIds}}}),prisma.contactMethod.deleteMany({where:{id:{in:contactMethodIds}}}),
+      prisma.personOrganizationRelation.deleteMany({where:{OR:[{personId:{in:personIds}},{organizationId:{in:organizationIds}}]}}),prisma.person.deleteMany({where:{id:{in:personIds}}}),
       prisma.organization.deleteMany({where:{id:{in:organizationIds}}}),prisma.userSession.deleteMany({where:{userId:{in:userIds}}}),prisma.user.deleteMany({where:{id:{in:userIds}}}),
-    ]);userIds.length=0;personIds.length=0;organizationIds.length=0;
+    ]);userIds.length=0;personIds.length=0;organizationIds.length=0;contactMethodIds.length=0;
   });
   afterAll(async()=>{await app.close();});
   async function fixture(role:UserRole=UserRole.ADMINISTRATOR){const actor=await users.createIdentity({givenNames:'QA',familyNames:randomUUID(),email:randomUUID()+'@example.test',role});userIds.push(actor.id);await prisma.user.update({where:{id:actor.id},data:{passwordHash}});return actor;}
   async function person(actorId:string,name='Ana'){const row=await people.create({displayName:name},actorId);personIds.push(row.id);return row;}
   async function org(actorId:string,name='Institución'){const row=await directory.createOrganization({name},actorId);organizationIds.push(row.id);return row;}
   async function cookie(actor:{email:string}){const result=await request(app.getHttpServer()).post('/api/v1/auth/login').send({email:actor.email,password}).expect(200);return (result.headers['set-cookie'] as unknown as string[])[0].split(';')[0];}
-  const routes=[['get','people'],['get','people/ID'],['post','people'],['put','people/ID'],['patch','people/ID/status'],['get','people/ID/history'],['get','people/ID/relations'],['post','people/ID/relations'],['get','organizations/ID/people'],['get','person-organization-relations/ID'],['put','person-organization-relations/ID'],['patch','person-organization-relations/ID/end'],['get','person-organization-relations/ID/history']] as const;
+  const routes=[['get','people'],['get','people/ID'],['post','people'],['put','people/ID'],['patch','people/ID/status'],['get','people/ID/history'],['get','people/ID/relations'],['post','people/ID/relations'],['get','organizations/ID/people'],['post','organizations/ID/people'],['get','person-organization-relations/ID'],['put','person-organization-relations/ID'],['patch','person-organization-relations/ID/end'],['get','person-organization-relations/ID/history']] as const;
   it.each(routes)('anónimo %s %s recibe 401',async(method,path)=>{await request(app.getHttpServer())[method]('/api/v1/'+path.replace('ID',randomUUID())).expect(401);});
   it.each(routes)('sin capability %s %s recibe 403',async(method,path)=>{const actor=await fixture();jest.spyOn(app.get(SessionsService),'findIdentity').mockResolvedValue({...actor,role:'UNKNOWN' as UserRole});await request(app.getHttpServer())[method]('/api/v1/'+path.replace('ID',randomUUID())).set('Cookie','cecasem_session=fixture').expect(403);});
+  it('crea una persona con su episodio en una transacción y devuelve ambas fichas e historiales',async()=>{
+    const actor=await fixture(),auth=await cookie(actor),organization=await org(actor.id);await directory.organizationStatus(organization.id,{isActive:false,expectedVersion:1},actor.id);
+    const created=await request(app.getHttpServer()).post('/api/v1/organizations/'+organization.id+'/people').set('Cookie',auth).send({
+      personMode:'new',person:{displayName:'Ana contextual',givenNames:'Ana',familyNames:'Pérez'},positionTitle:'Coordinadora',area:'Cooperación',isCurrent:true,startDate:'2024-01-15',sourceDescription:'Directorio público',sourceUrl:'https://example.test/persona',notes:'Alta contextual',
+    }).expect(201);
+    const body=created.body as ContextualPersonResponse,personId=body.person.id,relationId=body.relation.id;personIds.push(personId);
+    expect(body.person).toMatchObject({displayName:'Ana contextual',givenNames:'Ana',familyNames:'Pérez',currentRelationsCount:1,institutionalStatus:'CURRENT',lastVerifiedAt:null});
+    expect(body.person).not.toHaveProperty('relations');
+    expect(body.relation).toMatchObject({personId,organizationId:organization.id,isCurrent:true,positionTitle:'Coordinadora',area:'Cooperación',lastVerifiedAt:null});
+    expect((await people.personHistory(personId,{page:1,pageSize:25})).total).toBe(1);
+    expect((await people.relationHistory(relationId,{page:1,pageSize:25})).total).toBe(1);
+    expect((await people.get(personId)).institutionalStatus).toBe('CURRENT');
+  });
+  it('vincula una persona existente sin duplicarla y conserva episodios previos',async()=>{
+    const actor=await fixture(),auth=await cookie(actor),source=await org(actor.id,'Institución anterior'),target=await org(actor.id,'Institución actual');
+    const independent=await person(actor.id,'Persona antes independiente');personIds.push(independent.id);
+    const first=await request(app.getHttpServer()).post('/api/v1/organizations/'+target.id+'/people').set('Cookie',auth).send({
+      personMode:'existing',personId:independent.id,positionTitle:'Consultora',isCurrent:true,
+    }).expect(201);
+    const firstBody=first.body as ContextualPersonResponse;
+    expect(firstBody.person.id).toBe(independent.id);expect(firstBody.person.currentRelationsCount).toBe(1);
+    expect(await prisma.person.count({where:{id:independent.id}})).toBe(1);
+    const withHistory=await person(actor.id,'Persona con historia');personIds.push(withHistory.id);
+    const existingContact=await contacts.createAndAssociate({personId:withHistory.id},{type:ContactType.EMAIL,value:randomUUID()+'@example.test',notes:'Contacto personal conservado'},actor.id);
+    contactMethodIds.push(existingContact.association.contactMethodId);
+    const old=await people.createRelation(withHistory.id,{organizationId:source.id,positionTitle:'Asesora',isCurrent:false,startDate:'2020-01-01',endDate:'2022-06-30'},actor.id);
+    const linked=await request(app.getHttpServer()).post('/api/v1/organizations/'+target.id+'/people').set('Cookie',auth).send({
+      personMode:'existing',personId:withHistory.id,positionTitle:'Directora',isCurrent:true,
+    }).expect(201);
+    const linkedBody=linked.body as ContextualPersonResponse;
+    expect(linkedBody.person).toMatchObject({id:withHistory.id,currentRelationsCount:1,institutionalStatus:'CURRENT'});
+    expect(await prisma.person.count({where:{id:withHistory.id}})).toBe(1);
+    expect(await prisma.personOrganizationRelation.count({where:{personId:withHistory.id}})).toBe(2);
+    expect(await people.getRelation(old.id)).toMatchObject({organizationId:source.id,isCurrent:false,positionTitle:'Asesora'});
+    expect(linkedBody.relation.organizationId).toBe(target.id);
+    expect(await prisma.personContact.count({where:{personId:withHistory.id}})).toBe(1);
+    expect((await contacts.listActor({personId:withHistory.id},{page:1,pageSize:25})).items).toEqual(expect.arrayContaining([
+      expect.objectContaining({id:existingContact.association.id,contactMethodId:existingContact.association.contactMethodId,notes:'Contacto personal conservado'}),
+    ]));
+  });
+  it('rollback contextual si falla el episodio o una escritura de historial',async()=>{
+    const actor=await fixture(),auth=await cookie(actor),organization=await org(actor.id);
+    for(const failure of ['episode','history'] as const) {
+      const displayName='Rollback contextual '+failure+' '+randomUUID();
+      if(failure==='episode') {
+        await prisma.$executeRaw`CREATE OR REPLACE FUNCTION reject_contextual_relation_for_test() RETURNS trigger AS $$
+          BEGIN RAISE EXCEPTION 'fixture episode failure'; END; $$ LANGUAGE plpgsql`;
+        await prisma.$executeRaw`CREATE TRIGGER reject_contextual_relation_for_test BEFORE INSERT ON "PersonOrganizationRelation"
+          FOR EACH ROW EXECUTE FUNCTION reject_contextual_relation_for_test()`;
+      }
+      else {
+        await prisma.$executeRaw`CREATE OR REPLACE FUNCTION reject_contextual_history_for_test() RETURNS trigger AS $$
+          BEGIN RAISE EXCEPTION 'fixture history failure'; END; $$ LANGUAGE plpgsql`;
+        await prisma.$executeRaw`CREATE TRIGGER reject_contextual_history_for_test BEFORE INSERT ON "DirectoryChange"
+          FOR EACH ROW WHEN (NEW."personRelationId" IS NOT NULL) EXECUTE FUNCTION reject_contextual_history_for_test()`;
+      }
+      jest.spyOn(Logger.prototype,'error').mockImplementation(()=>undefined);
+      let response:request.Response;
+      try {
+        response=await request(app.getHttpServer()).post('/api/v1/organizations/'+organization.id+'/people').set('Cookie',auth).send({personMode:'new',person:{displayName,givenNames:'Prueba'},isCurrent:true});
+      } finally {
+        if(failure==='episode') {
+          await prisma.$executeRaw`DROP TRIGGER reject_contextual_relation_for_test ON "PersonOrganizationRelation"`;
+          await prisma.$executeRaw`DROP FUNCTION reject_contextual_relation_for_test()`;
+        } else {
+          await prisma.$executeRaw`DROP TRIGGER reject_contextual_history_for_test ON "DirectoryChange"`;
+          await prisma.$executeRaw`DROP FUNCTION reject_contextual_history_for_test()`;
+        }
+      }
+      const persisted=await prisma.person.findMany({where:{displayName},select:{id:true}});personIds.push(...persisted.map(row=>row.id));
+      expect(response.status).toBe(500);
+      expect(persisted).toHaveLength(0);
+      jest.restoreAllMocks();
+    }
+  });
+  it('rechaza contexto inexistente, persona inexistente o consolidada y organización enviada en el cuerpo',async()=>{
+    const actor=await fixture(),auth=await cookie(actor),organization=await org(actor.id);
+    await request(app.getHttpServer()).post('/api/v1/organizations/'+randomUUID()+'/people').set('Cookie',auth).send({personMode:'new',person:{displayName:'No debe crearse'}}).expect(404);
+    await request(app.getHttpServer()).post('/api/v1/organizations/'+organization.id+'/people').set('Cookie',auth).send({personMode:'existing',personId:randomUUID()}).expect(404);
+    await request(app.getHttpServer()).post('/api/v1/organizations/'+organization.id+'/people').set('Cookie',auth).send({personMode:'new',person:{displayName:'No debe seleccionar organización'},organizationId:organization.id}).expect(400);
+    const principal=await person(actor.id,'Principal consolidación'),duplicate=await person(actor.id,'Duplicada consolidación');personIds.push(principal.id,duplicate.id);
+    await prisma.person.update({where:{id:duplicate.id},data:{duplicateOfId:principal.id,isActive:false}});
+    await request(app.getHttpServer()).post('/api/v1/organizations/'+organization.id+'/people').set('Cookie',auth).send({personMode:'existing',personId:duplicate.id}).expect(409);
+    expect(await prisma.personOrganizationRelation.count({where:{personId:duplicate.id}})).toBe(0);
+  });
+  it('clasifica personas y filtra en base de datos combinando estado, nombre y paginación',async()=>{
+    const actor=await fixture(),auth=await cookie(actor),prefix='Estado '+randomUUID(),a=await org(actor.id,'Organización de estado A'),b=await org(actor.id,'Organización de estado B');
+    const noLinks=await person(actor.id,prefix+' sin episodios'),historical=await person(actor.id,prefix+' históricos'),current=await person(actor.id,prefix+' vigentes'),mixed=await person(actor.id,prefix+' mixtos'),inactiveOrganization=await org(actor.id,prefix+' inactiva'),inactiveCurrent=await person(actor.id,prefix+' organización inactiva');
+    personIds.push(noLinks.id,historical.id,current.id,mixed.id,inactiveCurrent.id);
+    await people.createRelation(historical.id,{organizationId:a.id,isCurrent:false},actor.id);
+    const currentA=await people.createRelation(current.id,{organizationId:a.id,isCurrent:true},actor.id),currentB=await people.createRelation(current.id,{organizationId:b.id,isCurrent:true},actor.id);
+    await people.createRelation(mixed.id,{organizationId:a.id,isCurrent:false},actor.id);await people.createRelation(mixed.id,{organizationId:b.id,isCurrent:true},actor.id);
+    await directory.organizationStatus(inactiveOrganization.id,{isActive:false,expectedVersion:1},actor.id);
+    await people.createRelation(inactiveCurrent.id,{organizationId:inactiveOrganization.id,isCurrent:true},actor.id);
+    const query=async(filter:string,page=1,pageSize=25)=>{const response=await request(app.getHttpServer()).get('/api/v1/people').query({name:prefix,status:'all',institutionalStatus:filter,page,pageSize}).set('Cookie',auth).expect(200);return response.body as PeoplePageResponse;};
+    const all=await query('all');expect(all.total).toBe(5);
+    const legacy=await request(app.getHttpServer()).get('/api/v1/people').query({name:prefix,status:'all'}).set('Cookie',auth).expect(200);
+    expect((legacy.body as PeoplePageResponse).total).toBe(5);
+    expect(Object.fromEntries(all.items.map(row=>[row.id,row.institutionalStatus]))).toEqual({
+      [noLinks.id]:'NO_KNOWN_LINKS',[historical.id]:'HISTORICAL_ONLY',[current.id]:'CURRENT',[mixed.id]:'CURRENT',[inactiveCurrent.id]:'CURRENT',
+    });
+    expect((await query('without-current')).total).toBe(2);expect((await query('none')).total).toBe(1);
+    expect((await query('historical-only')).total).toBe(1);expect((await query('current')).total).toBe(3);
+    const first=await query('current',1,1),second=await query('current',2,1),third=await query('current',3,1);
+    expect([first.total,second.total,third.total]).toEqual([3,3,3]);
+    expect(new Set([first.items[0].id,second.items[0].id,third.items[0].id]).size).toBe(3);
+    await people.status(current.id,{isActive:false,expectedVersion:1},actor.id);
+    const active=await request(app.getHttpServer()).get('/api/v1/people').query({name:prefix,status:'active',institutionalStatus:'current'}).set('Cookie',auth).expect(200);
+    const inactive=await request(app.getHttpServer()).get('/api/v1/people').query({name:prefix,status:'inactive',institutionalStatus:'current'}).set('Cookie',auth).expect(200);
+    expect((active.body as PeoplePageResponse).total).toBe(2);expect((inactive.body as PeoplePageResponse).total).toBe(1);
+    await people.endRelation(currentA.id,{expectedVersion:1},actor.id);
+    expect((await people.get(current.id)).institutionalStatus).toBe('CURRENT');
+    await people.endRelation(currentB.id,{expectedVersion:1},actor.id);
+    expect((await people.get(current.id)).institutionalStatus).toBe('HISTORICAL_ONLY');
+  });
   it.each(Object.values(UserRole))('%s registra, corrige y finaliza; estado administrativo restringido',async role=>{
     const actor=await fixture(role),auth=await cookie(actor),organization=await org(actor.id);
     const created=await request(app.getHttpServer()).post('/api/v1/people').set('Cookie',auth).send({displayName:'  Ana   conocida '}).expect(201);
