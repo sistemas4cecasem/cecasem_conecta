@@ -81,16 +81,30 @@ docker compose --project-name cecasem_conecta --env-file .env -f docker-compose.
 docker compose --project-name cecasem_conecta --env-file .env -f docker-compose.yml up -d --wait db
 docker compose --project-name cecasem_conecta --env-file .env -f docker-compose.yml -f infra/compose.migrations.yml run --build --rm api yarn workspace @cecasem-conecta/api prisma:migrate:deploy
 docker compose --project-name cecasem_conecta --env-file .env -f docker-compose.yml up -d --wait --wait-timeout 120
-docker compose --project-name cecasem_conecta --env-file .env -f docker-compose.yml exec api node dist/bootstrap-admin.js --given-names "Nombres" --family-names "Apellidos" --email "admin@example.org"
 docker compose --project-name cecasem_conecta --env-file .env -f docker-compose.yml ps
 ```
 
 Antes de estos comandos, copia `.env.example` a `.env`. En una base nueva,
-`migrate deploy` crea las tablas y `bootstrap-admin` crea el único Administrador
-inicial. El comando solicita de forma oculta la contraseña inicial y su confirmación;
-no la imprime ni la guarda en el repositorio. Inicia sesión con el correo y usuario
-que muestra el comando. El sistema pedirá cambiar esa contraseña. No hay usuarios
-ni contraseñas demo.
+`migrate deploy` crea las tablas. Puedes crear un Administrador con
+`bootstrap-admin` o cargar el conjunto ficticio de prueba ejecutando
+`yarn workspace @cecasem-conecta/api prisma:seed` después de migrar. El seed crea
+10 usuarios con los cuatro roles, 10 organizaciones, 20 personas relacionadas de
+a dos por organización y datos de procesos, comunicaciones, intenciones,
+restricciones, oportunidades y reuniones. No borra otros datos de la base.
+
+Las cuentas usan correos `@seed.example.test` y comparten una contraseña aleatoria
+guardada localmente en `storage/seed/demo-accounts.local.json`, archivo ignorado
+por Git. Consulta ese archivo para iniciar sesión. Los datos son ficticios y los
+contactos quedan pendientes de verificación. No ejecutes también `bootstrap-admin`
+salvo que necesites una cuenta adicional.
+
+Si prefieres crear manualmente un único Administrador, usa este comando en vez del
+seed; solicita una contraseña inicial de forma oculta y pedirá cambiarla al iniciar
+sesión:
+
+```sh
+docker compose --project-name cecasem_conecta --env-file .env -f docker-compose.yml exec api node dist/bootstrap-admin.js --given-names "Nombres" --family-names "Apellidos" --email "admin@example.org"
+```
 
 Compose publica la Web en todas las interfaces del computador sin requerir una
 IP en `.env`. En el computador que ejecuta Docker, abre

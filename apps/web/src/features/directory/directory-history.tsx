@@ -4,7 +4,7 @@ import { useHistory } from './queries';
 import { Pagination, QueryState } from './directory-ui';
 import { dateLabel } from './date-label';
 import { historyObjectLabels, historyOperationLabel, historyValueLabel, referenceLabel } from './directory-history-format';
-export function DirectoryHistory({ identity, path, modern = false, headingLevel = 2 }: { identity: AuthIdentity; path: string; modern?: boolean; headingLevel?: 2 | 3 }) {
+export function DirectoryHistory({ identity, path, modern = false, headingLevel = 2, hideEmptyPagination = false }: { identity: AuthIdentity; path: string; modern?: boolean; headingLevel?: 2 | 3; hideEmptyPagination?: boolean }) {
   const [page, setPage] = useState(1);
   const history = useHistory(identity, path + '?page=' + page);
   const Heading = headingLevel === 3 ? 'h3' : 'h2';
@@ -30,6 +30,6 @@ export function DirectoryHistory({ identity, path, modern = false, headingLevel 
         </>}
       </li>)}</ul>
     </li>)}</ol>
-    {history.data && <Pagination page={page} total={history.data.total} onPage={setPage} />}
+    {history.data && (!hideEmptyPagination || history.data.total > 0) && <Pagination page={page} total={history.data.total} onPage={setPage} />}
   </section>;
 }

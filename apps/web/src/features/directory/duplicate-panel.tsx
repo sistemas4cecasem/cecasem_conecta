@@ -42,7 +42,7 @@ function CandidateReview({ candidate, identity, reevaluate }: { candidate: Dupli
     {administering && <ConsolidationReview identity={identity} candidate={candidate} completed={() => setAdministering(false)} />}
   </article>;
 }
-export function DuplicatePanel({ identity, actorPath }: { identity: AuthIdentity; actorPath: string }) {
+export function DuplicatePanel({ identity, actorPath, hideEmptyPagination = false }: { identity: AuthIdentity; actorPath: string; hideEmptyPagination?: boolean }) {
   const [page, setPage] = useState(1);
   const query = useQuery({ queryKey: ['directory', identity.id, 'duplicates', actorPath, page], enabled: identity.permissions.includes('directory.read'),
     queryFn: async ({ signal }) => duplicatePageSchema.parse(await apiRequest(actorPath + '/duplicate-candidates?page=' + page, { signal })), retry: false });
@@ -57,6 +57,6 @@ export function DuplicatePanel({ identity, actorPath }: { identity: AuthIdentity
         {' '}{item.resolvedBy?.givenNames} {item.resolvedBy?.familyNames} · {dateLabel(item.resolvedAt)} · Versiones examinadas {item.examinedVersionA}/{item.examinedVersionB}.
         {item.principalId && <Link className="inline-flex min-h-11 underline" to={'/' + (item.kind === 'person' ? 'people/' : 'organizations/') + item.principalId}>Abrir principal</Link>}
       </li>)}</ul></details>}
-    {query.data && <Pagination page={page} total={query.data.total} onPage={setPage} />}
+    {query.data && (!hideEmptyPagination || query.data.total > 0) && <Pagination page={page} total={query.data.total} onPage={setPage} />}
   </section>;
 }

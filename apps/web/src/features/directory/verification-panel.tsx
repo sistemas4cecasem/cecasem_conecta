@@ -46,7 +46,10 @@ function VerificationForm({ identity, path, label, initial, done, modern = false
       <Control type="button" className={modern ? undefined : buttonClass} disabled={mutation.isPending} onClick={done}>Cancelar verificación</Control></div>
   </form>;
 }
-export function VerificationPanel({ identity, path, label, contact = false, readOnly = false, modern = false, headingLevel = 2 }: { identity: AuthIdentity; path: string; label: string; contact?: boolean; readOnly?: boolean; modern?: boolean; headingLevel?: 2 | 3 }) {
+export function VerificationPanel({ identity, path, label, contact = false, readOnly = false, modern = false, headingLevel = 2, compactActionLabels = false, hideEmptyHistoryPagination = false, lastVerifiedAtFallback }: {
+  identity: AuthIdentity; path: string; label: string; contact?: boolean; readOnly?: boolean; modern?: boolean; headingLevel?: 2 | 3;
+  compactActionLabels?: boolean; hideEmptyHistoryPagination?: boolean; lastVerifiedAtFallback?: string | null;
+}) {
   const [formSnapshot, setFormSnapshot] = useState<VerificationCondition | null>(null), [historyOpen, setHistoryOpen] = useState(false), [page, setPage] = useState(1);
   const condition = useQuery({ queryKey: ['directory', identity.id, 'verification', path], enabled: identity.permissions.includes('directory.read'), retry: false,
     queryFn: async ({ signal }) => verificationConditionSchema.parse(await apiRequest(path + '/verification', { signal })) });
@@ -59,19 +62,24 @@ export function VerificationPanel({ identity, path, label, contact = false, read
   return <section className="min-w-0 space-y-3 break-words" aria-label={'Verificación de ' + label}>
     <Heading className={modern?'directory-verification-heading':'text-xl font-semibold'}>Verificación de información</Heading>
     <QueryState pending={condition.isPending} error={condition.isError} retry={condition.refetch} />
+    {!condition.data && lastVerifiedAtFallback !== undefined && <p className="directory-verification-detail">Última verificación: {lastVerifiedAtFallback
+      ? <time dateTime={lastVerifiedAtFallback}>{dateLabel(lastVerifiedAtFallback)}</time>
+      : <span>Sin verificar</span>}</p>}
     {condition.data && <>
-      <p className="font-semibold">{modern ? <StatusBadge tone={condition.data.verificationStatus === 'CURRENT' ? 'success' : condition.data.verificationStatus === 'REVIEW_DUE' ? 'warning' : 'neutral'}>{verificationLabels[condition.data.verificationStatus]}</StatusBadge> : verificationLabels[condition.data.verificationStatus]}</p>
-      <p>Última verificación: {condition.data.lastVerifiedAt ? dateLabel(condition.data.lastVerifiedAt) : 'Sin verificación registrada'}</p>
-      {condition.data.lastVerifiedBy && <p>Verificó: {condition.data.lastVerifiedBy.givenNames} {condition.data.lastVerifiedBy.familyNames}{!condition.data.lastVerifiedBy.isActive && ' · Usuario actualmente desactivado'}</p>}
-      <p>Próxima revisión: {condition.data.nextReviewAt ? dateLabel(condition.data.nextReviewAt) : 'Sin fecha hasta la primera verificación'} · Intervalo: {condition.data.intervalMonths} meses calendario.</p>
-      {condition.data.changedSinceVerification && <p>Hubo cambios posteriores a la verificación. Corrobore nuevamente la información.</p>}
-      {condition.data.timeReviewDue && <p>Venció el intervalo de revisión desde la última verificación.</p>}
-      {contact && <p>La corroboración corresponde solo a este actor y canal. No verifica otras asociaciones del medio compartido ni cambia su condición global.</p>}
-      <p>Verificar no modifica ni reactiva la ficha, el vínculo o la asociación.</p>
-      {canVerify && !formSnapshot && <Control type="button" className={modern ? 'directory-verify-action' : buttonClass} onClick={() => setFormSnapshot(condition.data)}>Marcar verificado: {label}</Control>}
+      <p className="directory-verification-status font-semibold">{modern ? <StatusBadge tone={condition.data.verificationStatus === 'CURRENT' ? 'success' : condition.data.verificationStatus === 'REVIEW_DUE' ? 'warning' : 'neutral'}>{verificationLabels[condition.data.verificationStatus]}</StatusBadge> : verificationLabels[condition.data.verificationStatus]}</p>
+      <p className="directory-verification-detail">Última verificación: {condition.data.lastVerifiedAt
+        ? <time dateTime={condition.data.lastVerifiedAt}>{dateLabel(condition.data.lastVerifiedAt)}</time>
+        : <span>Sin verificar</span>}</p>
+      {condition.data.lastVerifiedBy && <p className="directory-verification-detail">Verificó: {condition.data.lastVerifiedBy.givenNames} {condition.data.lastVerifiedBy.familyNames}{!condition.data.lastVerifiedBy.isActive && ' · Usuario actualmente desactivado'}</p>}
+      <p className="directory-verification-detail">Próxima revisión: {condition.data.nextReviewAt ? dateLabel(condition.data.nextReviewAt) : 'Sin fecha hasta la primera verificación'} · Intervalo: {condition.data.intervalMonths} meses calendario.</p>
+      {condition.data.changedSinceVerification && <p className="directory-verification-notice">Hubo cambios posteriores a la verificación. Corrobore nuevamente la información.</p>}
+      {condition.data.timeReviewDue && <p className="directory-verification-notice">Venció el intervalo de revisión desde la última verificación.</p>}
+      {contact && <p className="directory-verification-notice">La corroboración corresponde solo a este actor y canal. No verifica otras asociaciones del medio compartido ni cambia su condición global.</p>}
+      <p className="directory-verification-note">Verificar no modifica ni reactiva la ficha, el vínculo o la asociación.</p>
+      {canVerify && !formSnapshot && <Control type="button" aria-label={compactActionLabels ? 'Marcar verificado: ' + label : undefined} className={modern ? 'directory-verify-action' : buttonClass} onClick={() => setFormSnapshot(condition.data)}>{compactActionLabels ? 'Marcar verificado' : 'Marcar verificado: ' + label}</Control>}
       {canVerify && formSnapshot && <VerificationForm modern={modern} identity={identity} path={path} label={label} initial={formSnapshot} done={() => setFormSnapshot(null)} />}
     </>}
-    {identity.permissions.includes('directory.history.read') && <Control type="button" aria-expanded={modern?historyOpen:undefined} className={modern ? 'directory-verification-history' : buttonClass} onClick={() => setHistoryOpen(!historyOpen)}>{historyOpen ? 'Ocultar' : 'Ver'} historial de verificaciones: {label}</Control>}
+    {identity.permissions.includes('directory.history.read') && <Control type="button" aria-label={compactActionLabels ? (historyOpen ? 'Ocultar historial de verificaciones: ' : 'Ver historial de verificaciones: ') + label : undefined} aria-expanded={modern?historyOpen:undefined} className={modern ? 'directory-verification-history' : buttonClass} onClick={() => setHistoryOpen(!historyOpen)}>{compactActionLabels ? historyOpen ? 'Ocultar historial' : 'Ver historial' : (historyOpen ? 'Ocultar' : 'Ver') + ' historial de verificaciones: ' + label}</Control>}
     {historyOpen && identity.permissions.includes('directory.history.read') && <div className="space-y-3">
       <HistoryHeading className="font-semibold">Historial de verificaciones</HistoryHeading><QueryState pending={history.isPending} error={history.isError} retry={history.refetch} />
       {history.data?.total === 0 && <p>Aún no hay corroboraciones registradas.</p>}
@@ -80,7 +88,7 @@ export function VerificationPanel({ identity, path, label, contact = false, read
         <p>Fuente: {event.sourceDescription ?? 'Sin evidencia textual registrada'}</p>
         {event.sourceUrl && <p>URL: <a className="underline" href={event.sourceUrl} target="_blank" rel="noreferrer">{event.sourceUrl}</a></p>}
       </li>)}</ol>
-      {history.data && <Pagination page={page} total={history.data.total} onPage={setPage} />}
+      {history.data && (!hideEmptyHistoryPagination || history.data.total > 0) && <Pagination page={page} total={history.data.total} onPage={setPage} />}
     </div>}
   </section>;
 }

@@ -19,7 +19,9 @@
     "prisma:validate": "prisma validate",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
-    "prisma:migrate:status": "prisma migrate status"
+    "prisma:migrate:status": "prisma migrate status",
+    "prisma:seed": "prisma db seed",
+    "seed": "yarn build && node dist/seed.js"
   },
   "dependencies": {
     "@nestjs/common": "12.1.1",

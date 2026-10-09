@@ -12,6 +12,7 @@ import { OrganizationFilters } from './organization-filters';
 import { OrganizationForm } from './organization-form';
 import { organizationFilterKeys } from './organization-filter.contracts';
 import './organizations.css';
+import './organization-presentation.css';
 export function OrganizationsPage() {
   const session = useSession(); const identity = session.data;
   const [, setParams] = useSearchParams(); const previousIdentity = useRef<string | undefined>(undefined);
@@ -57,13 +58,15 @@ function OrganizationsList({ identity }: { identity: AuthIdentity }) {
         ...(row.parent ? [{ label: 'Matriz', value: row.parent.name }] : []),
       ]} />
     </DataListItem>)}</DataList>}
-    {list.data && <Pagination page={page} total={list.data.total} onPage={value => change({ page: String(value) })} />}
+    {list.data && list.data.total > 0 && <Pagination page={page} total={list.data.total} onPage={value => change({ page: String(value) })} />}
     </Surface>
   </section>;
 }
 export function OrganizationCreationPage() {
   const session = useSession(); const navigate = useNavigate();
   if (!session.data?.permissions.includes('directory.write')) return <p role="alert">No tienes permiso para crear organizaciones.</p>;
-  return <section className="space-y-4"><h1 className="text-2xl font-semibold">Crear organización</h1>
-    <OrganizationForm identity={session.data} saved={row => navigate('/organizations/' + row.id)} cancel={() => navigate('/organizations')} /></section>;
+  return <section className="organization-form-page">
+    <PageHeader eyebrow="Directorio / Organizaciones" title="Crear organización" />
+    <Surface className="organization-form-surface"><OrganizationForm identity={session.data} saved={row => navigate('/organizations/' + row.id)} cancel={() => navigate('/organizations')} /></Surface>
+  </section>;
 }

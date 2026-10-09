@@ -119,6 +119,26 @@ terminar con código 1. `migrate deploy` inicializa el registro estándar intern
 ni sustituye la primera migración real. Los comandos se validaron sobre una base
 temporal vacía, sin afectar bases existentes.
 
+`prisma:seed` carga datos ficticios para desarrollo y pruebas. Ejecuta después de
+aplicar las migraciones:
+
+```sh
+yarn workspace @cecasem-conecta/api prisma:seed
+```
+
+El comando crea 10 cuentas: 2 con rol Administrador, 2 con rol Directorio, 4 con
+rol Búsqueda y 2 con rol Planificación. También crea 10 organizaciones y 20
+personas (dos relacionadas con cada organización), contactos pendientes de
+verificación, 8 procesos en estados diversos, 3 intenciones, 2 restricciones
+activas y ejemplos de comunicaciones, notas, oportunidades y reuniones. Las
+restricciones afectan dos organizaciones de muestra. Los dominios `.test` están
+reservados para pruebas; el sistema no envía correos.
+
+Las cuentas de prueba comparten una contraseña aleatoria generada al ejecutar el
+seed. Se guarda solo en `storage/seed/demo-accounts.local.json`, excluido de Git.
+El seed conserva otros datos de la base y no crea sesiones. No se puede ejecutar
+con `NODE_ENV=production` y no forma parte de `migrate deploy`.
+
 `migrate dev` es exclusivamente para desarrollo y necesita permisos para su base
 shadow cuando se incorporen modelos. Esos permisos no son un requisito de la
 cuenta de ejecución de la API. No uses `db push` como sustituto de migraciones.
@@ -316,7 +336,9 @@ quedan deliberadamente pendientes. HTTP no protege el transporte de credenciales
 `test/auth.integration-spec.ts` combina persistencia y HTTP real en PostgreSQL
 dedicado `_test`. Limpia solo UUID propios y sus sesiones. Cubre constraints,
 login/logout/me, cookies, errores, múltiples sesiones, rehash y concurrencia.
-Los fixtures generan credenciales aleatorias en ejecución; no hay usuarios seed.
+Los fixtures de integración generan credenciales aleatorias en ejecución. El seed
+local de desarrollo está documentado en la sección de Prisma; ambos son flujos
+separados.
 
 Después de build, desde `apps/api` en PowerShell:
 
@@ -395,7 +417,7 @@ Primer acceso no ofrece validación previa ni restablecimiento; el reset se impl
 Pruebas en test/first-access.integration-spec.ts: persistencia/constraints,
 HTTP completo, regeneración, rollback, sesiones y carreras con barreras. Ejecutar
 solo sobre PostgreSQL dedicado terminado en _test. La limpieza elimina únicamente
-UUID propios y sus referencias. No hay seeds permanentes.
+UUID propios y sus referencias; no ejecuta ni depende del seed local de desarrollo.
 
 ## Restablecimiento administrativo — 1.4 (implementación histórica retirada)
 
@@ -461,7 +483,8 @@ Se conservan tokens terminales y eventos; no hay eliminación ni scheduler.
 No se guardan secretos, metadata genérica, IP, User-Agent o before/after.
 
 Restricción operativa: si el único Administrador pierde todo acceso, 1.4 no
-introduce mecanismo de emergencia. No hay contraseña maestra, seed ni bypass.
+introduce mecanismo de emergencia. No hay contraseña maestra ni bypass; el seed
+documentado en la sección de Prisma solo prepara cuentas ficticias para desarrollo.
 La autorización general se implementa en 1.5; la pantalla administrativa pertenece a 1.6.
 
 Pruebas: password-reset.spec.ts, password-reset.integration-spec.ts y frontend.

@@ -1,0 +1,138 @@
+@layer components {
+  .organization-form-page {
+    width: min(100%, 58rem);
+    min-width: 0;
+    margin-inline: auto;
+  }
+  .organization-form-page > * + * { margin-top: 1.25rem; }
+  .organization-form-surface { padding: 1.25rem; }
+  .organization-form { display: grid; gap: 1rem; min-width: 0; }
+  .organization-form-group { min-width: 0; border: 0; padding: 0; }
+  .organization-form-group legend { margin-bottom: 0.75rem; padding: 0; color: var(--color-brand-primary); font-size: 1rem; font-weight: 600; }
+  .organization-form-group > * + * { margin-top: 0.75rem; }
+  .organization-basic-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.875rem 1rem; }
+  .organization-basic-fields > * { min-width: 0; }
+  .organization-selection-summary { color: var(--color-app-text); font-size: 0.875rem; }
+  .organization-option-list,
+  .organization-category-options {
+    max-height: 14rem;
+    min-width: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    border: 1px solid var(--color-app-border);
+    border-radius: var(--radius-control);
+    padding: 0.375rem 0.625rem;
+    background: var(--color-app-background);
+  }
+  .organization-option-list > label + label { border-top: 1px solid var(--color-app-border); }
+  .organization-category-options { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.125rem 1rem; }
+  .organization-category-options > label { min-width: 0; }
+  .organization-selected-categories { display: flex; flex-wrap: wrap; gap: 0.375rem; min-width: 0; padding: 0; list-style: none; }
+  .organization-selected-categories li { max-width: 100%; border: 1px solid var(--color-app-border); border-radius: 999px; padding: 0.125rem 0.5rem; background: var(--color-brand-soft); color: var(--color-app-text); font-size: 0.75rem; line-height: 1.5; overflow-wrap: anywhere; }
+  .organization-form-note { color: var(--color-app-muted); font-size: 0.8125rem; }
+  .organization-form-actions { display: flex; flex-wrap: wrap; gap: 0.625rem; }
+
+  .organization-detail .ui-page-header { align-items: center; }
+  .organization-detail .directory-detail-main { grid-template-columns: minmax(0, 1fr); }
+  .organization-detail-summary .ui-metadata { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.625rem; }
+  .organization-detail-summary .ui-metadata > div {
+    display: block;
+    min-width: 0;
+    border: 1px solid var(--color-app-border);
+    border-radius: var(--radius-control);
+    padding: 0.5rem 0.625rem;
+    background: var(--color-app-background);
+  }
+  .organization-detail-summary .ui-metadata dt { font-size: 0.75rem; font-weight: 600; }
+  .organization-detail-summary .ui-metadata dt::after { content: none; }
+  .organization-detail-summary .ui-metadata dd { margin-top: 0.2rem; }
+  .organization-detail-summary .ui-metadata > div:nth-child(3),
+  .organization-detail-summary .ui-metadata > div:nth-child(4),
+  .organization-detail-summary .ui-metadata > div:nth-child(6) { grid-column: 1 / -1; }
+
+  .organization-detail .directory-detail-verification > section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .organization-detail .directory-detail-verification > section > * { margin-top: 0; }
+  .organization-detail .directory-verification-status { margin-bottom: 0.125rem; }
+  .organization-detail .directory-verification-detail { color: var(--color-app-text); }
+  .organization-detail .directory-verification-notice {
+    border-left: 3px solid var(--color-brand-accent);
+    padding: 0.375rem 0.625rem;
+    background: var(--color-brand-soft);
+  }
+  .organization-detail .directory-verification-note { color: var(--color-app-muted); font-size: 0.8125rem; }
+  .organization-detail .directory-verification-history,
+  .organization-detail .directory-verify-action { align-self: flex-start; }
+
+  .organization-detail .directory-contact-context,
+  .organization-detail .directory-episode-context { display: flex; flex-direction: column; gap: 0.625rem; }
+  .organization-detail .directory-contact-context > *,
+  .organization-detail .directory-episode-context > * { margin-top: 0; }
+  .organization-detail .directory-contact-list > li,
+  .organization-detail .directory-episode-list > li { padding-block: 0.75rem; }
+  .organization-detail .organization-episode-primary {
+    min-width: 0;
+    border-left: 3px solid var(--color-brand-accent);
+    border-radius: var(--radius-control);
+    padding: 0.625rem 0.75rem;
+    background: var(--color-brand-soft);
+  }
+  .organization-detail .organization-contact-primary { display: grid; gap: 0.25rem; min-width: 0; }
+  .organization-detail .organization-contact-primary > p:first-child { color: var(--color-brand-primary); font-weight: 600; }
+  .organization-detail .organization-contact-details,
+  .organization-detail .organization-episode-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.25rem 0.875rem; min-width: 0; }
+  .organization-detail .organization-contact-details > *,
+  .organization-detail .organization-episode-details > * { min-width: 0; overflow-wrap: anywhere; }
+  .organization-detail .organization-contact-actions,
+  .organization-detail .organization-episode-actions { gap: 0.5rem; }
+  .organization-detail .organization-contact-actions > *,
+  .organization-detail .organization-episode-actions > * { flex: 0 1 auto; max-width: 100%; }
+  .organization-detail .directory-verification-history { max-width: 100%; }
+
+  .organization-contact-form { display: grid; gap: 0.875rem; width: min(100%, 52rem); min-width: 0; margin-inline: auto; }
+  .organization-contact-group { min-width: 0; border: 0; border-top: 1px solid var(--color-app-border); padding: 0.875rem 0 0; }
+  .organization-contact-group legend { padding: 0 0.375rem 0 0; color: var(--color-brand-primary); font-size: 0.9375rem; font-weight: 600; }
+  .organization-contact-method-fields,
+  .organization-contact-context-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem 1rem; min-width: 0; }
+  .organization-contact-method-fields > *,
+  .organization-contact-context-fields > * { min-width: 0; }
+  .organization-contact-candidates { display: grid; gap: 0.375rem; max-height: 12rem; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--color-app-border); border-radius: var(--radius-control); padding: 0.5rem; }
+  .organization-contact-candidates > li { min-width: 0; }
+  .organization-contact-candidates button { width: 100%; max-width: 100%; text-align: left; overflow-wrap: anywhere; }
+  .organization-contact-form-actions > * { flex: 0 1 auto; max-width: 100%; }
+
+  @media (min-width: 40rem) {
+    .organization-basic-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .organization-basic-fields > :first-child,
+    .organization-basic-fields > :nth-child(4),
+    .organization-basic-fields > :nth-child(5) { grid-column: 1 / -1; }
+    .organization-contact-method-fields,
+    .organization-contact-context-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .organization-contact-method-fields > :last-child,
+    .organization-contact-context-fields > :last-child { grid-column: 1 / -1; }
+  }
+  @media (min-width: 48rem) {
+    .organization-detail-summary .ui-metadata { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .organization-detail-summary .ui-metadata > div:nth-child(4) { grid-column: span 2; }
+    .organization-detail-summary .ui-metadata > div:nth-child(5) { grid-column: span 1; }
+  }
+  @media (min-width: 80rem) {
+    .organization-detail .directory-detail-main { grid-template-columns: minmax(0, 1.5fr) minmax(18rem, 1fr); }
+    .organization-detail .directory-contact-list > li,
+    .organization-detail .directory-episode-list > li { grid-template-columns: minmax(0, 1.25fr) minmax(18rem, 1fr); gap: 0.875rem 1.5rem; }
+  }
+  @media (max-width: 39.999rem) {
+    .organization-form-surface { padding: 1rem; }
+    .organization-detail-summary .ui-metadata { grid-template-columns: minmax(0, 1fr); }
+    .organization-detail-summary .ui-metadata > div { grid-column: 1; }
+    .organization-detail .organization-contact-details,
+    .organization-detail .organization-episode-details { grid-template-columns: minmax(0, 1fr); }
+    .organization-detail .organization-contact-actions > *,
+    .organization-detail .organization-episode-actions > *,
+    .organization-form-actions > *,
+    .organization-contact-form-actions > * { flex: 1 1 auto; }
+  }
+}

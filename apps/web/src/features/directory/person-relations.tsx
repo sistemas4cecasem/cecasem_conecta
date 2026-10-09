@@ -15,7 +15,7 @@ import { DataList, DataListItem } from '../../components/ui/lists';
 import { Button } from '../../components/ui/actions';
 import { FormField, Select } from '../../components/ui/forms';
 
-function RelationCard({identity,row,fromOrganization,readOnly=false}:{identity:AuthIdentity;row:PersonRelation;fromOrganization:boolean;readOnly?:boolean}) {
+function RelationCard({identity,row,fromOrganization,readOnly=false,organizationPresentation=false,hideEmptyHistoryPagination=false}:{identity:AuthIdentity;row:PersonRelation;fromOrganization:boolean;readOnly?:boolean;organizationPresentation?:boolean;hideEmptyHistoryPagination?:boolean}) {
   const [editing,setEditing]=useState<PersonRelation|null>(null),[ending,setEnding]=useState<PersonRelation|null>(null),[history,setHistory]=useState(false);
   const mutation=useDirectoryMutation(identity);readOnly=readOnly||!!row.person.duplicateOfId||!!row.organization.duplicateOfId;
   const [reloadFailed,setReloadFailed]=useState(false);
@@ -25,15 +25,27 @@ function RelationCard({identity,row,fromOrganization,readOnly=false}:{identity:A
     if(!ending) return;
     try {await mutation.mutateAsync({path:'person-organization-relations/'+row.id+'/end',method:'PATCH',body:{expectedVersion:ending.version,endDate:input.endDate||null}});setEnding(null);} catch { /* Mostrar error y preservar borrador. */ }
   }
-  return <DataListItem><div className="directory-episode-context space-y-3">
+  return <DataListItem className={organizationPresentation?'organization-episode-row':''}><div className="directory-episode-context space-y-3">
     <Link className="inline-flex min-h-11 underline" to={fromOrganization?'/people/'+row.personId:'/organizations/'+row.organizationId}>{fromOrganization?row.person.displayName:row.organization.name}</Link>
-    <p>{row.isCurrent?'Vigente':'Histórico / finalizado'} · Cargo: {row.positionTitle??'Desconocido'}</p>
-    <p>Período: {row.startDate??'Inicio desconocido'} → {row.endDate??(row.isCurrent?'Actualidad':'Fin desconocido')}</p>
-    {row.area&&<p>Área o función: {row.area}</p>}
-    {row.sourceDescription&&<p>Fuente: {row.sourceDescription}</p>}{row.sourceUrl&&<p>URL de fuente: {row.sourceUrl}</p>}{row.notes&&<p>Observaciones: {row.notes}</p>}
-    {!row.person.isActive&&<p>Persona inactiva; vínculo conservado.</p>}{!row.organization.isActive&&<p>Organización inactiva; vínculo conservado.</p>}
+    {organizationPresentation?<>
+      <div className="organization-episode-primary">
+        <p>{row.isCurrent?'Vigente':'Histórico / finalizado'} · Cargo: {row.positionTitle??'Desconocido'}</p>
+        <p>Período: {row.startDate??'Inicio desconocido'} → {row.endDate??(row.isCurrent?'Actualidad':'Fin desconocido')}</p>
+        {row.area&&<p>Área o función: {row.area}</p>}
+      </div>
+      <div className="organization-episode-details">
+        {row.sourceDescription&&<p>Fuente: {row.sourceDescription}</p>}{row.sourceUrl&&<p>URL de fuente: {row.sourceUrl}</p>}{row.notes&&<p>Observaciones: {row.notes}</p>}
+        {!row.person.isActive&&<p>Persona inactiva; vínculo conservado.</p>}{!row.organization.isActive&&<p>Organización inactiva; vínculo conservado.</p>}
+      </div>
+    </>:<>
+      <p>{row.isCurrent?'Vigente':'Histórico / finalizado'} · Cargo: {row.positionTitle??'Desconocido'}</p>
+      <p>Período: {row.startDate??'Inicio desconocido'} → {row.endDate??(row.isCurrent?'Actualidad':'Fin desconocido')}</p>
+      {row.area&&<p>Área o función: {row.area}</p>}
+      {row.sourceDescription&&<p>Fuente: {row.sourceDescription}</p>}{row.sourceUrl&&<p>URL de fuente: {row.sourceUrl}</p>}{row.notes&&<p>Observaciones: {row.notes}</p>}
+      {!row.person.isActive&&<p>Persona inactiva; vínculo conservado.</p>}{!row.organization.isActive&&<p>Organización inactiva; vínculo conservado.</p>}
+    </>}
     {editing?<RelationForm identity={identity} personId={row.personId} initial={editing} saved={()=>setEditing(null)} cancel={()=>setEditing(null)} reload={reload}/>:
-      <div className="flex flex-wrap gap-3">{!readOnly&&identity.permissions.includes('directory.write')&&<><button className={buttonClass} onClick={()=>{setEditing(row);setEnding(null);}}>Corregir episodio</button>
+      <div className={`flex flex-wrap gap-3 ${organizationPresentation?'organization-episode-actions':''}`}>{!readOnly&&identity.permissions.includes('directory.write')&&<><button className={buttonClass} onClick={()=>{setEditing(row);setEnding(null);}}>Corregir episodio</button>
         {row.isCurrent&&!ending&&<button className={buttonClass} onClick={()=>{setEnding(row);endForm.reset({endDate:'',confirmed:false});mutation.reset();}}>Finalizar vínculo</button>}</>}
       {identity.permissions.includes('directory.history.read')&&<button className={buttonClass} onClick={()=>setHistory(!history)}>{history?'Ocultar historial del episodio':'Ver historial del episodio'}</button>}</div>}
     {ending&&<form onSubmit={endForm.handleSubmit(finish)} className="space-y-3">
@@ -47,20 +59,21 @@ function RelationCard({identity,row,fromOrganization,readOnly=false}:{identity:A
     </form>}
     <ConsolidationProvenance origins={row.consolidationOrigins}/>
     </div>
-    <VerificationPanel modern headingLevel={3} identity={identity} readOnly={readOnly} path={'person-organization-relations/'+row.id} label={'vínculo de '+row.person.displayName+' con '+row.organization.name}/>
-    {history&&<DirectoryHistory modern headingLevel={3} identity={identity} path={'person-organization-relations/'+row.id+'/history'}/>}
+    <VerificationPanel modern headingLevel={3} compactActionLabels={organizationPresentation} hideEmptyHistoryPagination={hideEmptyHistoryPagination} identity={identity} readOnly={readOnly} path={'person-organization-relations/'+row.id} label={'vínculo de '+row.person.displayName+' con '+row.organization.name}/>
+    {history&&<DirectoryHistory modern headingLevel={3} hideEmptyPagination={hideEmptyHistoryPagination} identity={identity} path={'person-organization-relations/'+row.id+'/history'}/>}
   </DataListItem>;
 }
-export function PersonRelations({identity,personId,organizationId,readOnly=false}:{identity:AuthIdentity;personId?:string;organizationId?:string;readOnly?:boolean}) {
+export function PersonRelations({identity,personId,organizationId,readOnly=false,presentation='default'}:{identity:AuthIdentity;personId?:string;organizationId?:string;readOnly?:boolean;presentation?:'default'|'organization'}) {
   const [status,setStatus]=useState('all'),[page,setPage]=useState(1),[creating,setCreating]=useState(false);
   const relations=usePersonRelations(identity,(personId?'people/'+personId+'/relations':'organizations/'+organizationId+'/people')+`?status=${status}&page=${page}`);
-  return <section className="space-y-4"><h2 className="text-xl font-semibold">{personId?'Vínculos institucionales':'Personas vinculadas'}</h2>
+  const organizationPresentation=presentation==='organization';
+  return <section className={`space-y-4 ${organizationPresentation?'organization-people-section':''}`}><h2 className="text-xl font-semibold">{personId?'Vínculos institucionales':'Personas vinculadas'}</h2>
     {!readOnly&&personId&&identity.permissions.includes('directory.write')&&<Button onClick={()=>setCreating(true)}>Registrar nuevo episodio</Button>}
     {creating&&personId&&<RelationForm identity={identity} personId={personId} saved={()=>setCreating(false)} cancel={()=>setCreating(false)}/>}
     <FormField label="Vigencia de vínculos">{control=><Select {...control} value={status} onChange={e=>{setStatus(e.target.value);setPage(1);}}><option value="all">Vigentes e históricos</option><option value="current">Solo vigentes</option><option value="historical">Solo históricos / finalizados</option></Select>}</FormField>
     <QueryState pending={relations.isPending} error={relations.isError} retry={relations.refetch}/>
     {relations.data?.total===0&&<p>No hay vínculos en esta selección.</p>}
-    <DataList className="directory-episode-list">{relations.data?.items.map(row=><RelationCard key={row.id} identity={identity} row={row} fromOrganization={!!organizationId} readOnly={readOnly}/>)}</DataList>
-    {relations.data&&<Pagination page={page} total={relations.data.total} onPage={setPage}/>}
+    <DataList className="directory-episode-list">{relations.data?.items.map(row=><RelationCard key={row.id} identity={identity} row={row} fromOrganization={!!organizationId} readOnly={readOnly} organizationPresentation={organizationPresentation} hideEmptyHistoryPagination={organizationPresentation}/>)}</DataList>
+    {relations.data&&(!organizationPresentation||relations.data.total>0)&&<Pagination page={page} total={relations.data.total} onPage={setPage}/>}
   </section>;
 }

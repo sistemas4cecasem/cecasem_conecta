@@ -16,6 +16,7 @@ import { OrganizationForm } from './organization-form';
 import { DirectoryHistory } from './directory-history';
 import { PersonRelations } from './person-relations';
 import { ContactSection } from './contact-section';
+import './organization-presentation.css';
 export function OrganizationDetailPage() {
   const { id = '' } = useParams(); const session = useSession(); const identity = session.data;
   const statusAction = useRef<HTMLButtonElement>(null);
@@ -32,14 +33,15 @@ export function OrganizationDetailPage() {
       setConfirmStatusChange(false);
     } catch { /* Mostrar error y conservar la confirmación. */ }
   }
-  if (editing) return <section className="space-y-4"><h1 className="text-2xl font-semibold">Editar organización</h1>
-    <OrganizationForm identity={identity} initial={editing} saved={() => setEditing(null)} cancel={() => setEditing(null)}
+  if (editing) return <section className="organization-form-page">
+    <PageHeader eyebrow="Directorio / Organizaciones" title="Editar organización" />
+    <Surface className="organization-form-surface"><OrganizationForm identity={identity} initial={editing} saved={() => setEditing(null)} cancel={() => setEditing(null)}
       reload={async () => {
         const response = await detail.refetch();
         if (!response.isSuccess) return undefined;
         setEditing(response.data); return response.data;
-      }} /></section>;
-  return <section className="directory-detail">
+      }} /></Surface></section>;
+  return <section className="directory-detail organization-detail">
     <Link className="inline-flex min-h-11 items-center underline" to="/organizations">Volver al directorio</Link>
     <PageHeader eyebrow="Directorio / Organizaciones" title={row.name}
       metadata={<StatusBadge tone={row.isActive?'success':'neutral'}>{row.isActive?'Activa':'Inactiva'}</StatusBadge>}
@@ -62,20 +64,19 @@ export function OrganizationDetailPage() {
       {label:'Organización matriz',value:row.parent?<Link to={'/organizations/'+row.parent.id}>{row.parent.name}</Link>:'Sin matriz'},
       {label:'Categorías',value:row.categories.map(category=>category.name+(category.isActive?'':' (inactiva)')).join(', ')||'Sin categorías'},
       {label:'Creación',value:<time dateTime={row.createdAt}>{dateLabel(row.createdAt)}</time>},
-      {label:'Modificación',value:<time dateTime={row.updatedAt}>{dateLabel(row.updatedAt)}</time>},
-      {label:'Última verificación',value:row.lastVerifiedAt?<time dateTime={row.lastVerifiedAt}>{dateLabel(row.lastVerifiedAt)}</time>:dateLabel(null)}
+      {label:'Modificación',value:<time dateTime={row.updatedAt}>{dateLabel(row.updatedAt)}</time>}
     ]}/></Surface>
-    <Surface className="directory-detail-verification"><VerificationPanel modern identity={identity} readOnly={!!row.duplicateOfId} path={'organizations/'+id} label={'organización '+row.name}/></Surface>
-    <Surface className="directory-detail-contacts"><ContactSection key={'contacts-'+id} identity={identity} actorPath={'organizations/'+id} readOnly={!!row.duplicateOfId}/></Surface>
+    <Surface className="directory-detail-verification"><VerificationPanel modern compactActionLabels hideEmptyHistoryPagination identity={identity} readOnly={!!row.duplicateOfId} lastVerifiedAtFallback={row.lastVerifiedAt} path={'organizations/'+id} label={'organización '+row.name}/></Surface>
+    <Surface className="directory-detail-contacts"><ContactSection key={'contacts-'+id} identity={identity} actorPath={'organizations/'+id} readOnly={!!row.duplicateOfId} presentation="organization"/></Surface>
     </div>
     <Surface className="space-y-3"><h2 className="text-xl font-semibold">Sedes y representaciones</h2>
       <QueryState pending={children.isPending} error={children.isError} retry={children.refetch} />
       {children.data?.total === 0 && <p>No tiene sedes registradas.</p>}
       <ul>{children.data?.items.map(child => <li key={child.id}><Link className="inline-flex min-h-11 items-center underline" to={'/organizations/' + child.id}>{child.name}</Link>{!child.isActive && ' (inactiva)'}</li>)}</ul>
-      {children.data && <Pagination page={page} total={children.data.total} onPage={setPage} />}
+      {children.data && children.data.total > 0 && <Pagination page={page} total={children.data.total} onPage={setPage} />}
     </Surface>
-    <Surface><PersonRelations key={'people-'+id} identity={identity} organizationId={id} readOnly={!!row.duplicateOfId}/></Surface>
-    <Surface className="directory-detail-duplicates"><DuplicatePanel key={'duplicates-'+id} identity={identity} actorPath={'organizations/'+id}/></Surface>
-    {identity.permissions.includes('directory.history.read') && <Surface className="directory-detail-history"><DirectoryHistory modern key={id} identity={identity} path={'organizations/' + id + '/history'} /></Surface>}
+    <Surface className="organization-detail-relations"><PersonRelations key={'people-'+id} identity={identity} organizationId={id} readOnly={!!row.duplicateOfId} presentation="organization"/></Surface>
+    <Surface className="directory-detail-duplicates"><DuplicatePanel key={'duplicates-'+id} identity={identity} actorPath={'organizations/'+id} hideEmptyPagination/></Surface>
+    {identity.permissions.includes('directory.history.read') && <Surface className="directory-detail-history"><DirectoryHistory modern key={id} identity={identity} path={'organizations/' + id + '/history'} hideEmptyPagination /></Surface>}
   </section>;
 }

@@ -7,7 +7,7 @@ if (existsSync('.env')) loadEnvFile('.env');
 
 export default defineConfig({
   schema: 'prisma/schema.prisma',
-  migrations: { path: 'prisma/migrations' },
+  migrations: { path: 'prisma/migrations', seed: 'yarn seed' },
   // Generate/validate no necesitan una conexión. Los comandos de migración
   // requieren que el entorno proporcione una URL real.
   datasource: {

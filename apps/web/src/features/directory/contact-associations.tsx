@@ -25,16 +25,28 @@ export function ContactReplacementForm({identity,row,target,done,cancel}:{identi
     {reloadFailed&&<p role="alert">No se pudo recargar. La sustitución no se ha confirmado.</p>}
     <div className="flex flex-wrap gap-3"><button className={buttonClass} disabled={mutation.isPending}>Confirmar sustitución</button><button type="button" className={buttonClass} onClick={cancel}>Cancelar sustitución</button></div></form>;
 }
-export function ContactAssociationCard({identity,row,readOnly=false,replacement,modern=false}:{identity:AuthIdentity;row:ContactAssociation;readOnly?:boolean;replacement?:ContactMethod;modern?:boolean}) {
+export function ContactAssociationCard({identity,row,readOnly=false,replacement,modern=false,organizationPresentation=false,hideEmptyHistoryPagination=false}:{identity:AuthIdentity;row:ContactAssociation;readOnly?:boolean;replacement?:ContactMethod;modern?:boolean;organizationPresentation?:boolean;hideEmptyHistoryPagination?:boolean}) {
   const [editing,setEditing]=useState<ContactAssociation|null>(null),[ending,setEnding]=useState<ContactAssociation|null>(null),[confirmed,setConfirmed]=useState(false),[history,setHistory]=useState(false),[replacing,setReplacing]=useState(false),[reloadFailed,setReloadFailed]=useState(false);
   const mutation=useDirectoryMutation(identity);readOnly=readOnly||!!('person' in row?row.person.duplicateOfId:row.organization.duplicateOfId);const actorName='person' in row?row.person.displayName:row.organization.name;
-  return <li className={modern?'ui-data-list-item':'min-w-0 space-y-3 rounded border p-3 break-words'}><div className={modern?'directory-contact-context space-y-3':'space-y-3'}><Link className="inline-flex min-h-11 underline" to={'personId' in row?'/people/'+row.personId:'/organizations/'+row.organizationId}>{actorName}</Link>
-    <p>{contactLabels[row.contactMethod.type]}: <Link className="underline" to={'/contact-methods/'+row.contactMethodId}>{row.contactMethod.value}</Link></p>
-    <p>Asociación {row.isActive?'activa':'inactiva / antecedente'} · Medio: {conditionLabels[row.contactMethod.condition]}</p>
-    <p>{row.contactMethod.associationCount>1?'Medio compartido entre '+row.contactMethod.associationCount+' asociaciones.':'Medio con una asociación.'}</p>
-    {!('person' in row?row.person.isActive:row.organization.isActive)&&<p>Ficha del actor inactiva; asociación conservada.</p>}
-    {row.sourceDescription&&<p>Fuente: {row.sourceDescription}</p>}{row.sourceUrl&&<p>URL de fuente: {row.sourceUrl}</p>}{row.notes&&<p>Observaciones: {row.notes}</p>}
-    {editing?<ContactContextForm identity={identity} initial={editing} saved={()=>setEditing(null)} cancel={()=>setEditing(null)}/>:!readOnly&&<div className="flex flex-wrap gap-3">
+  return <li className={`${modern?'ui-data-list-item':'min-w-0 space-y-3 rounded border p-3 break-words'} ${organizationPresentation?'organization-contact-row':''}`}><div className={modern?'directory-contact-context space-y-3':'space-y-3'}><Link className="inline-flex min-h-11 underline" to={'personId' in row?'/people/'+row.personId:'/organizations/'+row.organizationId}>{actorName}</Link>
+    {organizationPresentation?<>
+      <div className="organization-contact-primary">
+        <p>{contactLabels[row.contactMethod.type]}: <Link className="underline" to={'/contact-methods/'+row.contactMethodId}>{row.contactMethod.value}</Link></p>
+        <p>Asociación {row.isActive?'activa':'inactiva / antecedente'} · Medio: {conditionLabels[row.contactMethod.condition]}</p>
+        <p>{row.contactMethod.associationCount>1?'Medio compartido entre '+row.contactMethod.associationCount+' asociaciones.':'Medio con una asociación.'}</p>
+      </div>
+      <div className="organization-contact-details">
+        {!('person' in row?row.person.isActive:row.organization.isActive)&&<p>Ficha del actor inactiva; asociación conservada.</p>}
+        {row.sourceDescription&&<p>Fuente: {row.sourceDescription}</p>}{row.sourceUrl&&<p>URL de fuente: {row.sourceUrl}</p>}{row.notes&&<p>Observaciones: {row.notes}</p>}
+      </div>
+    </>:<>
+      <p>{contactLabels[row.contactMethod.type]}: <Link className="underline" to={'/contact-methods/'+row.contactMethodId}>{row.contactMethod.value}</Link></p>
+      <p>Asociación {row.isActive?'activa':'inactiva / antecedente'} · Medio: {conditionLabels[row.contactMethod.condition]}</p>
+      <p>{row.contactMethod.associationCount>1?'Medio compartido entre '+row.contactMethod.associationCount+' asociaciones.':'Medio con una asociación.'}</p>
+      {!('person' in row?row.person.isActive:row.organization.isActive)&&<p>Ficha del actor inactiva; asociación conservada.</p>}
+      {row.sourceDescription&&<p>Fuente: {row.sourceDescription}</p>}{row.sourceUrl&&<p>URL de fuente: {row.sourceUrl}</p>}{row.notes&&<p>Observaciones: {row.notes}</p>}
+    </>}
+    {editing?<ContactContextForm identity={identity} initial={editing} saved={()=>setEditing(null)} cancel={()=>setEditing(null)}/>:!readOnly&&<div className={`flex flex-wrap gap-3 ${organizationPresentation?'organization-contact-actions':''}`}>
       {identity.permissions.includes('directory.write')&&<><button className={buttonClass} onClick={()=>{setEditing(row);setEnding(null);}}>Editar contexto</button>
         {row.isActive&&!ending&&<button className={buttonClass} onClick={()=>{setEnding(row);setConfirmed(false);mutation.reset();}}>Finalizar asociación</button>}
         {replacement&&row.isActive&&<button className={buttonClass} onClick={()=>setReplacing(true)}>Usar el medio existente para {actorName}</button>}</>}
@@ -50,8 +62,8 @@ export function ContactAssociationCard({identity,row,readOnly=false,replacement,
     {replacing&&replacement&&<ContactReplacementForm identity={identity} row={row} target={replacement} done={()=>setReplacing(false)} cancel={()=>setReplacing(false)}/>}
     <ConsolidationProvenance origins={row.consolidationOrigins}/>
     </div>
-    <VerificationPanel modern={modern} headingLevel={modern?3:2} identity={identity} path={associationPath(row)} label={'contacto de '+('person' in row?row.person.displayName:row.organization.name)+': '+row.contactMethod.value} contact readOnly={readOnly}/>
-    {history&&<DirectoryHistory modern={modern} headingLevel={modern?3:2} identity={identity} path={associationPath(row)+'/history'}/>}</li>;
+    <VerificationPanel modern={modern} headingLevel={modern?3:2} compactActionLabels={organizationPresentation} hideEmptyHistoryPagination={hideEmptyHistoryPagination} identity={identity} path={associationPath(row)} label={'contacto de '+('person' in row?row.person.displayName:row.organization.name)+': '+row.contactMethod.value} contact readOnly={readOnly}/>
+    {history&&<DirectoryHistory modern={modern} headingLevel={modern?3:2} hideEmptyPagination={hideEmptyHistoryPagination} identity={identity} path={associationPath(row)+'/history'}/>}</li>;
 }
 function MethodActorAssociations({identity,methodId,kind,readOnly,replacement}:{identity:AuthIdentity;methodId:string;kind:'people'|'organizations';readOnly:boolean;replacement?:ContactMethod}) {
   const [page,setPage]=useState(1);const query=useContactAssociations(identity,`contact-methods/${methodId}/${kind}?page=${page}`);
