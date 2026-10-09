@@ -17,6 +17,7 @@ export class FirstAccessService {
     private readonly passwords: PasswordService, private readonly sessions: SessionsService,
     private readonly config: ConfigService<AppEnvironment, true>) {}
 
+  // Conservado para compatibilidad interna de credenciales pendientes antiguas; la API de administración ya no lo expone.
   async issue(userId: string, actor: AuthenticatedUserDto): Promise<{ token: string; expiresAt: Date }> {
     if (!hasPermission(actor.role, PERMISSIONS.FIRST_ACCESS_ISSUE)) throw new FirstAccessEmissionError('FORBIDDEN');
     return this.users.withLockedCredentials(userId, async (user, tx) => {
@@ -26,8 +27,7 @@ export class FirstAccessService {
       if (!user.isActive) throw new FirstAccessEmissionError('INACTIVE');
       if (user.passwordHash !== null) throw new FirstAccessEmissionError('PASSWORD_EXISTS');
       await this.tokens.revokePendingForUser(userId, tx);
-      const token = createOpaqueToken();
-      const createdAt = new Date();
+      const token = createOpaqueToken(); const createdAt = new Date();
       const expiresAt = new Date(createdAt.getTime() + this.config.get('FIRST_ACCESS_TOKEN_TTL_SECONDS', { infer: true }) * 1000);
       await tx.firstAccessToken.create({ data: { userId, createdByUserId: actor.id, tokenHash: hashOpaqueToken(token)!, createdAt, expiresAt } });
       return { token, expiresAt };

@@ -5,12 +5,18 @@ import { AdministrationError } from '../users/administration.errors';
 import { AuditService } from '../audit/audit.service';
 import { PERMISSIONS, type Permission } from '../auth/authorization/permission';
 import { hasPermission } from '../auth/authorization/role-permissions';
+import { PasswordService } from '../auth/password.service';
+import { FirstAccessTokensService } from '../auth/first-access-tokens.service';
+import { PasswordResetTokensService } from '../auth/password-reset-tokens.service';
+import { SessionsService } from '../auth/sessions.service';
 import { administrativeUser, publicEmailAccount } from './administration.dto';
 import type { AuthenticatedUserDto } from '../auth/auth.dto';
 
 @Injectable()
 export class UsersAdministrationService {
-  constructor(private readonly users: UsersService, private readonly audit: AuditService) {}
+  constructor(private readonly users: UsersService, private readonly audit: AuditService, private readonly passwords: PasswordService,
+    private readonly firstAccessTokens: FirstAccessTokensService, private readonly passwordResetTokens: PasswordResetTokensService,
+    private readonly sessions: SessionsService) {}
 
   private async authorize(actorId: string, permission: Permission, tx?: Prisma.TransactionClient) {
     const actor = await this.users.findIdentityById(actorId, tx);
@@ -24,11 +30,40 @@ export class UsersAdministrationService {
     return (await this.users.listAdministrativeUsers(status)).map(administrativeUser);
   }
 
-  create(input: CreateUserIdentity, actorId: string) {
+  async create(input: CreateUserIdentity & { password: string }, actorId: string) {
+    const passwordHash = await this.passwords.hashNew(input.password);
     return this.users.withAdministrationLocks(actorId, undefined, async (_actor, tx) => {
       await this.authorize(actorId, PERMISSIONS.USERS_CREATE, tx);
-      const identity = await this.users.createIdentity(input, tx);
-      return administrativeUser({ ...identity, passwordHash: null });
+      const identity = await this.users.createIdentity({ ...input, passwordHash, mustChangePassword: true }, tx);
+      return administrativeUser({ ...identity, passwordHash, mustChangePassword: true });
+    });
+  }
+
+  async updateProfile(userId: string, input: { givenNames: string; familyNames: string; email: string }, actorId: string) {
+    return this.users.withAdministrationLocks(actorId, userId, async (user, tx) => {
+      await this.authorize(actorId, PERMISSIONS.USERS_PROFILE_UPDATE, tx);
+      if (!user) throw new AdministrationError('USER_NOT_FOUND');
+      const updated = await this.users.updateAdministrativeProfileLocked(userId, input, tx);
+      if (user.givenNames !== updated.givenNames || user.familyNames !== updated.familyNames || user.email !== updated.email) {
+        await this.audit.recordUserProfileUpdate(actorId, userId,
+          { givenNames: user.givenNames, familyNames: user.familyNames, email: user.email },
+          { givenNames: updated.givenNames, familyNames: updated.familyNames, email: updated.email }, tx);
+      }
+      return administrativeUser(updated);
+    });
+  }
+
+  async resetPassword(userId: string, password: string, actorId: string): Promise<void> {
+    const passwordHash = await this.passwords.hashNew(password);
+    return this.users.withAdministrationLocks(actorId, userId, async (user, tx) => {
+      await this.authorize(actorId, PERMISSIONS.USERS_PASSWORD_RESET, tx);
+      if (!user) throw new AdministrationError('USER_NOT_FOUND');
+      await this.users.assignAdministrativePasswordLocked(userId, passwordHash, tx);
+      await this.sessions.revokeAllForUser(userId, tx);
+      await this.firstAccessTokens.revokePendingForUser(userId, tx);
+      const revoked = await this.passwordResetTokens.revokePendingForUser(userId, tx);
+      for (const token of revoked) await this.audit.recordPasswordReset(AuditAction.PASSWORD_RESET_REVOKED, actorId, userId, token.id, tx);
+      await this.audit.recordUserPasswordReset(actorId, userId, tx);
     });
   }
 

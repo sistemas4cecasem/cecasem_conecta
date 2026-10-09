@@ -53,7 +53,7 @@ export class PasswordResetService {
       const now = new Date();
       const consumed = await tx.passwordResetToken.updateMany({ where: { id: candidate.id, userId: user.id,
         tokenHash: candidate.tokenHash, usedAt: null, revokedAt: null, expiresAt: { gt: now }, createdAt: { lte: now } }, data: { usedAt: now } });
-      if (consumed.count !== 1 || !await this.users.replaceCredentialIfUnchanged(user.id, previousHash, replacement, tx)) throw new InvalidPasswordResetError();
+      if (consumed.count !== 1 || !await this.users.replaceCredentialAndClearChangeRequirement(user.id, previousHash, replacement, tx)) throw new InvalidPasswordResetError();
       await this.tokens.revokePendingForUser(user.id, tx);
       await this.sessions.revokeAllForUser(user.id, tx);
       await this.audit.recordPasswordReset(AuditAction.PASSWORD_RESET_COMPLETED, null, user.id, candidate.id, tx, now);

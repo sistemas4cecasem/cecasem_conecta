@@ -10,16 +10,14 @@ la operación permanente en LAN o VPS corresponden a Fase 7.
 
 La [guía Docker](docs/subfase-6.5-docker-produccion-lan.md) documenta el stack reproducible para validación local y su configuración para una futura operación LAN; la instalación física y operación quedan para Fase 7.
 
-La ruta `/` requiere sesión y `/login` permite iniciar sesión. Las cuentas nuevas
-conservan `passwordHash=null` hasta completar `/first-access` con una credencial
-temporal emitida por un Administrador. El usuario establece su propia contraseña
-y después utiliza el login ordinario. No hay envío automático de correo.
-Las cuentas con contraseña usan `/reset-password` con un token administrativo.
-Emisión y regeneración conservan el acceso actual; el consumo cambia la contraseña,
-revoca sesiones y registra auditoría atómicamente. Un reset requiere un Administrador
-autenticado; no hay recuperación de emergencia para el único Administrador sin acceso.
-No hay seeds ni contraseñas provisionales. Consulta los contratos y límites en
-[la documentación de API](apps/api/README.md#contraseñas-y-sesiones--subfase-12).
+La ruta `/` requiere sesión y `/login` permite iniciar sesión. El Administrador
+crea cada cuenta y asigna una contraseña inicial; al entrar con ella, la persona
+debe cambiarla. El Administrador también puede restablecerla asignando una nueva
+contraseña inicial. No hay primer acceso ni recuperación mediante token, ni envío
+automático de correo. Los cambios de contraseña revocan las sesiones activas y
+quedan auditados. Los perfiles permiten corregir nombres y correo; el nombre de
+usuario se genera automáticamente y no se edita. Siempre debe quedar al menos un
+Administrador activo. Consulta el detalle en [Administración mínima](docs/subfase-1.6-administracion.md).
 
 ## Requisitos y configuración Docker
 
@@ -50,10 +48,30 @@ Compose genera la conexión interna de la API a partir de `DB_NAME`, `DB_USER` y
 `DATABASE_URL` en `.env`. Usa usuario y contraseña con letras, números, guion o
 guion bajo para que Compose pueda formar esa conexión sin ambigüedades. Las variables se
 inyectan en runtime; no se copian archivos `.env` ni se incorporan secretos al build.
-`apps/api/.env.example` corresponde a ejecución local sin Docker;
+`apps/api/.env.example` corresponde a ejecución local del API en el host, incluso
+cuando PostgreSQL está en Docker;
 `apps/web/.env.example` documenta el proxy Vite de desarrollo.
 Los archivos `.env` antiguos deben declarar explícitamente `SESSION_COOKIE_SECURE`;
 producción usa `infra/production/.env` y no reutiliza la configuración local.
+
+### Desarrollo con Docker activo
+
+Para trabajar con recarga automática sin detener el stack, conserva Docker
+levantado y ejecuta `yarn dev` desde la raíz. Docker publica la Web en
+`http://localhost:3000` y PostgreSQL en `localhost:5432`; el API de desarrollo
+usa `http://localhost:3001` y se conecta a esa misma base. Vite publica la Web
+de desarrollo en `http://localhost:5173` y envía `/api` al API local en `3001`.
+
+En la configuración inicial, crea `apps/api/.env` a partir de
+`apps/api/.env.example` y define `DATABASE_URL` con `localhost`, `DB_PORT`,
+`DB_NAME`, `DB_USER` y `DB_PASSWORD` del `.env` raíz. Conserva `APP_PORT=3001`.
+Si hace falta, crea `apps/web/.env` desde `apps/web/.env.example` y conserva
+`API_PROXY_TARGET=http://localhost:3001`. Estos dos archivos locales están
+ignorados por Git. Aplica las migraciones pendientes una vez con
+`yarn workspace @cecasem-conecta/api prisma:migrate:deploy`; después, para el
+trabajo diario basta con `yarn dev` y abrir `http://localhost:5173`.
+Los archivos subidos desde esta instancia se guardan en `storage/private` del
+host; el volumen de archivos de la instancia Docker es independiente.
 
 ## Construir y entrar por primera vez
 
@@ -69,10 +87,10 @@ docker compose --project-name cecasem_conecta --env-file .env -f docker-compose.
 
 Antes de estos comandos, copia `.env.example` a `.env`. En una base nueva,
 `migrate deploy` crea las tablas y `bootstrap-admin` crea el único Administrador
-inicial. El último comando devuelve un token temporal de primer acceso; abre la
-ruta `/first-access#token=...` en `http://localhost:<WEB_PORT>` y define tu propia
-contraseña. No hay usuarios ni contraseñas demo. Conserva ese token fuera de Git
-y no lo compartas en capturas o registros.
+inicial. El comando solicita de forma oculta la contraseña inicial y su confirmación;
+no la imprime ni la guarda en el repositorio. Inicia sesión con el correo y usuario
+que muestra el comando. El sistema pedirá cambiar esa contraseña. No hay usuarios
+ni contraseñas demo.
 
 Compose publica la Web en todas las interfaces del computador sin requerir una
 IP en `.env`. En el computador que ejecuta Docker, abre

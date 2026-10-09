@@ -29,9 +29,11 @@ export class AuthenticatedUserDto {
   @ApiProperty({ format: 'email' }) email!: string;
   @ApiProperty({ enum: UserRole }) role!: UserRole;
   @ApiProperty({ enum: Object.values(PERMISSIONS), isArray: true }) permissions!: Permission[];
+  @ApiProperty({ required: false }) mustChangePassword?: boolean;
 }
 
-export function publicIdentity(user: UserIdentity): AuthenticatedUserDto {
+export function publicIdentity(user: UserIdentity & { mustChangePassword?: boolean }): AuthenticatedUserDto {
   return { id: user.id, givenNames: user.givenNames, familyNames: user.familyNames,
-    username: user.username, email: user.email, role: user.role, permissions: [...getRolePermissions(user.role)] };
+    username: user.username, email: user.email, role: user.role, permissions: [...getRolePermissions(user.role)],
+    ...(user.mustChangePassword ? { mustChangePassword: true } : {}) };
 }

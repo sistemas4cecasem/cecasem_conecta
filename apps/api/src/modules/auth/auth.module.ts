@@ -7,18 +7,18 @@ import { PasswordService } from './password.service';
 import { SessionsService } from './sessions.service';
 import { SessionGuard } from './session.guard';
 import { UserAccessService } from './user-access.service';
-import { FirstAccessService } from './first-access.service';
 import { FirstAccessTokensService } from './first-access-tokens.service';
 import { AuditModule } from '../audit/audit.module';
-import { PasswordResetService } from './password-reset.service';
 import { PasswordResetTokensService } from './password-reset-tokens.service';
 import { PermissionsGuard } from './authorization/permissions.guard';
 import { BootstrapAdminService } from './bootstrap-admin.service';
+import { RequiredPasswordChangeService } from './required-password-change.service';
 
 @Module({
   imports: [DatabaseModule, UsersModule, AuditModule],
   controllers: [AuthController],
-  providers: [AuthService, PasswordService, SessionsService, SessionGuard, PermissionsGuard, UserAccessService, FirstAccessService, FirstAccessTokensService, PasswordResetService, PasswordResetTokensService, BootstrapAdminService],
-  exports: [SessionGuard, PermissionsGuard, SessionsService, UserAccessService],
+  providers: [AuthService, PasswordService, SessionsService, SessionGuard, PermissionsGuard, UserAccessService, FirstAccessTokensService, PasswordResetTokensService, BootstrapAdminService, RequiredPasswordChangeService],
+  exports: [SessionGuard, PermissionsGuard, SessionsService, UserAccessService, PasswordService, RequiredPasswordChangeService,
+    FirstAccessTokensService, PasswordResetTokensService],
 })
 export class AuthModule {}

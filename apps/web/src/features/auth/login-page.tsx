@@ -1,12 +1,12 @@
 import { AuthFormSurface } from './auth-form-surface';
 import { FormField, Input, FieldHelp, FormActions } from '../../components/ui/forms';
-import { Button, ActionLink } from '../../components/ui/actions';
+import { Button } from '../../components/ui/actions';
 import { Alert } from '../../components/ui/feedback';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Navigate, useLocation, useNavigate } from 'react-router';
+import { Navigate, useNavigate } from 'react-router';
 import { z } from 'zod';
 import { ApiError, apiRequest } from '../../lib/api/client';
 import { AUTH_QUERY_KEY, identitySchema, useSession } from './session';
@@ -22,12 +22,6 @@ export function LoginPage() {
   const session = useSession();
   const client = useQueryClient();
   const navigate = useNavigate();
-  const location = useLocation();
-  const navigationState: unknown = location.state;
-  const firstAccessCompleted = typeof navigationState === 'object' && navigationState !== null &&
-    'firstAccessCompleted' in navigationState && navigationState.firstAccessCompleted === true;
-  const passwordResetCompleted = typeof navigationState === 'object' && navigationState !== null &&
-    'passwordResetCompleted' in navigationState && navigationState.passwordResetCompleted === true;
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { register, handleSubmit, resetField, formState: { errors } } = useForm<LoginFields>({
@@ -59,8 +53,6 @@ export function LoginPage() {
   if (session.data) return <Navigate to="/" replace />;
 
   return <AuthFormSurface title="Iniciar sesión" titleId="login-title" description="Accede con tu cuenta de CECASEM.">
-    {firstAccessCompleted && <Alert tone="success" role="status">Contraseña establecida correctamente. Ya puedes iniciar sesión.</Alert>}
-    {passwordResetCompleted && <Alert tone="success" role="status">Contraseña restablecida correctamente. Ya puedes iniciar sesión.</Alert>}
     {session.isError && <Alert tone="danger" role="alert">No se pudo comprobar la sesión. Puedes intentar iniciar sesión nuevamente.</Alert>}
     <form onSubmit={handleSubmit(submit)} noValidate>
       <FormField id="email" label="Correo electrónico" error={errors.email?.message}>{control =>
@@ -71,7 +63,6 @@ export function LoginPage() {
       <FormActions><Button type="submit" variant="primary" className="auth-submit" pending={pending} disabled={pending}>
         {pending ? 'Ingresando…' : 'Iniciar sesión'}</Button></FormActions>
     </form>
-    <FieldHelp>Para el primer acceso o recuperar tu contraseña, solicita una credencial temporal al Administrador.</FieldHelp>
-    <div className="auth-links"><ActionLink appearance="context" to="/first-access">Primer acceso</ActionLink><ActionLink appearance="context" to="/reset-password">Restablecer contraseña</ActionLink></div>
+    <FieldHelp>Si no puedes ingresar, solicita al Administrador que restablezca tu contraseña.</FieldHelp>
   </AuthFormSurface>;
 }

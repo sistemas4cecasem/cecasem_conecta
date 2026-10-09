@@ -290,32 +290,31 @@ describe('Administración mínima PostgreSQL y HTTP', () => {
 
   describe('bootstrap inicial offline', () => {
     const input = () => ({ givenNames: 'Operador', familyNames: 'Inicial', email: `${randomUUID()}@example.test` });
-    it('base vacía crea Admin y hash; pendiente puede regenerar, terminado rechaza', async () => {
-      expect(await prisma.user.count()).toBe(0); const identity = input(); const result = await bootstrap.issue(identity); ids.push(result.id);
-      expect(await users.findCredentialsById(result.id)).toMatchObject({ role: UserRole.ADMINISTRATOR, passwordHash: null, isActive: true });
-      const row = await prisma.firstAccessToken.findUniqueOrThrow({ where: { tokenHash: hashOpaqueToken(result.token)! } });
-      expect(row.createdByUserId).toBeNull(); expect(JSON.stringify(row)).not.toContain(result.token);
-      const regenerated = await bootstrap.issue(identity); expect(regenerated.id).toBe(result.id);
-      expect((await prisma.firstAccessToken.findUniqueOrThrow({ where: { id: row.id } })).revokedAt).not.toBeNull();
-      await first.consume(regenerated.token, password); await expect(bootstrap.issue(identity)).rejects.toMatchObject({ code: 'BOOTSTRAP_UNAVAILABLE' });
+    it('base vacía crea Admin con contraseña inicial y cambio obligatorio', async () => {
+      expect(await prisma.user.count()).toBe(0); const identity = input(); const result = await bootstrap.initialize(identity, password); ids.push(result.id);
+      const credential = await users.findCredentialsById(result.id);
+      expect(credential).toMatchObject({ role: UserRole.ADMINISTRATOR, mustChangePassword: true, isActive: true });
+      expect(credential?.passwordHash).toBeTruthy();
+      expect(await prisma.firstAccessToken.count({ where: { userId: result.id } })).toBe(0);
+      await expect(bootstrap.initialize(identity, password)).rejects.toMatchObject({ code: 'BOOTSTRAP_UNAVAILABLE' });
     });
     it('dos procesos simultáneos solo uno completa, sin identidad parcial', async () => {
       expect(await prisma.user.count()).toBe(0); const entered = barrier(); const release = barrier(); const original = users.createIdentity.bind(users);
       jest.spyOn(users, 'createIdentity').mockImplementationOnce(async (input, tx) => { const user = await original(input, tx); entered.release(); await release.promise; return user; });
-      const firstBootstrap = bootstrap.issue(input()); await entered.promise;
-      await expect(bootstrap.issue(input())).rejects.toMatchObject({ code: 'BOOTSTRAP_BUSY' });
+      const firstBootstrap = bootstrap.initialize(input(), password); await entered.promise;
+      await expect(bootstrap.initialize(input(), password)).rejects.toMatchObject({ code: 'BOOTSTRAP_BUSY' });
       release.release(); const result = await firstBootstrap; ids.push(result.id); expect(await prisma.user.count()).toBe(1);
     });
     it('falla token: rollback completo, y más de un usuario impide bootstrap', async () => {
       const initial = input();
       jest.spyOn(app.get(FirstAccessTokensService), 'revokePendingForUser').mockRejectedValueOnce(new Error('fixture token failure'));
-      await expect(bootstrap.issue(initial)).rejects.toThrow(); expect(await prisma.user.count()).toBe(0); jest.restoreAllMocks();
-      await fixture(UserRole.ADMINISTRATOR, false); await fixture(); await expect(bootstrap.issue(initial)).rejects.toMatchObject({ code: 'BOOTSTRAP_UNAVAILABLE' });
+      await expect(bootstrap.initialize(initial, password)).rejects.toThrow(); expect(await prisma.user.count()).toBe(0); jest.restoreAllMocks();
+      await fixture(UserRole.ADMINISTRATOR, false); await fixture(); await expect(bootstrap.initialize(initial, password)).rejects.toMatchObject({ code: 'BOOTSTRAP_UNAVAILABLE' });
     });
     it.each(['inactive','other-role','other-email'])('único usuario %s impide aprovisionar', async state => {
       const actor = await fixture(state === 'other-role' ? UserRole.BOARD : UserRole.ADMINISTRATOR, false);
       if (state === 'inactive') await prisma.user.update({ where: { id: actor.id }, data: { isActive: false, deactivatedAt: new Date() } });
-      await expect(bootstrap.issue({ ...input(), email: state === 'other-email' ? `${randomUUID()}@example.test` : actor.email })).rejects.toMatchObject({ code: 'BOOTSTRAP_UNAVAILABLE' });
+      await expect(bootstrap.initialize({ ...input(), email: state === 'other-email' ? `${randomUUID()}@example.test` : actor.email }, password)).rejects.toMatchObject({ code: 'BOOTSTRAP_UNAVAILABLE' });
       expect(await prisma.firstAccessToken.count()).toBe(0);
     });
   });

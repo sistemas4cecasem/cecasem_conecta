@@ -46,11 +46,15 @@ export const PERMISSIONS = {
   DIRECTORY_WRITE: 'directory.write',
   DIRECTORY_HISTORY_READ: 'directory.history.read',
   DIRECTORY_STATUS_UPDATE: 'directory.status.update',
+  // Deprecated token permissions are retained only for legacy audit/service code;
+  // they are no longer granted to any role or exposed by a controller.
   FIRST_ACCESS_ISSUE: 'auth.first_access.issue',
   PASSWORD_RESET_ISSUE: 'auth.password_reset.issue',
   USERS_READ: 'users.read',
   USERS_DEACTIVATED_READ: 'users.deactivated.read',
   USERS_CREATE: 'users.create',
+  USERS_PROFILE_UPDATE: 'users.profile.update',
+  USERS_PASSWORD_RESET: 'users.password.reset',
   USERS_ROLE_UPDATE: 'users.role.update',
   USERS_STATUS_UPDATE: 'users.status.update',
   USERS_MAILBOXES_MANAGE: 'users.mailboxes.manage',

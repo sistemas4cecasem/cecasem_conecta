@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { EmailAccount, Prisma, UserEmailAccount, UserRole } from '../../generated/prisma/client';
-import { UserCredentials, UserIdentity, userCredentialsSelect, userIdentitySelect } from './user-projections';
+import { UserCredentials, UserIdentity, userAuthenticatedIdentitySelect, userCredentialsSelect, userIdentitySelect } from './user-projections';
 import { IdentityConflictError, InvalidIdentityError } from './identity.errors';
 import { normalizeEmail, normalizeIdentityText } from './identity-normalization';
 import { generateUsername, USERNAME_MAX_ATTEMPTS } from './username';
@@ -16,6 +16,8 @@ export interface CreateUserIdentity {
   familyNames: string;
   email: string;
   role: UserRole;
+  passwordHash?: string;
+  mustChangePassword?: boolean;
 }
 
 export interface CreateAvailableEmailAccount {
@@ -69,7 +71,7 @@ export class UsersService {
       AND (role IN ('ADMINISTRATOR', 'BOARD') OR id = ANY(${ids}::uuid[])) ORDER BY id FOR SHARE`;
   }
 
-  // Interfaz interna; no crea credenciales ni expone administración HTTP.
+  // Interfaz interna para crear identidad y, si se proporciona, guardar un hash inicial.
   async createIdentity(input: CreateUserIdentity, transaction?: Prisma.TransactionClient): Promise<UserIdentity> {
     const givenNames = normalizeIdentityText(input.givenNames, 'Nombres');
     const familyNames = normalizeIdentityText(input.familyNames, 'Apellidos');
@@ -84,7 +86,8 @@ export class UsersService {
         const identity = await (transaction ?? this.prisma).user.create({
           select: userIdentitySelect,
           data: { givenNames, familyNames, email, role: input.role,
-            username: generateUsername(givenNames, familyNames, attempt) },
+            username: generateUsername(givenNames, familyNames, attempt), passwordHash: input.passwordHash ?? null,
+            mustChangePassword: input.mustChangePassword ?? false },
         });
         if (transaction) await transaction.$executeRaw`RELEASE SAVEPOINT identity_username`;
         return identity;
@@ -112,6 +115,10 @@ export class UsersService {
 
   findIdentityById(id: string, tx: Prisma.TransactionClient = this.prisma): Promise<UserIdentity | null> {
     return tx.user.findUnique({ where: { id }, select: userIdentitySelect });
+  }
+
+  findAuthenticatedIdentityById(id: string, tx: Prisma.TransactionClient = this.prisma) {
+    return tx.user.findUnique({ where: { id }, select: userAuthenticatedIdentitySelect });
   }
 
   findCredentialsById(id: string): Promise<UserCredentials | null> {
@@ -174,6 +181,23 @@ export class UsersService {
     await tx.user.update({ where: { id }, data: { role } });
   }
 
+  async updateAdministrativeProfileLocked(id: string, input: { givenNames: string; familyNames: string; email: string },
+    tx: Prisma.TransactionClient): Promise<UserCredentials> {
+    const givenNames = normalizeIdentityText(input.givenNames, 'Nombres');
+    const familyNames = normalizeIdentityText(input.familyNames, 'Apellidos');
+    const email = normalizeEmail(input.email);
+    try {
+      return await tx.user.update({ where: { id }, data: { givenNames, familyNames, email }, select: userCredentialsSelect });
+    } catch (error) {
+      if (uniqueConflict(error, ['email'], 'User_email_key')) throw new IdentityConflictError('EMAIL_EXISTS');
+      throw error;
+    }
+  }
+
+  async assignAdministrativePasswordLocked(id: string, passwordHash: string, tx: Prisma.TransactionClient): Promise<void> {
+    await tx.user.update({ where: { id }, data: { passwordHash, mustChangePassword: true } });
+  }
+
   async reactivateLocked(id: string, tx: Prisma.TransactionClient): Promise<void> {
     await tx.user.update({ where: { id }, data: { isActive: true, deactivatedAt: null } });
   }
@@ -183,8 +207,26 @@ export class UsersService {
     return result.count === 1;
   }
 
+  async replaceCredentialAndClearChangeRequirement(id: string, previous: string, replacement: string, tx: Prisma.TransactionClient): Promise<boolean> {
+    const result = await tx.user.updateMany({ where: { id, passwordHash: previous }, data: { passwordHash: replacement, mustChangePassword: false } });
+    return result.count === 1;
+  }
+
+  async replaceRequiredPassword(id: string, previous: string, replacement: string, tx: Prisma.TransactionClient): Promise<boolean> {
+    const result = await tx.user.updateMany({ where: { id, passwordHash: previous, mustChangePassword: true },
+      data: { passwordHash: replacement, mustChangePassword: false } });
+    return result.count === 1;
+  }
+
   async establishInitialPassword(id: string, passwordHash: string, tx: Prisma.TransactionClient): Promise<boolean> {
-    const result = await tx.user.updateMany({ where: { id, isActive: true, passwordHash: null }, data: { passwordHash } });
+    const result = await tx.user.updateMany({ where: { id, isActive: true, passwordHash: null },
+      data: { passwordHash, mustChangePassword: false } });
+    return result.count === 1;
+  }
+
+  async assignAdministratorInitialPassword(id: string, passwordHash: string, tx: Prisma.TransactionClient): Promise<boolean> {
+    const result = await tx.user.updateMany({ where: { id, isActive: true, passwordHash: null },
+      data: { passwordHash, mustChangePassword: true } });
     return result.count === 1;
   }
 

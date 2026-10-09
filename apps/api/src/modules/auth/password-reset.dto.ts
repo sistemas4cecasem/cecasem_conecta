@@ -10,7 +10,7 @@ export class ConsumePasswordResetDto {
   @ApiProperty({ writeOnly: true, minLength: 43, maxLength: 43 })
   @IsString({ message: INVALID_PASSWORD_RESET_MESSAGE }) token!: string;
 
-  @ApiProperty({ format: 'password', writeOnly: true, minLength: 15, maxLength: 128 })
+  @ApiProperty({ format: 'password', writeOnly: true, minLength: 8, maxLength: 128 })
   @ValidateBy({ name: 'newPassword', validator: { validate: validNewPassword, defaultMessage: () => NEW_PASSWORD_MESSAGE } })
   password!: string;
 }

@@ -1,18 +1,21 @@
 # Administración mínima — Subfase 1.6
 
-La administración de identidad está en `/users`. No hay autorregistro, edición
-general de perfiles, eliminación de usuarios, envío de correo ni sincronización.
-No se almacenan credenciales de proveedores externos.
+La administración de identidad está en `/users`. No hay autorregistro,
+eliminación de usuarios, envío de correo ni sincronización. El Administrador crea
+cuentas con una contraseña inicial que la persona debe cambiar al iniciar sesión.
+Puede corregir nombres/correo y restablecer una contraseña asignando otra inicial.
+El username sigue siendo automático y no editable. No se almacenan credenciales
+de proveedores externos.
 
 ## Permisos y contratos
 
 | Capability | Administrador | Directorio | Búsqueda | Planificación |
 |---|---|---|---|---|
-| auth.first_access.issue | Sí | — | — | — |
-| auth.password_reset.issue | Sí | — | — | — |
 | users.read | Sí | Sí | — | — |
 | users.deactivated.read | Sí | — | — | — |
 | users.create | Sí | — | — | — |
+| users.profile.update | Sí | — | — | — |
+| users.password.reset | Sí | — | — | — |
 | users.role.update | Sí | — | — | — |
 | users.status.update | Sí | — | — | — |
 | users.mailboxes.manage | Sí | — | — | — |
@@ -24,7 +27,9 @@ recibidas en login/me y no replica este mapa.
 |---|---|---|
 | GET users | users.read | 200, activos por defecto |
 | GET users?status=inactive/all | users.read + users.deactivated.read | 200 |
-| POST users | users.create | 201, cuenta pendiente |
+| POST users | users.create | 201, cuenta con cambio obligatorio |
+| PATCH users/:id/profile | users.profile.update | 200, nombres/correo actualizados |
+| PATCH users/:id/password | users.password.reset | 204, contraseña inicial asignada |
 | PATCH users/:id/role | users.role.update | 204 |
 | POST users/:id/deactivate | users.status.update | 204 |
 | POST users/:id/reactivate | users.status.update | 204 |
@@ -33,20 +38,21 @@ recibidas en login/me y no replica este mapa.
 | GET users/:id/email-accounts | users.mailboxes.manage | 200, asignaciones vigentes |
 | PUT users/:id/email-accounts/:emailAccountId | users.mailboxes.manage | 204 |
 | DELETE users/:id/email-accounts/:emailAccountId | users.mailboxes.manage | 204, retiro lógico |
-| POST auth/first-access-tokens | auth.first_access.issue | 201, credencial efímera |
-| POST auth/password-reset-tokens | auth.password_reset.issue | 201, credencial efímera |
 
 Usuarios ordenados por apellidos, nombres e id. Sin paginación, búsqueda ni otros
 filtros. Directorio no lee inactivos; la comprobación precede a su consulta.
 
-Crear usuario admite únicamente `givenNames`, `familyNames`, `email`, `role`.
-El username sigue automático; nombres/correo se normalizan. Los campos adicionales
-se rechazan. No se emite token al crear: esto conserva el TTL para la entrega real.
+Crear usuario admite `givenNames`, `familyNames`, `email`, `role` y `password`.
+La contraseña se valida con mínimo 8 caracteres, mayúscula, minúscula y símbolo,
+se guarda con Argon2id y obliga al cambio en el primer login. El username se genera
+automáticamente. Editar perfil admite únicamente nombres, apellidos y correo;
+no permite cambiar el username. No se emiten tokens de primer acceso/restablecimiento.
 El DTO administrativo expone id, nombres, apellidos, username, correo, rol, estado,
 createdAt, deactivatedAt y credentialStatus; nunca hashes ni tokens.
 
-`PENDING_FIRST_ACCESS` deriva de passwordHash nulo; `ESTABLISHED` de un hash
-existente. Un reset pendiente no modifica credentialStatus.
+`NO_PASSWORD` deriva de passwordHash nulo, `CHANGE_REQUIRED` indica que el primer
+ingreso con la contraseña inicial requiere cambiarla y `ESTABLISHED` indica una
+contraseña personal vigente.
 
 Errores: 400 entrada inválida, 401 sesión inválida, 403 falta de permiso,
 404 identidad/buzón inexistente y 409 conflicto. Los conflictos administrativos
@@ -64,17 +70,20 @@ de User, siempre por UUID en orden ascendente. La clave estable está documentad
 en UsersService y compartida con el bootstrap. Al reducir el conjunto activo se
 relee el target, se cuenta y se protege el último Admin dentro de la transacción.
 La baja escala permite coordinar las mutaciones administrativas con esa misma
-clave. La emisión bloquea actor y destinatario en el mismo orden. El actor vigente
-se revalida bajo locks; una degradación/desactivación no pasa desapercibida.
+clave. Las actualizaciones de perfil y contraseña bloquean actor y destinatario
+en el mismo orden. El actor vigente se revalida bajo locks; una degradación o
+desactivación no pasa desapercibida.
 
 Users conserva creación, roles y asociaciones; Auth conserva sesiones y
 UserAccessService; Audit escribe sus eventos. UsersAdministrationModule compone
 esos módulos sin dependencia Users → Auth ni forwardRef.
 
 Cambiar rol conserva sesiones: la siguiente petición refleja permisos actuales.
-Desactivar conserva identidad, contraseña e historial; revoca sesiones y tokens
-pendientes, registra cada reset revocado y USER_DEACTIVATED. Reactivar no revive
-sesiones/tokens y registra USER_REACTIVATED. Las transiciones repetidas no inventan
+Desactivar conserva identidad, contraseña e historial; revoca sesiones y cualquier
+token histórico pendiente, y registra USER_DEACTIVATED. Reactivar no revive
+sesiones ni tokens y registra USER_REACTIVATED. Restablecer contraseña guarda un
+hash nuevo, exige cambio en el siguiente acceso, revoca sesiones y registra
+USER_PASSWORD_RESET en la misma transacción. Las transiciones repetidas no inventan
 auditoría; un usuario inexistente siempre produce 404.
 
 Las asociaciones conservan la PK compuesta y createdAt original. Retirar marca
@@ -82,12 +91,11 @@ removedAt; reasignar lo limpia. El CHECK exige fecha de retiro >= creación.
 Los usuarios inactivos pueden conservar/recibir asignaciones. Un buzón inactivo
 no puede asignarse. Las acciones idempotentes no repiten eventos.
 
-AuditEvent añade únicamente previousRole, newRole y emailAccountId, este último
-con FK RESTRICT e índice. USER_ROLE_CHANGED exige roles distintos; eventos de
-estado no llevan roles/reset/buzón; MAILBOX_ASSIGNED/REMOVED exigen buzón. Todos
-requieren actor y target. Los cuatro eventos de reset conservan exactamente sus
-invariantes anteriores. El CHECK rechaza cruces entre familias. Si la auditoría
-falla, negocio y auditoría hacen rollback juntos.
+AuditEvent conserva previousRole, newRole y emailAccountId, y añade los campos
+antes/después para nombres, apellidos y correo. USER_PROFILE_UPDATED guarda solo
+los valores que cambiaron. USER_PASSWORD_RESET no almacena credenciales ni token.
+El CHECK rechaza cruces entre familias. Si la auditoría falla, negocio y auditoría
+hacen rollback juntos.
 
 ## Aprovisionamiento inicial offline
 
@@ -106,24 +114,23 @@ Con el contenedor API ya construido y migrado:
 docker compose exec api node dist/bootstrap-admin.js --given-names "Nombres" --family-names "Apellidos" --email "administrador@example.test"
 ```
 
-Sustituye únicamente los datos de identidad. **El comando no acepta contraseña,
-username, rol ni token**. No cambies datos iniciales para evadir estas condiciones:
+Sustituye únicamente los datos de identidad. El comando solicita contraseña y
+confirmación de forma oculta en una terminal interactiva; no acepta contraseña,
+username, rol ni token por argumentos. No cambies datos iniciales para evadir estas condiciones:
 
-- Cero usuarios: crea un único Administrador activo y un FirstAccessToken estándar.
-- Un único Admin activo con passwordHash nulo: permite regenerar para el mismo
-  correo, revocando la credencial previa y conservando identidad.
+- Cero usuarios: crea un único Administrador activo con cambio obligatorio de contraseña.
+- Un único Admin activo con passwordHash nulo: asigna su contraseña inicial para el mismo
+  correo y conserva identidad.
 - Más de un usuario, usuario inactivo, otro rol o contraseña establecida: rechaza.
   Nunca funciona como recuperación de emergencia.
 
-La identidad y el token se crean en una transacción. Un try-lock de la misma clave
-rechaza otro proceso simultáneo. El emisor nulo representa solo este procedimiento
-offline; HTTP continúa exigiendo actor autenticado y emisor no nulo.
+La identidad y su hash se guardan en una transacción. Un try-lock de la misma clave
+rechaza otro proceso simultáneo. El aprovisionamiento solo está disponible desde
+este procedimiento offline; no hay endpoint HTTP de bootstrap.
 
-La salida interactiva única contiene id, username, correo, token, caducidad y
-`/first-access#token=...`. No redirijas ni guardes esta salida en logs/archivos.
-Entrega el enlace por un canal verificado. El Administrador establece personalmente
-su contraseña mediante primer acceso; Argon2id y caducidad/uso único permanecen.
-Si pierde la credencial antes de completar el estado inicial, repite el comando.
+La salida contiene id, username y correo, pero nunca contraseña. No redirijas ni
+guardes esta salida en logs/archivos. Usa la contraseña que acabas de escribir para
+iniciar sesión; el Administrador deberá cambiarla como cualquier cuenta inicial.
 
 ## Interfaz y caché
 
@@ -131,10 +138,11 @@ Admin puede consultar los tres estados y realizar cada acción según su capabil
 Directorio solo consulta activos. Búsqueda/Planificación reciben acceso denegado
 al entrar manualmente, sin consulta administrativa ni logout automático.
 
-Los formularios usan React Hook Form/Zod. Crear cuenta y emitir acceso son pasos
-separados. La credencial solo existe en estado local: cerrar o desmontar la elimina,
-una respuesta tardía no la repone. No pasa por cachés de query/mutación, storage ni
-URL administrativa. Se puede copiar un enlace con fragmento para entrega verificada.
+La lista muestra solo el nombre; el lápiz expande los datos y controles de edición.
+El formulario incluye username de solo lectura y permite corregir nombres/correo.
+Crear cuenta y restablecer contraseña requieren contraseña y confirmación locales;
+los requisitos de contraseña se muestran y se marcan al cumplirse. Las credenciales
+no pasan por cachés de query/mutación, storage ni URL.
 
 Las keys incluyen identidad (`users, actorId, status`; `email-accounts, actorId`;
 `users, actorId, targetId, email-accounts`). Un cambio propio de rol refresca me y
@@ -146,6 +154,8 @@ sesión y permite un refetch acotado de me; un 401 invalida identidad.
 
 - `20261002110000_administration_audit_actions`: extensión de enum.
 - `20261002110001_minimal_administration`: columnas, FK/índice y CHECK en transacción.
+- `20261009110000_user_administration_audit_actions`: nuevos tipos de auditoría.
+- `20261009110100_user_profile_password_audit`: before/after del perfil y CHECK actualizado.
 
 El split permite utilizar valores de enum después de su commit. Las cuatro
 migraciones anteriores se mantienen intactas. No se requiere dependencia nueva.

@@ -68,6 +68,10 @@ export function AuthenticatedLayout() {
   if (session.isError) return <ApplicationFrame><div><p role="alert">No se pudo comprobar la sesión. Revisa tu conexión.</p>
     <button className="min-h-11 underline" onClick={() => void session.refetch()}>Reintentar</button></div></ApplicationFrame>;
   if (!session.data) return <Navigate to="/login" replace />;
+  if (session.data.mustChangePassword) {
+    if (location.pathname !== '/change-password') return <Navigate to="/change-password" replace />;
+    return <ApplicationFrame pathname={location.pathname} context="Cambiar contraseña"><Outlet /></ApplicationFrame>;
+  }
   const navigationItems = visibleNavigationItems(AUTHENTICATED_NAVIGATION, session.data.permissions);
   const context = navigationItems.find(item => item.to === activeNavigationRoute(location.pathname))?.label
     ?? (location.pathname === '/notifications' ? 'Notificaciones' : 'CECASEM Conecta');

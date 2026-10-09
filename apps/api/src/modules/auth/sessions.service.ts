@@ -4,7 +4,7 @@ import { AppEnvironment } from '../../config/environment';
 import { PrismaService } from '../../database/prisma.service';
 import { Prisma } from '../../generated/prisma/client';
 import { UsersService } from '../users/users.service';
-import { UserIdentity } from '../users/user-projections';
+import { UserAuthenticatedIdentity } from '../users/user-projections';
 import { createSessionToken, hashSessionToken, sessionIsValid } from './session-token';
 
 @Injectable()
@@ -20,12 +20,12 @@ export class SessionsService {
     return token;
   }
 
-  async findIdentity(token: string | undefined): Promise<UserIdentity | null> {
+  async findIdentity(token: string | undefined): Promise<UserAuthenticatedIdentity | null> {
     const tokenHash = token === undefined ? null : hashSessionToken(token);
     if (!tokenHash) return null;
     const session = await this.prisma.userSession.findUnique({ where: { tokenHash } });
     if (!session || !sessionIsValid(session)) return null;
-    const user = await this.users.findIdentityById(session.userId);
+    const user = await this.users.findAuthenticatedIdentityById(session.userId);
     return user?.isActive ? user : null;
   }
 

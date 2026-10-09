@@ -22,7 +22,7 @@ export function validateEnvironment(
     throw new Error('NODE_ENV debe ser development, test o production.');
   }
 
-  const rawPort = environment.APP_PORT ?? '3000';
+  const rawPort = environment.APP_PORT ?? '3001';
   if (
     (typeof rawPort !== 'string' && typeof rawPort !== 'number') ||
     (typeof rawPort === 'string' && !/^\d+$/.test(rawPort))

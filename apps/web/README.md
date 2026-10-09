@@ -1,8 +1,7 @@
 # CECASEM Conecta — Frontend
 
-SPA React + TypeScript + Vite con autenticación mínima de Subfase 1.2.
-Consulta la identidad actual antes de mostrar el área autenticada; no contiene
-administración de usuarios ni funcionalidades de negocio posteriores.
+SPA React + TypeScript + Vite. Consulta la identidad actual antes de mostrar el
+área autenticada e incluye administración de usuarios y funcionalidades de negocio.
 
 ## Desarrollo
 
@@ -14,15 +13,16 @@ yarn dev
 ```
 
 El comando raíz inicia API y Web. Vite utiliza `http://localhost:5173` y la API
-`http://localhost:3000` por defecto. Vite puede elegir otro puerto si está ocupado;
-consulta la dirección impresa en consola. Para iniciar solo Web, incluso sin API:
+`http://localhost:3001` por defecto para convivir con el puerto `3000` publicado
+por la Web de Docker. Vite exige el puerto `5173`; cierra otra instancia de
+desarrollo de este proyecto si ya está ocupándolo. Para iniciar solo Web, incluso sin API:
 
 ```sh
 yarn workspace @cecasem-conecta/web dev
 ```
 
-Las rutas disponibles son `/login`, `/` autenticada y una página 404.
-La pantalla inicial conserva su contenido temporal; no se añade dashboard.
+La aplicación incluye el login, el cambio obligatorio de contraseña, la página
+de administración `/users` y las rutas de trabajo del sistema.
 
 ## Autenticación — 1.2
 
@@ -41,8 +41,19 @@ Login correcto elimina cachés anteriores y actualiza la identidad; logout llama
 al servidor, elimina cachés y vuelve a login. Un error de logout no confirma el
 cierre. No se almacenan tokens, contraseñas ni session IDs en localStorage,
 sessionStorage o un store global. Cookies viajan con credentials=include a través
-del proxy del mismo origen; la UI no intenta leerlas. Los usuarios sin contraseña
-esperan el primer acceso de 1.3; no se ofrecen registro ni recuperación pública.
+del proxy del mismo origen; la UI no intenta leerlas. No se ofrece registro ni
+recuperación pública por token.
+
+## Usuarios y contraseñas — flujo vigente
+
+En `/users`, el Administrador crea cada cuenta con una contraseña inicial. La
+persona inicia sesión con ella y cambia su contraseña antes de continuar. El
+formulario muestra los requisitos (8 caracteres, mayúscula, minúscula y símbolo)
+y marca los que ya cumple. Restablecer contraseña permite asignar otra contraseña
+inicial y obliga a cambiarla en el siguiente ingreso. El lápiz expande la
+información del usuario; el formulario permite corregir nombres, apellidos y
+correo, mientras el username se muestra como no editable. Las rutas/pantallas de
+primer acceso y restablecimiento mediante token quedaron retiradas.
 
 ## Entorno y API
 
@@ -53,7 +64,7 @@ Si necesitas modificarlos, utiliza variables de proceso o un archivo local
 | Variable | Valor por defecto | Uso |
 | --- | --- | --- |
 | `VITE_API_BASE_URL` | `/api/v1` | Base pública de las solicitudes; Vite la incorpora al build. |
-| `API_PROXY_TARGET` | `http://localhost:3000` | Destino del proxy de desarrollo; solo disponible en la configuración de Vite. |
+| `API_PROXY_TARGET` | `http://localhost:3001` | Destino del proxy de desarrollo; solo disponible en la configuración de Vite. |
 
 El proxy conserva `/api` y el resto de la ruta al redirigir al backend. Si cambias
 `APP_PORT` en la API, ajusta también `API_PROXY_TARGET`. Ejemplo en PowerShell
@@ -143,7 +154,10 @@ Abre la URL impresa (por defecto `http://localhost:4173`), revisa `/`, una ruta
 inexistente y el enlace de regreso, y detén el proceso con Ctrl+C al finalizar.
 Vite preview es una herramienta de revisión local, no el servidor de producción.
 
-## Primer acceso — 1.3
+## Primer acceso — 1.3 (flujo histórico retirado)
+
+La descripción siguiente documenta la implementación anterior; sus rutas,
+componentes y contratos ya no están activos.
 
 /first-access es público bajo UnauthenticatedLayout. Lee #token= únicamente en
 memoria y elimina inmediatamente el fragmento con history.replaceState, antes de
@@ -165,7 +179,10 @@ provoca nueva consulta de sesión. Se distinguen errores de token, política y r
 No hay emisión administrativa frontend: se realiza mediante el endpoint mínimo
 hasta 1.6. El restablecimiento es un flujo separado de 1.4; no hay correo automático.
 
-## Restablecimiento — 1.4
+## Restablecimiento — 1.4 (flujo histórico retirado)
+
+La descripción siguiente documenta la implementación anterior; sus rutas,
+componentes y contratos ya no están activos.
 
 /reset-password es público bajo UnauthenticatedLayout. Usa #token= retirado
 inmediatamente y entrada manual. CredentialPasswordForm comparte únicamente

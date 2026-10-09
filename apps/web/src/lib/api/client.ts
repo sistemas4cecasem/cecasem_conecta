@@ -127,7 +127,7 @@ export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'cr
         throw new ApiError(messages[payload.code]!, 409, payload.code);
       }
     }
-    if (response.status === 401 && (!/^\/?auth(?:\/|$)/.test(path) || /^auth\/(first-access-tokens|password-reset-tokens)$/.test(path))) {
+    if (response.status === 401 && (!/^\/?auth(?:\/|$)/.test(path))) {
       window.dispatchEvent(new Event('cecasem:unauthorized'));
     }
     if (response.status === 409 && (path === 'settings/verification' || path === 'settings/reminders')) {
@@ -201,10 +201,10 @@ export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'cr
         }
       } catch (failure) { if (failure instanceof ApiError) throw failure; }
     }
-    if (response.status === 400 && (path === 'auth/first-access' || path === 'auth/password-reset')) {
+    if (response.status === 400 && (/^users\/[^/]+\/(?:password|profile)$/.test(path) || path === 'users')) {
       // Únicamente mensajes públicos conocidos; no reenviar cuerpos arbitrarios.
-      const policyMessage = 'La contraseña nueva debe contener entre 15 y 128 caracteres.';
-      const messages = path === 'auth/password-reset' ? [policyMessage, 'La nueva contraseña debe ser diferente de la contraseña actual.'] : [policyMessage];
+      const policyMessage = 'La contraseña debe tener entre 8 y 128 caracteres, una mayúscula, una minúscula y un símbolo.';
+      const messages = [policyMessage];
       try {
         const payload: unknown = await response.json();
         if (typeof payload === 'object' && payload !== null && 'message' in payload &&

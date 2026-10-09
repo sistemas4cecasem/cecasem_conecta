@@ -1,7 +1,18 @@
 # CECASEM Conecta API
 
-Backend base de las subfases 0.2 y 0.4: NestJS, PostgreSQL y Prisma ORM 7.10.0.
-Incorpora el modelo de identidades de Subfase 1.1. No incluye autenticación ni seeds.
+Backend NestJS con PostgreSQL y Prisma ORM 7.10.0, autenticación por sesiones,
+administración de cuentas y módulos de negocio del monolito.
+
+## Flujo vigente de cuentas
+
+El Administrador crea usuarios con una contraseña inicial validada con mínimo
+8 caracteres, una mayúscula, una minúscula y un símbolo. El login con esa clave
+obliga a establecer una nueva antes de continuar. Restablecer contraseña asigna
+otra clave inicial, revoca las sesiones y vuelve a exigir el cambio. El perfil
+permite corregir nombres, apellidos y correo; el username automático no cambia.
+Los endpoints públicos de primer acceso y restablecimiento por token ya no existen.
+Las tablas de tokens anteriores se conservan para retener historial y revocar
+credenciales que estuvieran pendientes; la aplicación no emite tokens nuevos.
 
 ## Ejecución
 
@@ -14,7 +25,9 @@ yarn dev
 
 Antes de iniciar, debe existir PostgreSQL accesible y `DATABASE_URL` configurada.
 `yarn dev` inicia API y Web mediante sus workspaces; API genera Prisma Client
-antes de arrancar en modo watch.
+antes de arrancar en modo watch. Para el desarrollo con Docker activo, la API del
+host usa el puerto `3001` y se conecta a la base publicada en `localhost:5432`;
+así convive con la Web de Docker publicada en `3000`.
 Para construir y ejecutar el resultado de producción, desde la raíz:
 
 ```sh
@@ -33,7 +46,7 @@ local, usar `.env.example` como referencia; el `.env` real no debe versionarse.
 | Variable | Valor por defecto | Valores aceptados |
 | --- | --- | --- |
 | `NODE_ENV` | `development` | `development`, `test`, `production` |
-| `APP_PORT` | `3000` | Entero entre `1` y `65535` |
+| `APP_PORT` | `3001` | Entero entre `1` y `65535`; evita el puerto `3000` publicado por la Web de Docker |
 | `DATABASE_URL` | Sin valor por defecto | URL `postgresql://` o `postgres://` con host y nombre de base de datos |
 
 Una configuración inválida impide el arranque; no se sustituye silenciosamente
@@ -236,8 +249,9 @@ Primer acceso permite establecerla en 1.3; restablecimiento administrativo la su
 
 Argon2id mediante `argon2`: 65536 KiB, tres iteraciones, paralelismo uno, salt de
 la biblioteca y PHC completo. Se aplica NFC al hash y verificación, sin trim ni
-cambios de espacios/capitalización. La política preparada para nuevas contraseñas
-es 15–128 puntos de código después de NFC. Login permite entradas no vacías con
+cambios de espacios/capitalización. La política vigente para nuevas contraseñas
+es 8–128 puntos de código después de NFC, con una mayúscula, una minúscula y un
+símbolo. Login permite entradas no vacías con
 máximo 128 puntos normalizados y límite previo de 256 unidades UTF-16.
 
 Un hash de referencia se genera una vez por arranque para verificar solicitudes
@@ -327,7 +341,11 @@ no fue visible a JavaScript del frontend y los dos almacenamientos tenían cero
 entradas. Los atributos se validaron también por HTTP/E2E. Se eliminaron el
 fixture y los contenedores auxiliares; no se incorporaron endpoints diagnósticos.
 
-## Primer acceso — 1.3
+## Primer acceso — 1.3 (implementación histórica retirada)
+
+La descripción siguiente registra el diseño anterior. Las rutas de emisión y
+consumo ya no están activas; las tablas solo se conservan para historial y
+revocación de credenciales heredadas.
 
 FirstAccessToken conserva UUID, destinatario userId, emisor createdByUserId,
 tokenHash único, createdAt, expiresAt, usedAt y revokedAt. Ambas relaciones usan
@@ -367,7 +385,7 @@ marca el uso. Establecimiento inicial, consumo, revocación de otros pendientes 
 sesiones se confirman juntos o hacen rollback. Desactivar revoca sesiones y
 tokens en la misma transacción; reactivar no revive credenciales antiguas.
 
-La contraseña respeta NFC, 15–128 puntos de código, Unicode y espacios sin trim.
+La contraseña respeta NFC, 8–128 puntos de código, Unicode y espacios sin trim.
 400 de token inválido/expirado/usado/revocado o usuario no habilitado es uniforme;
 la política de contraseña devuelve un error de validación separado. Sesión
 válida del navegador: 409 sin cambios; cookie ausente/inválida/expirada/revocada
@@ -379,7 +397,10 @@ HTTP completo, regeneración, rollback, sesiones y carreras con barreras. Ejecut
 solo sobre PostgreSQL dedicado terminado en _test. La limpieza elimina únicamente
 UUID propios y sus referencias. No hay seeds permanentes.
 
-## Restablecimiento administrativo — 1.4
+## Restablecimiento administrativo — 1.4 (implementación histórica retirada)
+
+La descripción siguiente registra el diseño anterior. Los endpoints de token ya
+no están activos; la operación actual está documentada arriba en «Flujo vigente de cuentas».
 
 PasswordResetToken es específico: UUID, userId, createdByUserId, tokenHash,
 createdAt, expiresAt, usedAt y revokedAt. Relaciones nombradas con RESTRICT,
@@ -450,9 +471,11 @@ UUID, audit events y referencias, sin reset ni eliminación de volúmenes.
 ## RBAC — Subfase 1.5
 
 `auth/authorization` contiene el catálogo tipado y el único mapa backend de roles.
-Las capabilities actuales son `auth.first_access.issue` y `auth.password_reset.issue`.
-Administrador posee ambas, explícitamente; Directorio, Búsqueda y Planificación
-poseen listas vacías. No hay wildcard, bypass, persistencia de permisos ni nueva migración.
+Las capacidades administrativas vigentes incluyen `users.create`,
+`users.profile.update` y `users.password.reset`; Administrador las posee.
+Las capacidades heredadas `auth.first_access.issue` y `auth.password_reset.issue`
+ya no se conceden ni protegen endpoints publicados. No hay wildcard, bypass ni
+persistencia de permisos.
 
 `@RequirePermissions(...)` exige al menos una capability válida, declara metadata
 de método y aplica `SessionGuard` seguido de `PermissionsGuard`. Los requisitos
@@ -461,11 +484,10 @@ el rol de la identidad vigente y devuelve 403 si faltan. Metadata ausente, vací
 o inválida, o ejecución sin identidad previa, constituye un error de configuración
 que falla con 500 uniforme, sin permitir la operación ni exponer detalles.
 
-Las emisiones `POST /api/v1/auth/first-access-tokens` y
-`POST /api/v1/auth/password-reset-tokens` utilizan sus respectivas capabilities.
-Los servicios conservan la relectura del emisor activo dentro de la operación
-transaccional y consultan el mismo mapa. Una llamada directa con rol desactualizado
-no evita esta defensa. Los rechazos no crean tokens ni eventos de auditoría.
+Las rutas de administración vigentes son `PATCH /api/v1/users/:id/profile` y
+`PATCH /api/v1/users/:id/password`; ambas revalidan al Administrador dentro de
+la transacción. Las rutas antiguas que emitían o consumían tokens ya no están
+registradas en `AuthController`.
 
 Login y `GET /api/v1/auth/me` devuelven `role` y `permissions` junto con la identidad
 pública. Las listas se calculan desde el rol actual, con orden estable y copia

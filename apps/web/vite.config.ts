@@ -8,9 +8,11 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), tailwindcss()],
     server: {
+      port: 5173,
+      strictPort: true,
       proxy: {
         '/api': {
-          target: process.env.API_PROXY_TARGET ?? environment.API_PROXY_TARGET ?? 'http://localhost:3000',
+          target: process.env.API_PROXY_TARGET ?? environment.API_PROXY_TARGET ?? 'http://localhost:3001',
           changeOrigin: true,
         },
       },

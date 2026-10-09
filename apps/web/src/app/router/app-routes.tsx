@@ -10,8 +10,7 @@ import { UnauthenticatedLayout } from '../layout/unauthenticated-layout';
 import { NotFoundPage } from './not-found-page';
 import { AuthenticatedLayout } from '../layout/authenticated-layout';
 import { LoginPage } from '../../features/auth/login-page';
-import { FirstAccessPage } from '../../features/auth/first-access-page';
-import { ResetPasswordPage } from '../../features/auth/reset-password-page';
+import { ChangePasswordPage } from '../../features/auth/change-password-page';
 import { UsersPage } from '../../features/users/users-page';
 import { OrganizationsPage, OrganizationCreationPage } from '../../features/directory/organizations-page';
 import { OrganizationDetailPage } from '../../features/directory/organization-detail-page';
@@ -40,11 +39,10 @@ export function AppRoutes() {
     <Routes>
       <Route element={<UnauthenticatedLayout />}>
         <Route path="login" element={<LoginPage />} />
-        <Route path="first-access" element={<FirstAccessPage />} />
-        <Route path="reset-password" element={<ResetPasswordPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
       <Route element={<AuthenticatedLayout />}>
+        <Route path="change-password" element={<ChangePasswordPage />} />
         <Route path="meetings" element={<MeetingsPage />} />
         <Route path="meetings/new" element={<MeetingCreatePage />} />
         <Route path="meetings/:id" element={<MeetingDetailPage />} />

@@ -32,7 +32,7 @@ describe('Environment configuration', () => {
       ...fileEnvironment({}),
       ...translationEnvironment({}),
       NODE_ENV: 'development',
-      APP_PORT: 3000,
+      APP_PORT: 3001,
       DATABASE_URL: databaseUrl,
       SESSION_TTL_SECONDS: 28800,
       FIRST_ACCESS_TOKEN_TTL_SECONDS: 86400,

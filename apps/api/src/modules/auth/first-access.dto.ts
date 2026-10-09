@@ -14,7 +14,7 @@ export class ConsumeFirstAccessDto {
   @IsString({ message: INVALID_FIRST_ACCESS_MESSAGE })
   token!: string;
 
-  @ApiProperty({ format: 'password', writeOnly: true, minLength: 15, maxLength: 128 })
+  @ApiProperty({ format: 'password', writeOnly: true, minLength: 8, maxLength: 128 })
   @ValidateBy({ name: 'newPassword', validator: { validate: validNewPassword, defaultMessage: () => NEW_PASSWORD_MESSAGE } })
   password!: string;
 }

@@ -1,6 +1,6 @@
-import { BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get, Header, HttpCode, NotFoundException, Post, Req, Res, UnauthorizedException, UnsupportedMediaTypeException, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, ConflictException, Controller, Get, Header, HttpCode, Post, Req, Res, UnauthorizedException, UnsupportedMediaTypeException, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ApiBadRequestResponse, ApiConflictResponse, ApiCookieAuth, ApiCreatedResponse, ApiForbiddenResponse, ApiNoContentResponse, ApiOkResponse, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
+import { ApiCookieAuth, ApiNoContentResponse, ApiOkResponse, ApiTags, ApiUnauthorizedResponse } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { AppEnvironment } from '../../config/environment';
 import { AuthService, InvalidCredentialsError } from './auth.service';
@@ -8,15 +8,11 @@ import { AuthenticatedUserDto, LoginDto } from './auth.dto';
 import { SESSION_COOKIE_NAME, readSessionToken, sessionCookieOptions } from './session-cookie';
 import { CurrentUser, SessionGuard } from './session.guard';
 import { SessionsService } from './sessions.service';
-import { FirstAccessService } from './first-access.service';
-import { ConsumeFirstAccessDto, IssuedFirstAccessDto, IssueFirstAccessDto } from './first-access.dto';
-import { FirstAccessEmissionError, FirstAccessSessionConflictError, InvalidFirstAccessError } from './first-access.errors';
 import { InvalidNewPasswordError } from './password.service';
-import { PasswordResetService } from './password-reset.service';
-import { ConsumePasswordResetDto, IssuedPasswordResetDto, IssuePasswordResetDto } from './password-reset.dto';
-import { InvalidPasswordResetError, PasswordResetEmissionError, PasswordResetSessionConflictError, ReusedPasswordError } from './password-reset.errors';
-import { PERMISSIONS } from './authorization/permission';
-import { RequirePermissions } from './authorization/require-permissions.decorator';
+import { ReusedPasswordError } from './password-reset.errors';
+import { AllowForcedPasswordChange } from './forced-password-change.decorator';
+import { ChangePasswordDto } from './change-password.dto';
+import { RequiredPasswordChangeService, RequiredPasswordChangeUnavailableError } from './required-password-change.service';
 
 function requireJson(request: Request): void {
   if (!request.is('application/json')) throw new UnsupportedMediaTypeException('Se requiere application/json.');
@@ -26,82 +22,7 @@ function requireJson(request: Request): void {
 @Controller('auth')
 export class AuthController {
   constructor(private readonly auth: AuthService, private readonly sessions: SessionsService,
-    private readonly config: ConfigService<AppEnvironment, true>, private readonly firstAccess: FirstAccessService,
-    private readonly passwordReset: PasswordResetService) {}
-
-  @Post('password-reset-tokens')
-  @RequirePermissions(PERMISSIONS.PASSWORD_RESET_ISSUE)
-  @Header('Cache-Control', 'no-store')
-  @ApiCookieAuth('cecasem_session')
-  @ApiCreatedResponse({ type: IssuedPasswordResetDto })
-  @ApiForbiddenResponse()
-  @ApiUnauthorizedResponse()
-  async issuePasswordReset(@Body() input: IssuePasswordResetDto, @CurrentUser() actor: AuthenticatedUserDto,
-    @Req() request: Request): Promise<IssuedPasswordResetDto> {
-    requireJson(request);
-    try { return await this.passwordReset.issue(input.userId, actor); }
-    catch (error) {
-      if (error instanceof PasswordResetEmissionError) {
-        if (error.reason === 'FORBIDDEN') throw new ForbiddenException('Solo un Administrador puede emitir restablecimientos.');
-        if (error.reason === 'NOT_FOUND') throw new NotFoundException('No se encontró el usuario destinatario.');
-        throw new ConflictException(error.reason === 'INACTIVE' ? 'El usuario está inactivo.' : 'El usuario debe completar primero el primer acceso.');
-      }
-      throw error;
-    }
-  }
-
-  @Post('password-reset')
-  @HttpCode(204)
-  @Header('Cache-Control', 'no-store')
-  @ApiNoContentResponse()
-  @ApiBadRequestResponse({ description: 'Credencial no válida, política inválida o contraseña reutilizada.' })
-  @ApiConflictResponse({ description: 'Debe cerrar la sesión abierta.' })
-  async consumePasswordReset(@Body() input: ConsumePasswordResetDto, @Req() request: Request): Promise<void> {
-    requireJson(request);
-    try { await this.passwordReset.consume(input.token, input.password, readSessionToken(request)); }
-    catch (error) {
-      if (error instanceof InvalidPasswordResetError || error instanceof ReusedPasswordError || error instanceof InvalidNewPasswordError) throw new BadRequestException(error.message);
-      if (error instanceof PasswordResetSessionConflictError) throw new ConflictException(error.message);
-      throw error;
-    }
-  }
-
-  @Post('first-access-tokens')
-  @RequirePermissions(PERMISSIONS.FIRST_ACCESS_ISSUE)
-  @Header('Cache-Control', 'no-store')
-  @ApiCookieAuth('cecasem_session')
-  @ApiCreatedResponse({ type: IssuedFirstAccessDto })
-  @ApiForbiddenResponse()
-  @ApiUnauthorizedResponse()
-  async issueFirstAccess(@Body() input: IssueFirstAccessDto, @CurrentUser() actor: AuthenticatedUserDto,
-    @Req() request: Request): Promise<IssuedFirstAccessDto> {
-    requireJson(request);
-    try { return await this.firstAccess.issue(input.userId, actor); }
-    catch (error) {
-      if (error instanceof FirstAccessEmissionError) {
-        if (error.reason === 'FORBIDDEN') throw new ForbiddenException('Solo un Administrador puede emitir primer acceso.');
-        if (error.reason === 'NOT_FOUND') throw new NotFoundException('No se encontró el usuario destinatario.');
-        throw new ConflictException(error.reason === 'INACTIVE' ? 'El usuario está inactivo.' : 'El usuario ya estableció su contraseña.');
-      }
-      throw error;
-    }
-  }
-
-  @Post('first-access')
-  @HttpCode(204)
-  @Header('Cache-Control', 'no-store')
-  @ApiNoContentResponse()
-  @ApiBadRequestResponse({ description: 'Credencial temporal no válida o contraseña fuera de la política.' })
-  @ApiConflictResponse({ description: 'Debe cerrar la sesión abierta.' })
-  async consumeFirstAccess(@Body() input: ConsumeFirstAccessDto, @Req() request: Request): Promise<void> {
-    requireJson(request);
-    try { await this.firstAccess.consume(input.token, input.password, readSessionToken(request)); }
-    catch (error) {
-      if (error instanceof InvalidFirstAccessError || error instanceof InvalidNewPasswordError) throw new BadRequestException(error.message);
-      if (error instanceof FirstAccessSessionConflictError) throw new ConflictException(error.message);
-      throw error;
-    }
-  }
+    private readonly config: ConfigService<AppEnvironment, true>, private readonly requiredPasswordChange: RequiredPasswordChangeService) {}
 
   @Post('login')
   @HttpCode(200)
@@ -123,6 +44,29 @@ export class AuthController {
     }
   }
 
+  @Post('change-password')
+  @HttpCode(204)
+  @UseGuards(SessionGuard)
+  @AllowForcedPasswordChange()
+  @Header('Cache-Control', 'no-store')
+  @ApiCookieAuth('cecasem_session')
+  @ApiNoContentResponse()
+  async changeRequiredPassword(@Body() input: ChangePasswordDto, @CurrentUser() user: AuthenticatedUserDto,
+    @Req() request: Request, @Res({ passthrough: true }) response: Response): Promise<void> {
+    requireJson(request);
+    try {
+      const token = await this.requiredPasswordChange.change(user.id, input.password);
+      response.cookie(SESSION_COOKIE_NAME, token, {
+        ...sessionCookieOptions(this.config.get('SESSION_COOKIE_SECURE', { infer: true })),
+        maxAge: this.config.get('SESSION_TTL_SECONDS', { infer: true }) * 1000,
+      });
+    } catch (error) {
+      if (error instanceof InvalidNewPasswordError || error instanceof ReusedPasswordError) throw new BadRequestException(error.message);
+      if (error instanceof RequiredPasswordChangeUnavailableError) throw new ConflictException(error.message);
+      throw error;
+    }
+  }
+
   @Post('logout')
   @HttpCode(204)
   @Header('Cache-Control', 'no-store')
@@ -135,6 +79,7 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(SessionGuard)
+  @AllowForcedPasswordChange()
   @Header('Cache-Control', 'no-store')
   @ApiCookieAuth('cecasem_session')
   @ApiOkResponse({ type: AuthenticatedUserDto })

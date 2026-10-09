@@ -8,7 +8,7 @@ import { publicIdentity } from './auth.dto';
 
 describe('Authentication boundaries', () => {
   const credential: UserCredentials = { id: 'fixture', givenNames: 'Ana', familyNames: 'Prueba', username: 'ana.prueba',
-    email: 'fixture@example.test', role: UserRole.RESEARCH, isActive: true, passwordHash: 'internal-hash',
+    email: 'fixture@example.test', role: UserRole.RESEARCH, isActive: true, passwordHash: 'internal-hash', mustChangePassword: false,
     createdAt: new Date(), updatedAt: new Date(), deactivatedAt: null };
 
   it.each([null, { ...credential, passwordHash: null }, { ...credential, isActive: false }, credential])(

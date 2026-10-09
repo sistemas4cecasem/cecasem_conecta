@@ -74,6 +74,8 @@ enum AuditAction {
   PASSWORD_RESET_REGENERATED
   PASSWORD_RESET_COMPLETED
   PASSWORD_RESET_REVOKED
+  USER_PASSWORD_RESET
+  USER_PROFILE_UPDATED
   USER_ROLE_CHANGED
   USER_DEACTIVATED
   USER_REACTIVATED
@@ -173,6 +175,7 @@ model User {
   updatedAt     DateTime           @default(now()) @updatedAt @db.Timestamptz(3)
   deactivatedAt DateTime?          @db.Timestamptz(3)
   passwordHash  String?
+  mustChangePassword Boolean       @default(false)
   emailAccounts UserEmailAccount[]
   sessions      UserSession[]
   firstAccessTokens FirstAccessToken[] @relation("FirstAccessRecipient")
@@ -254,6 +257,12 @@ model AuditEvent {
   passwordResetTokenId String?   @db.Uuid
   previousRole         UserRole?
   newRole              UserRole?
+  previousGivenNames   String?   @db.VarChar(150)
+  newGivenNames        String?   @db.VarChar(150)
+  previousFamilyNames  String?   @db.VarChar(150)
+  newFamilyNames       String?   @db.VarChar(150)
+  previousEmail        String?   @db.VarChar(254)
+  newEmail             String?   @db.VarChar(254)
   emailAccountId       String?   @db.Uuid
   organizationId       String?   @db.Uuid
   categoryId           String?   @db.Uuid

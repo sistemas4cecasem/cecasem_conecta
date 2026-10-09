@@ -90,6 +90,22 @@ export class AuditService {
     return tx.auditEvent.create({ data: { action, actorUserId, targetUserId } });
   }
 
+  recordUserPasswordReset(actorUserId: string, targetUserId: string, tx: Prisma.TransactionClient) {
+    return tx.auditEvent.create({ data: { action: AuditAction.USER_PASSWORD_RESET, actorUserId, targetUserId } });
+  }
+
+  recordUserProfileUpdate(actorUserId: string, targetUserId: string,
+    previous: { givenNames: string; familyNames: string; email: string },
+    next: { givenNames: string; familyNames: string; email: string }, tx: Prisma.TransactionClient) {
+    return tx.auditEvent.create({ data: { action: AuditAction.USER_PROFILE_UPDATED, actorUserId, targetUserId,
+      previousGivenNames: previous.givenNames === next.givenNames ? undefined : previous.givenNames,
+      newGivenNames: previous.givenNames === next.givenNames ? undefined : next.givenNames,
+      previousFamilyNames: previous.familyNames === next.familyNames ? undefined : previous.familyNames,
+      newFamilyNames: previous.familyNames === next.familyNames ? undefined : next.familyNames,
+      previousEmail: previous.email === next.email ? undefined : previous.email,
+      newEmail: previous.email === next.email ? undefined : next.email } });
+  }
+
   recordMailbox(action: typeof AuditAction.MAILBOX_ASSIGNED | typeof AuditAction.MAILBOX_REMOVED,
     actorUserId: string, targetUserId: string, emailAccountId: string, tx: Prisma.TransactionClient) {
     return tx.auditEvent.create({ data: { action, actorUserId, targetUserId, emailAccountId } });
