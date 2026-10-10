@@ -69,6 +69,31 @@
 
   .organization-detail .directory-contact-context,
   .organization-detail .directory-episode-context { display: flex; flex-direction: column; gap: 0.625rem; }
+  .organization-people-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; }
+  .organization-person-success,
+  .organization-person-existing-link { border-left: 3px solid var(--color-brand-accent); border-radius: var(--radius-control); padding: 0.625rem 0.75rem; background: var(--color-brand-soft); color: var(--color-app-text); }
+  .organization-person-success a { color: var(--color-brand-primary); font-weight: 600; text-decoration: underline; text-underline-offset: 0.15em; }
+  .organization-person-form { display: grid; gap: 1rem; min-width: 0; border: 1px solid var(--color-app-border); border-radius: var(--radius-control); padding: 1rem; background: var(--color-app-background); }
+  .organization-person-form fieldset { display: grid; gap: 0.75rem; min-width: 0; border: 0; border-top: 1px solid var(--color-app-border); padding: 0.875rem 0 0; }
+  .organization-person-form legend { padding-right: 0.375rem; color: var(--color-brand-primary); font-size: 0.9375rem; font-weight: 600; }
+  .organization-person-mode label { display: flex; align-items: flex-start; gap: 0.5rem; min-height: 2.75rem; }
+  .organization-person-mode input,
+  .organization-person-current input { flex: 0 0 auto; margin-top: 0.25rem; accent-color: var(--color-brand-primary); }
+  .organization-person-picker,
+  .organization-person-identity,
+  .organization-person-episode { display: grid; gap: 0.75rem; min-width: 0; }
+  .organization-person-candidates { display: grid; gap: 0.5rem; max-height: 17rem; min-width: 0; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--color-app-border); border-radius: var(--radius-control); padding: 0.5rem; }
+  .organization-person-candidates > li { min-width: 0; }
+  .organization-person-candidate { display: flex; align-items: flex-start; gap: 0.625rem; min-width: 0; border: 1px solid transparent; border-radius: var(--radius-control); padding: 0.625rem; cursor: pointer; }
+  .organization-person-candidate:has(input:disabled) { cursor: not-allowed; opacity: 0.72; }
+  .organization-person-candidate.is-selected { border-color: var(--color-brand-primary); background: var(--color-brand-soft); }
+  .organization-person-candidate > input { flex: 0 0 auto; margin-top: 0.25rem; accent-color: var(--color-brand-primary); }
+  .organization-person-candidate-copy { display: grid; gap: 0.2rem; min-width: 0; overflow-wrap: anywhere; }
+  .organization-person-candidate-copy > strong { color: var(--color-brand-primary); }
+  .organization-person-selected { display: grid; gap: 0.625rem; min-width: 0; }
+  .organization-person-current { display: flex; align-items: flex-start; gap: 0.5rem; min-height: 2.75rem; }
+  .organization-person-actions { display: flex; flex-wrap: wrap; gap: 0.625rem; }
+  .organization-person-actions > * { flex: 0 1 auto; max-width: 100%; }
   .organization-detail .directory-contact-context > *,
   .organization-detail .directory-episode-context > * { margin-top: 0; }
   .organization-detail .directory-contact-list > li,
@@ -132,6 +157,7 @@
     .organization-detail .organization-episode-details { grid-template-columns: minmax(0, 1fr); }
     .organization-detail .organization-contact-actions > *,
     .organization-detail .organization-episode-actions > *,
+    .organization-person-actions > *,
     .organization-form-actions > *,
     .organization-contact-form-actions > * { flex: 1 1 auto; }
   }

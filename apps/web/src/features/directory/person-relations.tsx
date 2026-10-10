@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { AuthIdentity } from '../auth/session';
 import { apiRequest } from '../../lib/api/client';
-import { relationSchema,relationEndFormSchema,type PersonRelation } from './contracts';
+import { relationSchema,relationEndFormSchema,type Person,type PersonRelation } from './contracts';
 import { useDirectoryMutation,usePersonRelations } from './queries';
 import { Field,inputClass,buttonClass,MutationError,Pagination,QueryState } from './directory-ui';
 import { RelationForm } from './relation-form';
@@ -14,6 +14,7 @@ import { DirectoryHistory } from './directory-history';
 import { DataList, DataListItem } from '../../components/ui/lists';
 import { Button } from '../../components/ui/actions';
 import { FormField, Select } from '../../components/ui/forms';
+import { OrganizationPersonForm } from './organization-person-form';
 
 function RelationCard({identity,row,fromOrganization,readOnly=false,organizationPresentation=false,hideEmptyHistoryPagination=false}:{identity:AuthIdentity;row:PersonRelation;fromOrganization:boolean;readOnly?:boolean;organizationPresentation?:boolean;hideEmptyHistoryPagination?:boolean}) {
   const [editing,setEditing]=useState<PersonRelation|null>(null),[ending,setEnding]=useState<PersonRelation|null>(null),[history,setHistory]=useState(false);
@@ -65,9 +66,16 @@ function RelationCard({identity,row,fromOrganization,readOnly=false,organization
 }
 export function PersonRelations({identity,personId,organizationId,readOnly=false,presentation='default'}:{identity:AuthIdentity;personId?:string;organizationId?:string;readOnly?:boolean;presentation?:'default'|'organization'}) {
   const [status,setStatus]=useState('all'),[page,setPage]=useState(1),[creating,setCreating]=useState(false);
+  const [createdPerson,setCreatedPerson]=useState<Person|null>(null);
   const relations=usePersonRelations(identity,(personId?'people/'+personId+'/relations':'organizations/'+organizationId+'/people')+`?status=${status}&page=${page}`);
   const organizationPresentation=presentation==='organization';
-  return <section className={`space-y-4 ${organizationPresentation?'organization-people-section':''}`}><h2 className="text-xl font-semibold">{personId?'Vínculos institucionales':'Personas vinculadas'}</h2>
+  const canAddOrganizationPerson=!!organizationId&&organizationPresentation&&!readOnly&&identity.permissions.includes('directory.write');
+  return <section className={`space-y-4 ${organizationPresentation?'organization-people-section':''}`}>
+    <div className="organization-people-heading"><h2 className="text-xl font-semibold">{personId?'Vínculos institucionales':'Personas vinculadas'}</h2>
+      {canAddOrganizationPerson&&!creating&&<Button onClick={()=>{setCreatedPerson(null);setCreating(true);}}>Añadir persona</Button>}
+    </div>
+    {createdPerson&&<p className="organization-person-success" role="status">Persona vinculada correctamente. <Link to={'/people/'+createdPerson.id}>Abrir ficha de {createdPerson.displayName}</Link></p>}
+    {creating&&organizationId&&<OrganizationPersonForm identity={identity} organizationId={organizationId} cancel={()=>setCreating(false)} saved={person=>{setCreating(false);setCreatedPerson(person);}}/>}
     {!readOnly&&personId&&identity.permissions.includes('directory.write')&&<Button onClick={()=>setCreating(true)}>Registrar nuevo episodio</Button>}
     {creating&&personId&&<RelationForm identity={identity} personId={personId} saved={()=>setCreating(false)} cancel={()=>setCreating(false)}/>}
     <FormField label="Vigencia de vínculos">{control=><Select {...control} value={status} onChange={e=>{setStatus(e.target.value);setPage(1);}}><option value="all">Vigentes e históricos</option><option value="current">Solo vigentes</option><option value="historical">Solo históricos / finalizados</option></Select>}</FormField>

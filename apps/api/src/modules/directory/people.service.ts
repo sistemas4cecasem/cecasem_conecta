@@ -86,7 +86,10 @@ export class PeopleService {
         if(changes.length) await this.history.record({personId},actorId,changes,tx);
       } else {
         personId=input.personId!;
+        await tx.$queryRaw`SELECT id FROM "Person" WHERE id=${personId}::uuid FOR UPDATE`;
         await this.actors.writable('person',personId,tx);
+        const existingPerson=await this.person(personId,tx);
+        if(!existingPerson.isActive) throw new DirectoryError('PERSON_INACTIVE');
       }
       const episode=await this.createRelationInTransaction(personId,organizationId,relation,actorId,tx);
       return {person:personContract(await this.person(personId,tx)),relation:relationContract(episode)};

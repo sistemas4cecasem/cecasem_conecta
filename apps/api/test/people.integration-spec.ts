@@ -22,7 +22,7 @@ import { AuditService } from '../src/modules/audit/audit.service';
 const databaseUrl=validateDatabaseUrl(process.env.DATABASE_URL);
 if(!new URL(databaseUrl).pathname.endsWith('_test')) throw new Error('Personas requiere una base aislada _test.');
 function barrier(){let release!:()=>void;const promise=new Promise<void>(resolve=>{release=resolve;});return {promise,release};}
-type ContextualPersonResponse={person:{id:string;displayName:string;givenNames:string|null;familyNames:string|null;currentRelationsCount:number;institutionalStatus:string;lastVerifiedAt:string|null};
+type ContextualPersonResponse={person:{id:string;displayName:string;givenNames:string|null;familyNames:string|null;isActive:boolean;currentRelationsCount:number;institutionalStatus:string;lastVerifiedAt:string|null};
   relation:{id:string;personId:string;organizationId:string;isCurrent:boolean;positionTitle:string|null;area:string|null;lastVerifiedAt:string|null}};
 type PeoplePageResponse={total:number;items:Array<{id:string;institutionalStatus:string}>};
 describe('Personas PostgreSQL y HTTP',()=>{
@@ -90,6 +90,35 @@ describe('Personas PostgreSQL y HTTP',()=>{
     expect((await contacts.listActor({personId:withHistory.id},{page:1,pageSize:25})).items).toEqual(expect.arrayContaining([
       expect.objectContaining({id:existingContact.association.id,contactMethodId:existingContact.association.contactMethodId,notes:'Contacto personal conservado'}),
     ]));
+  });
+  it('rechaza personas inactivas sin alterar su ficha ni episodios y permite asociarlas tras reactivación explícita',async()=>{
+    const actor=await fixture(),auth=await cookie(actor),source=await org(actor.id,'Institución histórica'),target=await org(actor.id,'Institución destino');
+    const inactive=await person(actor.id,'Persona reactivada explícitamente');personIds.push(inactive.id);
+    const old=await people.createRelation(inactive.id,{organizationId:source.id,positionTitle:'Asesora',isCurrent:false,startDate:'2020-01-01',endDate:'2022-06-30'},actor.id);
+    await people.status(inactive.id,{isActive:false,expectedVersion:1},actor.id);
+    const inactiveSnapshot=await people.get(inactive.id),oldEpisode=await people.getRelation(old.id);
+    const personHistoryCount=(await people.personHistory(inactive.id,{page:1,pageSize:25})).total;
+    const relationHistoryCount=(await people.relationHistory(old.id,{page:1,pageSize:25})).total;
+    const rejected=await request(app.getHttpServer()).post('/api/v1/organizations/'+target.id+'/people').set('Cookie',auth).send({
+      personMode:'existing',personId:inactive.id,positionTitle:'Directora',isCurrent:true,
+    }).expect(409);
+    expect(rejected.body).toMatchObject({code:'PERSON_INACTIVE',message:'La persona está inactiva. Debe reactivarse antes de asociarla a una organización.'});
+    expect(await prisma.personOrganizationRelation.count({where:{personId:inactive.id}})).toBe(1);
+    expect(await people.get(inactive.id)).toEqual(inactiveSnapshot);
+    expect(await people.getRelation(old.id)).toEqual(oldEpisode);
+    expect((await people.personHistory(inactive.id,{page:1,pageSize:25})).total).toBe(personHistoryCount);
+    expect((await people.relationHistory(old.id,{page:1,pageSize:25})).total).toBe(relationHistoryCount);
+    const reactivated=await request(app.getHttpServer()).patch('/api/v1/people/'+inactive.id+'/status').set('Cookie',auth)
+      .send({isActive:true,expectedVersion:inactiveSnapshot.version}).expect(200);
+    expect(reactivated.body).toMatchObject({id:inactive.id,isActive:true});
+    const associated=await request(app.getHttpServer()).post('/api/v1/organizations/'+target.id+'/people').set('Cookie',auth).send({
+      personMode:'existing',personId:inactive.id,positionTitle:'Directora',isCurrent:true,
+    }).expect(201);
+    const associatedBody=associated.body as ContextualPersonResponse;
+    expect(associatedBody.person).toMatchObject({id:inactive.id,isActive:true,currentRelationsCount:1});
+    expect(await prisma.personOrganizationRelation.count({where:{personId:inactive.id}})).toBe(2);
+    const historicalEpisodeAfterReactivation=await people.getRelation(old.id);
+    expect(historicalEpisodeAfterReactivation).toEqual({...oldEpisode,person:{...oldEpisode.person,isActive:true}});
   });
   it('rollback contextual si falla el episodio o una escritura de historial',async()=>{
     const actor=await fixture(),auth=await cookie(actor),organization=await org(actor.id);
@@ -239,6 +268,32 @@ describe('Personas PostgreSQL y HTTP',()=>{
     const actor=await fixture(),row=await person(actor.id);const results=await Promise.allSettled([
       people.edit(row.id,{displayName:'Primera',expectedVersion:1},actor.id),people.edit(row.id,{displayName:'Segunda',expectedVersion:1},actor.id)]);
     expect(results.filter(result=>result.status==='fulfilled')).toHaveLength(1);expect(results.find(result=>result.status==='rejected')).toMatchObject({reason:{code:'VERSION_CONFLICT'}});expect(await prisma.directoryChange.count()).toBe(1);
+  });
+  it('bloquea la asociación hasta confirmar la desactivación concurrente de la persona',async()=>{
+    const actor=await fixture(),auth=await cookie(actor),row=await person(actor.id),organization=await org(actor.id);
+    const statusEntered=barrier(),releaseStatus=barrier(),originalRecord=history.record.bind(history);
+    jest.spyOn(history,'record').mockImplementation(async(target,actorId,changes,tx)=>{
+      if('personId' in target&&target.personId===row.id&&changes.some(change=>change.field==='isActive')){statusEntered.release();await releaseStatus.promise;}
+      return originalRecord(target,actorId,changes,tx);
+    });
+    const statusPromise=people.status(row.id,{isActive:false,expectedVersion:row.version},actor.id);await statusEntered.promise;
+    const associationPromise=request(app.getHttpServer()).post('/api/v1/organizations/'+organization.id+'/people').set('Cookie',auth).send({
+      personMode:'existing',personId:row.id,positionTitle:'No debe crearse',isCurrent:true,
+    }).then(response=>response);
+    try{
+      const deadline=Date.now()+5000;let blocked=false;
+      while(!blocked&&Date.now()<deadline){
+        const waiting=await prisma.$queryRaw<{count:number}[]>`SELECT count(*)::int AS count FROM pg_stat_activity
+          WHERE datname=current_database() AND application_name='cecasem-conecta-api' AND wait_event_type='Lock'
+          AND query ILIKE '%"Person"%' AND query ILIKE '%FOR UPDATE%'`;
+        blocked=waiting[0].count>0;if(!blocked)await new Promise(resolve=>setTimeout(resolve,25));
+      }
+      expect(blocked).toBe(true);
+    }finally{releaseStatus.release();}
+    await statusPromise;
+    const response=await associationPromise;
+    expect(response.status).toBe(409);expect(response.body).toMatchObject({code:'PERSON_INACTIVE'});
+    expect(await prisma.personOrganizationRelation.count({where:{personId:row.id}})).toBe(0);
   });
   it('barrera determinista: finalización concurrente impide corrección antigua',async()=>{
     const actor=await fixture(),row=await person(actor.id),organization=await org(actor.id),episode=await people.createRelation(row.id,{organizationId:organization.id,isCurrent:true},actor.id);

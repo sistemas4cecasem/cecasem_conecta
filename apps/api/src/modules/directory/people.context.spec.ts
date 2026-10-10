@@ -31,9 +31,12 @@ function episode(data:Record<string,unknown>,state:FakeState):FakeEpisode {
 function contextFixture(options:{people?:FakePerson[];organizations?:FakeOrganization[];episodes?:FakeEpisode[];failEpisode?:boolean;failHistoryAt?:number}={}) {
   let committed:FakeState={people:[...(options.people??[])],organizations:[...(options.organizations??[{id:'org-a',name:'Organización A',isActive:true,duplicateOfId:null},{id:'org-b',name:'Organización B',isActive:true,duplicateOfId:null}])],episodes:[...(options.episodes??[])]};
   let historyCalls=0;
+  const lockQueries:string[]=[];
+  const queryRaw=jest.fn((strings:TemplateStringsArray)=>{lockQueries.push(strings.join('?'));return Promise.resolve([]);});
   const history={record:jest.fn(()=>{historyCalls++;if(historyCalls===options.failHistoryAt)throw new Error('history write failed');return Promise.resolve(randomUUID());})};
   function transaction(state:FakeState) {
     return {
+      $queryRaw:queryRaw,
       organization:{findUnique:jest.fn(({where}:{where:{id:string}})=>Promise.resolve(state.organizations.find(row=>row.id===where.id)??null))},
       person:{
         create:jest.fn(({data}:{data:{displayName:string;givenNames:string|null;familyNames:string|null}})=>{const row=newPerson(randomUUID(),data.displayName);row.givenNames=data.givenNames;row.familyNames=data.familyNames;state.people.push(row);return Promise.resolve({id:row.id});}),
@@ -52,7 +55,7 @@ function contextFixture(options:{people?:FakePerson[];organizations?:FakeOrganiz
   const users={findIdentityById:jest.fn().mockResolvedValue({isActive:true,role:'RESEARCH'})};
   const service=new PeopleService(actors,prisma,users as unknown as UsersService,history as unknown as DirectoryHistoryService,
     {recordDirectory:jest.fn()} as unknown as AuditService,{} as DirectoryService);
-  return {service,history,actors,get state(){return committed;}};
+  return {service,history,actors,lockQueries,get state(){return committed;}};
 }
 
 describe('Alta contextual de persona y clasificación institucional',()=>{
@@ -77,6 +80,18 @@ describe('Alta contextual de persona y clasificación institucional',()=>{
     expect(fixture.state.episodes[0]).toEqual(old);expect(result.person).toMatchObject({id:person.id,currentRelationsCount:1,institutionalStatus:'CURRENT'});
     expect(result.relation).toMatchObject({personId:person.id,organizationId:'org-b',positionTitle:'Directora'});
     expect(fixture.history.record.mock.calls).toHaveLength(1);expect(fixture.actors.writable.mock.calls).toContainEqual(['person',person.id,expect.anything()]);
+  });
+  it('rechaza una persona inactiva bajo bloqueo y conserva ficha, episodios e historial',async()=>{
+    const person=newPerson('person-inactive','Persona inactiva');person.isActive=false;
+    const old:FakeEpisode={id:'episode-old',personId:person.id,organizationId:'org-a',positionTitle:'Asesora',area:null,isCurrent:false,startDate:null,endDate:null,
+      sourceDescription:null,sourceUrl:null,notes:null,version:1,createdAt:stamp,updatedAt:stamp,lastVerifiedAt:null,reconciliationTargets:[],
+      person:{id:person.id,displayName:person.displayName,isActive:false,duplicateOfId:null},organization:{id:'org-a',name:'Organización A',isActive:true,duplicateOfId:null}};
+    const fixture=contextFixture({people:[person],episodes:[old]});
+    await expect(fixture.service.createInOrganization('org-b',{personMode:'existing',personId:person.id,positionTitle:'Directora',isCurrent:true},'actor'))
+      .rejects.toMatchObject({code:'PERSON_INACTIVE'});
+    expect(fixture.lockQueries.some(query=>query.includes('SELECT id FROM "Person"')&&query.includes('FOR UPDATE'))).toBe(true);
+    expect(fixture.state.people).toEqual([person]);expect(fixture.state.episodes).toEqual([old]);
+    expect(fixture.history.record).not.toHaveBeenCalled();
   });
   it.each([
     ['falla el episodio',{failEpisode:true}],['falla el historial del episodio',{failHistoryAt:2}],

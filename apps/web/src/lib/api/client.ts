@@ -165,6 +165,7 @@ export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'cr
       const conflicts: Record<string, string> = {
         DUPLICATE_CANDIDATE_STALE: 'Las fichas cambiaron. Reevalúa la coincidencia antes de decidir.',
         ACTOR_ALREADY_CONSOLIDATED: 'Esta ficha fue consolidada. Abre el registro principal.',
+        PERSON_INACTIVE: 'La persona está inactiva. Debe reactivarse antes de asociarla a una organización.',
         INVALID_CONSOLIDATION_TARGET: 'La selección de principal no es válida o produciría una cadena de consolidación.',
         CONSOLIDATION_VERSION_CONFLICT: 'La vista previa cambió. Recarga, revisa y confirma nuevamente.',
         CONSOLIDATION_HIERARCHY_CONFLICT: 'La consolidación afectaría una matriz, sede o jerarquía. Conserva las fichas separadas.',
