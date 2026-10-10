@@ -5,6 +5,7 @@
   .directory-page .directory-primary-action:hover { background: #18253d; }
   .directory-row-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem 1rem; }
   .directory-row-heading h2 { font-size: 0.9375rem; font-weight: 600; }
+  .directory-person-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; min-width: 0; }
   .directory-page .ui-link-list { display: inline-flex; align-items: center; min-height: 2.75rem; min-width: 0; max-width: 100%; }
   .directory-page .ui-data-list-item { padding-block: 0.625rem; }
   .directory-page .ui-data-list-item > * + * { margin-top: 0.5rem; }

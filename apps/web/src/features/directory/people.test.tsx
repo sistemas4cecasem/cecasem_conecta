@@ -14,10 +14,10 @@ const org={id:'org-a',name:'Organización A',country:null,alias:null,description
 const episode:PersonRelation={id:'episode-a',personId:base.id,organizationId:org.id,positionTitle:'Coordinadora',area:null,isCurrent:true,startDate:null,endDate:null,sourceDescription:null,sourceUrl:null,notes:null,version:1,createdAt:stamp,updatedAt:stamp,person:{id:base.id,displayName:base.displayName,isActive:true},organization:{id:org.id,name:org.name,isActive:true}};
 const page=(items:unknown[],total=items.length)=>({items,total,page:1,pageSize:25});
 describe('Personas y episodios institucionales en UI',()=>{
-  let client=createQueryClient(),actor=identity,row={...base},relations:PersonRelation[]=[],state='ok',detailStatus=200,total=1,conflicting=false,loggedOut=false,contextualFailure=false,contextualDeferred=false,contextualResolve:((response:Response)=>void)|null=null;
+  let client=createQueryClient(),actor=identity,row={...base},peopleRows:Person[]|null=null,relations:PersonRelation[]=[],state='ok',detailStatus=200,total=1,conflicting=false,loggedOut=false,contextualFailure=false,contextualDeferred=false,contextualResolve:((response:Response)=>void)|null=null;
   const fetchMock=vi.fn<(url:string,options?:RequestInit)=>Promise<Response>>();
   beforeEach(()=>{
-    client=createQueryClient();actor={...identity};row={...base};relations=[];state='ok';detailStatus=200;total=1;conflicting=false;loggedOut=false;contextualFailure=false;contextualDeferred=false;contextualResolve=null;fetchMock.mockReset();
+    client=createQueryClient();actor={...identity};row={...base};peopleRows=null;relations=[];state='ok';detailStatus=200;total=1;conflicting=false;loggedOut=false;contextualFailure=false;contextualDeferred=false;contextualResolve=null;fetchMock.mockReset();
     fetchMock.mockImplementation((url,options)=>{
       const path=url.replace('/api/v1/',''),method=options?.method??'GET';
       if (url.includes('/duplicate-candidates?')) return Promise.resolve(Response.json({items:[],total:0,page:1,pageSize:25}));
@@ -28,7 +28,19 @@ describe('Personas y episodios institucionales en UI',()=>{
       if(path.startsWith('people?')){
         if(state==='pending')return new Promise<Response>(()=>undefined);
         if(state==='error')return Promise.resolve(new Response(null,{status:500}));
-        return Promise.resolve(Response.json(page(state==='empty'?[]:[row],state==='empty'?0:total)));
+        const query=new URLSearchParams(path.split('?')[1]??''),statusFilter=query.get('status')??'active',institutionalFilter=query.get('institutionalStatus')??'all';
+        const allPeople=peopleRows??[row],matching=state==='empty'?[]:allPeople.filter(person=>{
+          const personRelations=relations.filter(relation=>relation.personId===person.id),hasCurrent=person.currentRelationsCount>0||personRelations.some(relation=>relation.isCurrent);
+          const hasHistory=personRelations.some(relation=>!relation.isCurrent)||person.institutionalStatus==='HISTORICAL_ONLY';
+          const matchesStatus=statusFilter==='all'||(statusFilter==='active'?person.isActive:!person.isActive);
+          const matchesInstitutionalStatus=institutionalFilter==='all'||(institutionalFilter==='without-current'&&!hasCurrent)||
+            (institutionalFilter==='none'&&!hasCurrent&&!hasHistory)||(institutionalFilter==='historical-only'&&!hasCurrent&&hasHistory)||
+            (institutionalFilter==='current'&&hasCurrent);
+          const name=query.get('name')?.toLocaleLowerCase()??'';
+          return matchesStatus&&matchesInstitutionalStatus&&person.displayName.toLocaleLowerCase().includes(name);
+        });
+        const requestedPage=Number(query.get('page')??1),pageSize=Number(query.get('pageSize')??25),responseTotal=peopleRows===null?(state==='empty'?0:total):matching.length;
+        return Promise.resolve(Response.json({items:matching.slice((requestedPage-1)*pageSize,requestedPage*pageSize),total:responseTotal,page:requestedPage,pageSize}));
       }
       if(path.startsWith('organizations?'))return Promise.resolve(Response.json(page([org,{...org,id:'org-b',name:'Organización B'}])));
       if(path.includes('/children'))return Promise.resolve(Response.json(page([])));
@@ -80,34 +92,63 @@ describe('Personas y episodios institucionales en UI',()=>{
   afterEach(()=>{client.clear();vi.unstubAllGlobals();});
   function app(path='/people'){return render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[path]}><AppRoutes/></MemoryRouter></QueryClientProvider>);}
   it('UI 2.4 conserva título y creación sin duplicar navegación',async()=>{
-    app();await screen.findByRole('link',{name:row.displayName});
+    const user=userEvent.setup();app();await screen.findByRole('link',{name:row.displayName});
     expect(screen.getByRole('heading',{level:1,name:'Personas externas'})).toBeVisible();
+    expect(screen.getByText(/sin vínculos institucionales vigentes, con o sin episodios históricos/i)).toBeVisible();
     expect(screen.getByRole('link',{name:'Crear persona'})).toHaveAttribute('href','/people/new');
     expect(within(screen.getByRole('main')).queryByRole('link',{name:'Organizaciones del directorio'})).not.toBeInTheDocument();
     expect(screen.getAllByRole('link',{name:'Organizaciones'}).every(link=>link.getAttribute('href')==='/organizations')).toBe(true);
+    await user.click(screen.getByRole('link',{name:row.displayName}));expect(await screen.findByRole('heading',{name:row.displayName})).toBeVisible();
   });
   it('UI 2.4 lectura sin escritura no ofrece creación',async()=>{
     actor={...identity,permissions:['directory.read']};app();await screen.findByRole('link',{name:row.displayName});
     expect(screen.queryByRole('link',{name:'Crear persona'})).not.toBeInTheDocument();
   });
-  it('UI 2.4 preserva conteo de vínculos y estado sin inventar organización o cargo',async()=>{
-    row={...base,currentRelationsCount:3,isActive:false};app();await screen.findByRole('link',{name:row.displayName});
+  it('incluye personas sin episodios y con historia, y excluye las que tienen cualquier vínculo vigente',async()=>{
+    const withoutEpisodes={...base,id:'without-episodes',displayName:'Persona sin episodios',institutionalStatus:'NO_KNOWN_LINKS' as const};
+    const historicalOnly={...base,id:'historical-only',displayName:'Persona con historia',institutionalStatus:'HISTORICAL_ONLY' as const};
+    const currentOnly={...base,id:'current-only',displayName:'Persona con vínculo vigente',currentRelationsCount:1,institutionalStatus:'CURRENT' as const};
+    const historicalAndCurrent={...base,id:'historical-and-current',displayName:'Persona con historia y vínculo vigente',currentRelationsCount:1,institutionalStatus:'CURRENT' as const};
+    peopleRows=[withoutEpisodes,historicalOnly,currentOnly,historicalAndCurrent];
+    relations=[
+      {...episode,id:'historical-only-episode',personId:historicalOnly.id,isCurrent:false,organizationId:'org-b'},
+      {...episode,id:'current-only-episode',personId:currentOnly.id},
+      {...episode,id:'historical-episode',personId:historicalAndCurrent.id,isCurrent:false,organizationId:'org-b'},
+      {...episode,id:'current-episode',personId:historicalAndCurrent.id},
+    ];
+    app();
+    expect(await screen.findByRole('link',{name:withoutEpisodes.displayName})).toHaveAttribute('href','/people/without-episodes');
+    expect(await screen.findByRole('link',{name:historicalOnly.displayName})).toHaveAttribute('href','/people/historical-only');
+    expect(screen.getByText('Sin episodios institucionales registrados')).toBeVisible();
+    expect(screen.getByText('Con antecedentes institucionales · sin vínculos vigentes')).toBeVisible();
+    expect(screen.queryByRole('link',{name:currentOnly.displayName})).not.toBeInTheDocument();
+    expect(screen.queryByRole('link',{name:historicalAndCurrent.displayName})).not.toBeInTheDocument();
+    expect(screen.getByText('2 personas')).toBeVisible();
+    expect(fetchMock.mock.calls.some(([url])=>url.includes('institutionalStatus=without-current'))).toBe(true);
+  });
+  it('muestra la situación histórica de una ficha inactiva sin confundirla con su estado institucional',async()=>{
+    row={...base,id:'inactive-historical',displayName:'Persona inactiva con historia',isActive:false,institutionalStatus:'HISTORICAL_ONLY'};
+    peopleRows=[row];relations=[{...episode,id:'inactive-history',personId:row.id,isCurrent:false,person:{...episode.person,id:row.id,displayName:row.displayName,isActive:false}}];
+    const user=userEvent.setup();app();
+    expect(await screen.findByText('No hay personas externas que coincidan.')).toBeVisible();
+    await user.selectOptions(screen.getByLabelText('Estado'),'inactive');
     const result=within(screen.getByRole('region',{name:'Resultados de personas'}));
-    expect(result.getByText('3 vínculos vigentes')).toBeVisible();expect(result.getByText('Inactiva')).toBeVisible();
-    expect(result.getByRole('link',{name:row.displayName})).toHaveAttribute('href','/people/person');
-    expect(result.queryByText(org.name)).not.toBeInTheDocument();
+    expect(await result.findByRole('link',{name:row.displayName})).toBeVisible();
+    expect(result.getByText('Ficha inactiva')).toBeVisible();
+    expect(result.getByText('Con antecedentes institucionales · sin vínculos vigentes')).toBeVisible();
+    expect(fetchMock.mock.calls.some(([url])=>url.includes('status=inactive&institutionalStatus=without-current'))).toBe(true);
   });
   it('UI 2.4 nombre y estado reinician página sin introducir parámetros URL',async()=>{
     total=26;const user=userEvent.setup();app();await screen.findByRole('link',{name:row.displayName});
     await user.click(screen.getByRole('button',{name:'Siguiente'}));
     await user.type(screen.getByLabelText('Filtrar personas por nombre'),'Ana');
-    await waitFor(()=>expect(fetchMock.mock.calls.some(([url])=>url.includes('people?page=1&name=Ana&status=active'))).toBe(true));
+    await waitFor(()=>expect(fetchMock.mock.calls.some(([url])=>url.includes('people?page=1&name=Ana&status=active&institutionalStatus=without-current'))).toBe(true));
     await user.selectOptions(screen.getByLabelText('Estado'),'all');
-    await waitFor(()=>expect(fetchMock.mock.calls.some(([url])=>url.includes('people?page=1&name=Ana&status=all'))).toBe(true));
+    await waitFor(()=>expect(fetchMock.mock.calls.some(([url])=>url.includes('people?page=1&name=Ana&status=all&institutionalStatus=without-current'))).toBe(true));
   });
   it('lista personas y solicita paginación backend, sin descargar todo',async()=>{
     total=26;const user=userEvent.setup();app();await screen.findByRole('link',{name:'Ana QA'});await user.click(screen.getByRole('button',{name:'Siguiente'}));
-    await waitFor(()=>expect(fetchMock.mock.calls.some(([url])=>url.includes('page=2'))).toBe(true));
+    await waitFor(()=>expect(fetchMock.mock.calls.some(([url])=>url.includes('page=2')&&url.includes('institutionalStatus=without-current'))).toBe(true));
   });
   it('mantiene Directorio activo al abrir una ficha de persona',async()=>{
     app('/people/person');await screen.findByRole('heading',{name:'Ana QA'});
@@ -115,7 +156,7 @@ describe('Personas y episodios institucionales en UI',()=>{
   });
   it.each(['pending','empty','error'])('listado representa %s',async mode=>{
     state=mode;app();if(mode==='pending')expect(await screen.findByText('Cargando…')).toBeVisible();
-    if(mode==='empty')expect(await screen.findByText('No hay personas que coincidan.')).toBeVisible();
+    if(mode==='empty')expect(await screen.findByText('No hay personas externas que coincidan.')).toBeVisible();
     if(mode==='error'){expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo cargar');state='ok';await userEvent.setup().click(screen.getByRole('button',{name:'Reintentar'}));expect(await screen.findByRole('link',{name:'Ana QA'})).toBeVisible();}
   });
   it('crea independiente con solo presentación e invalida directorio',async()=>{
@@ -179,6 +220,37 @@ describe('Personas y episodios institucionales en UI',()=>{
     expect(calls).toHaveLength(1);const body=JSON.parse(String(calls[0]?.[1]?.body));
     expect(body).toMatchObject({personMode:'new',person:{displayName:'Lucía Contextual',givenNames:'Lucía',familyNames:'Paz'},positionTitle:'Directora',isCurrent:true,startDate:null,endDate:null});
     expect(body).not.toHaveProperty('organizationId');expect(body).not.toHaveProperty('personId');
+  });
+  it('retira del listado externo a la persona tras asociarla y conserva su ficha e historial',async()=>{
+    row={...base,institutionalStatus:'HISTORICAL_ONLY'};
+    const oldEpisode={...episode,id:'old-context',personId:row.id,isCurrent:false,positionTitle:'Asesora'};
+    relations=[oldEpisode];peopleRows=[row];
+    const externalPeoplePath='people?page=1&name=&status=active&institutionalStatus=without-current';
+    client.setQueryData(['directory',actor.id,'people',externalPeoplePath],page([row]));
+    const externalList=app('/people');
+    expect(await screen.findByRole('link',{name:row.displayName})).toBeVisible();
+    externalList.unmount();
+
+    const user=userEvent.setup(),organizationView=app('/organizations/org-a');
+    await user.click(await screen.findByRole('button',{name:'Añadir persona'}));
+    await user.click(screen.getByRole('radio',{name:'Seleccionar persona existente'}));
+    await user.click(await screen.findByRole('radio',{name:/Ana QA/}));
+    await user.type(screen.getByLabelText('Cargo institucional (opcional)'),'Directora');
+    await user.click(screen.getByRole('button',{name:'Vincular persona'}));
+    expect(await screen.findByText('Persona vinculada correctamente.')).toBeVisible();
+    expect(await screen.findByText('Vigente · Cargo: Directora')).toBeVisible();
+    expect(screen.getByText('Histórico / finalizado · Cargo: Asesora')).toBeVisible();
+    expect(relations).toHaveLength(2);expect(relations[0]).toMatchObject({id:oldEpisode.id,isCurrent:false,positionTitle:'Asesora'});
+    organizationView.unmount();
+
+    const listRequestCount=fetchMock.mock.calls.filter(([url])=>url.includes(externalPeoplePath)).length;
+    const externalListAfterAssociation=app('/people');expect(await screen.findByText('No hay personas externas que coincidan.')).toBeVisible();
+    await waitFor(()=>expect(fetchMock.mock.calls.filter(([url])=>url.includes(externalPeoplePath)).length).toBeGreaterThan(listRequestCount));
+    externalListAfterAssociation.unmount();
+    app('/people/person');
+    expect(await screen.findByRole('heading',{name:row.displayName})).toBeVisible();
+    expect(await screen.findByText('Vigente · Cargo: Directora')).toBeVisible();
+    expect(screen.getByText('Histórico / finalizado · Cargo: Asesora')).toBeVisible();
   });
   it('busca personas con todos los estados y añade episodio sin sobrescribir datos ni borrar históricos',async()=>{
     row={...base,currentRelationsCount:1,institutionalStatus:'CURRENT'};relations=[episode,{...episode,id:'old-context',isCurrent:false,positionTitle:'Asesora'}];
