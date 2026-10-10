@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeNavigationRoute, AUTHENTICATED_NAVIGATION, NAVIGATION_GROUPS, type NavigationItem, visibleNavigationItems } from './navigation';
+import { activeNavigationContext, activeNavigationRoute, AUTHENTICATED_NAVIGATION, NAVIGATION_GROUPS, type NavigationItem, visibleNavigationItems } from './navigation';
 
 // Estos destinos son datos de prueba, no rutas del producto.
 const items: readonly NavigationItem[] = [
@@ -28,8 +28,13 @@ describe('Filtrado de navegación por capabilities recibidas', () => {
   });
   it('expone los accesos del Directorio con su permiso de lectura existente', () => {
     const visible = visibleNavigationItems(AUTHENTICATED_NAVIGATION, ['directory.read']);
-    expect(visible.map(item => item.to)).toEqual(['/', '/organizations', '/people', '/directory/search', '/organizations/categories', '/admin/exports']);
+    expect(visible.map(item => item.to)).toEqual(['/', '/organizations', '/people', '/admin/exports']);
     expect(visible.every(item => !item.requiredPermission || item.requiredPermission === 'directory.read')).toBe(true);
+  });
+  it('limita el grupo Directorio a Organizaciones y Personas externas', () => {
+    expect(NAVIGATION_GROUPS.find(group => group.label === 'Directorio')?.routes).toEqual(['/organizations', '/people']);
+    expect(AUTHENTICATED_NAVIGATION.filter(item => ['/organizations', '/people'].includes(item.to)).map(item => item.label))
+      .toEqual(['Organizaciones', 'Personas externas']);
   });
   it('agrupa cada destino una sola vez sin añadir rutas al catálogo', () => {
     const routes = NAVIGATION_GROUPS.flatMap(group => [...group.routes]);
@@ -38,12 +43,21 @@ describe('Filtrado de navegación por capabilities recibidas', () => {
   });
   it.each([
     ['/organizations/fixture', '/organizations'], ['/people/fixture', '/people'],
-    ['/directory/search', '/directory/search'], ['/organizations/categories', '/organizations/categories'],
+    ['/directory/search', undefined], ['/organizations/categories', '/organizations'],
     ['/contact-methods/fixture', '/organizations'], ['/communications/fixture', '/relationship-processes'],
     ['/relationship-processes/fixture/communications/sent', '/relationship-processes'],
     ['/contact-intents/fixture', '/contact-intents'], ['/opportunities/fixture', '/opportunities'],
     ['/meetings/fixture', '/meetings'], ['/', '/'], ['/unknown', undefined],
   ])('mantiene contexto activo de %s sin cambiar la URL', (pathname, expected) => {
     expect(activeNavigationRoute(pathname)).toBe(expected);
+  });
+  it.each([
+    ['/directory/search', 'Búsqueda'], ['/organizations/categories', 'Categorías'], ['/organizations/fixture', 'Organizaciones'],
+  ])('conserva el contexto de la ruta %s sin mostrarla como entrada del sidebar', (pathname, expected) => {
+    expect(activeNavigationContext(pathname, ['directory.read'])).toBe(expected);
+  });
+  it('no revela contexto de Directorio a una identidad sin permiso de lectura', () => {
+    expect(activeNavigationContext('/directory/search', [])).toBeUndefined();
+    expect(activeNavigationContext('/organizations/categories', [])).toBeUndefined();
   });
 });

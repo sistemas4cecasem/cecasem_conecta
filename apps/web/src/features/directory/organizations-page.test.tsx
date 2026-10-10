@@ -46,13 +46,22 @@ describe('UI 2.3 listado de organizaciones', () => {
     expect(screen.getByRole('link', { name: 'Crear organización' })).toHaveAttribute('href', '/organizations/new');
     expect(screen.getByText('Consulta y administra las organizaciones registradas.')).toBeVisible();
   });
-  it('conserva los accesos globales sin duplicarlos en el contenido', async () => {
+  it('limita el grupo Directorio a sus dos destinos principales', async () => {
     view(); await screen.findByRole('link', { name: row.name });
-    const main = within(screen.getByRole('main'));
-    for (const [label, href] of [['Búsqueda', '/directory/search'], ['Categorías', '/organizations/categories'], ['Personas externas', '/people']]) {
-      expect(screen.getAllByRole('link', { name: label }).every(link => link.getAttribute('href') === href)).toBe(true);
-      expect(main.queryByRole('link', { name: label })).not.toBeInTheDocument();
+    const directories = screen.getAllByRole('region', { name: 'Directorio' });
+    expect(directories).toHaveLength(2);
+    for (const directory of directories) {
+      expect(within(directory).getAllByRole('link').map(link => link.textContent?.trim())).toEqual(['Organizaciones', 'Personas externas']);
+      expect(within(directory).queryByRole('link', { name: 'Búsqueda' })).not.toBeInTheDocument();
+      expect(within(directory).queryByRole('link', { name: 'Categorías' })).not.toBeInTheDocument();
+      expect(within(directory).getByRole('link', { name: 'Organizaciones' })).toHaveAttribute('href', '/organizations');
+      expect(within(directory).getByRole('link', { name: 'Personas externas' })).toHaveAttribute('href', '/people');
     }
+  });
+  it('mantiene la administración de categorías en el formulario contextual de organizaciones', async () => {
+    view('/organizations/new');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Crear organización' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Mantener categorías' })).toHaveAttribute('href', '/organizations/categories');
   });
   it('muestra lectura sin creación cuando no tiene directory.write', async () => {
     identity = { ...baseIdentity, role: 'PLANNING', permissions: ['directory.read'] }; view();

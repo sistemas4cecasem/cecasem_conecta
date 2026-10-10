@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 import { ApiError, apiRequest } from '../../lib/api/client';
 import { AUTH_QUERY_KEY, useSession } from '../../features/auth/session';
 import { ApplicationFrame } from './application-frame';
-import { activeNavigationRoute, AUTHENTICATED_NAVIGATION, visibleNavigationItems } from '../router/navigation';
+import { activeNavigationContext, AUTHENTICATED_NAVIGATION, visibleNavigationItems } from '../router/navigation';
 import { ShellNavigation } from './shell-navigation';
 import { clearForbiddenAdministration } from '../../features/users/administration-cache';
 import { clearForbiddenDirectory } from '../../features/directory/queries';
@@ -73,7 +73,7 @@ export function AuthenticatedLayout() {
     return <ApplicationFrame pathname={location.pathname} context="Cambiar contraseña"><Outlet /></ApplicationFrame>;
   }
   const navigationItems = visibleNavigationItems(AUTHENTICATED_NAVIGATION, session.data.permissions);
-  const context = navigationItems.find(item => item.to === activeNavigationRoute(location.pathname))?.label
+  const context = activeNavigationContext(location.pathname, session.data.permissions)
     ?? (location.pathname === '/notifications' ? 'Notificaciones' : 'CECASEM Conecta');
   return <ApplicationFrame pathname={location.pathname} context={context}
     navigation={<ShellNavigation items={navigationItems} pathname={location.pathname} />}
