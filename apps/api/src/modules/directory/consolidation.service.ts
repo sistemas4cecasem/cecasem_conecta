@@ -38,7 +38,7 @@ export class ConsolidationService {
   private async actor(kind: DuplicateKind, id: string, tx: Prisma.TransactionClient) {
     if (kind === 'organization') {
       const row = await tx.organization.findUniqueOrThrow({ where: { id }, include: {
-        parent: { select: labelSelect }, children: { select: labelSelect, orderBy: { id: 'asc' } },
+        branchOf: { select: labelSelect }, branches: { select: labelSelect, orderBy: { id: 'asc' } },
         consolidatedRecords: { select: labelSelect, orderBy: { id: 'asc' } },
         categories: { include: { category: { select: { id: true, name: true, isActive: true } } }, orderBy: { categoryId: 'asc' } },
         contacts: { include: contactInclude, orderBy: { id: 'asc' } },
@@ -67,13 +67,13 @@ export class ConsolidationService {
     const blockers: string[] = [];
     if (duplicate.consolidatedRecords.length) blockers.push('INVALID_CONSOLIDATION_TARGET');
     if (principal.kind === 'organization' && duplicate.kind === 'organization') {
-      // Conservador: no mover sedes ni colapsar matrices; sus FK históricas quedan intactas.
-      if (duplicate.children.length || principal.parentId !== duplicate.parentId) blockers.push('CONSOLIDATION_HIERARCHY_CONFLICT');
+      // Conservador: no mover sedes ni colapsar organizaciones asociadas a una sede.
+      if (duplicate.branches.length || principal.branchOfId !== duplicate.branchOfId) blockers.push('CONSOLIDATION_HIERARCHY_CONFLICT');
       for (const start of [principal, duplicate]) {
-        const seen = new Set<string>(); let next = start.parentId;
+        const seen = new Set<string>(); let next = start.branchOfId;
         while (next) {
           if (seen.has(next) || next === principal.id || next === duplicate.id) { blockers.push('CONSOLIDATION_HIERARCHY_CONFLICT'); break; }
-          seen.add(next); next = (await tx.organization.findUniqueOrThrow({ where: { id: next }, select: { parentId: true } })).parentId;
+          seen.add(next); next = (await tx.organization.findUniqueOrThrow({ where: { id: next }, select: { branchOfId: true } })).branchOfId;
         }
       }
     }

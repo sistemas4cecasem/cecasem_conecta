@@ -1,82 +1,82 @@
-import { DuplicatePanel } from './duplicate-panel';
-import { VerificationPanel } from './verification-panel';
 import { useRef, useState } from 'react';
-import { useParams } from 'react-router';
+import { Link, NavLink, Outlet, useParams } from 'react-router';
 import { useSession } from '../auth/session';
 import { organizationSchema, type Organization } from './contracts';
-import { useDirectoryMutation, useOrganization, useOrganizations } from './queries';
-import { MutationError, Pagination, QueryState } from './directory-ui';
-import { dateLabel } from './date-label';
-import { ActionLink as Link, Button } from '../../components/ui/actions';
+import { useDirectoryMutation, useOrganization } from './queries';
+import { MutationError, QueryState } from './directory-ui';
+import { ActionLink, Button } from '../../components/ui/actions';
 import { PageHeader, Surface } from '../../components/ui/layout';
 import { Alert, ConfirmationPanel, StatusBadge } from '../../components/ui/feedback';
-import { Metadata } from '../../components/ui/lists';
-import './directory-detail.css';
 import { OrganizationForm } from './organization-form';
-import { DirectoryHistory } from './directory-history';
-import { PersonRelations } from './person-relations';
-import { ContactSection } from './contact-section';
+import { type OrganizationWorkspaceContext } from './organization-workspace-context';
+import './directory-detail.css';
 import './organization-presentation.css';
+
+const sections = [
+  { label: 'Resumen', path: '.', end: true },
+  { label: 'Personas', path: 'people' },
+  { label: 'Contactos', path: 'contacts' },
+  { label: 'Sedes', path: 'locations' },
+  { label: 'Control', path: 'control' },
+] as const;
+
 export function OrganizationDetailPage() {
-  const { id = '' } = useParams(); const session = useSession(); const identity = session.data;
+  const { id = '' } = useParams();
+  const identity = useSession().data;
   const statusAction = useRef<HTMLButtonElement>(null);
-  const detail = useOrganization(identity, id); const mutation = useDirectoryMutation(identity);
-  const [editing, setEditing] = useState<Organization | null>(null); const [page, setPage] = useState(1); const [confirmStatusChange, setConfirmStatusChange] = useState(false);
-  const children = useOrganizations(identity, `organizations/${id}/children?status=all&page=${page}`);
+  const detail = useOrganization(identity, id);
+  const mutation = useDirectoryMutation(identity);
+  const [editing, setEditing] = useState<Organization | null>(null);
+  const [creatingBranch, setCreatingBranch] = useState(false);
+  const [confirmStatusChange, setConfirmStatusChange] = useState(false);
+
   if (!identity?.permissions.includes('directory.read')) return <p role="alert">No tienes permiso para consultar el directorio.</p>;
-  if (!detail.data) return <section className="space-y-4"><Link className="inline-flex min-h-11 items-center underline" to="/organizations">Volver al directorio</Link>
+  if (!detail.data) return <section className="space-y-4"><ActionLink appearance="list" to="/organizations">Volver al directorio</ActionLink>
     <QueryState pending={detail.isPending} error={detail.isError} failure={detail.error} retry={detail.refetch} /></section>;
-  const row = detail.data;
+
+  const organization = detail.data;
   async function changeStatus() {
     try {
-      organizationSchema.parse(await mutation.mutateAsync({ path: 'organizations/' + id + '/status', method: 'PATCH', body: { isActive: !row.isActive, expectedVersion: row.version } }));
+      organizationSchema.parse(await mutation.mutateAsync({ path: 'organizations/' + id + '/status', method: 'PATCH',
+        body: { isActive: !organization.isActive, expectedVersion: organization.version } }));
       setConfirmStatusChange(false);
-    } catch { /* Mostrar error y conservar la confirmación. */ }
+    } catch { /* El error visible conserva la confirmación. */ }
   }
-  if (editing) return <section className="organization-form-page">
-    <PageHeader eyebrow="Directorio / Organizaciones" title="Editar organización" />
-    <Surface className="organization-form-surface"><OrganizationForm identity={identity} initial={editing} saved={() => setEditing(null)} cancel={() => setEditing(null)}
-      reload={async () => {
-        const response = await detail.refetch();
-        if (!response.isSuccess) return undefined;
-        setEditing(response.data); return response.data;
-      }} /></Surface></section>;
-  return <section className="directory-detail organization-detail">
-    <Link className="inline-flex min-h-11 items-center underline" to="/organizations">Volver al directorio</Link>
-    <PageHeader eyebrow="Directorio / Organizaciones" title={row.name}
-      metadata={<StatusBadge tone={row.isActive?'success':'neutral'}>{row.isActive?'Activa':'Inactiva'}</StatusBadge>}
-      actions={<>{!row.duplicateOfId && identity.permissions.includes('directory.write') && <Button onClick={() => setEditing(row)}>Editar ficha</Button>}
-      {!row.duplicateOfId && identity.permissions.includes('directory.status.update') && <Button ref={statusAction} variant="ghost" disabled={mutation.isPending} onClick={() => { mutation.reset(); setConfirmStatusChange(true); }}>{row.isActive ? 'Desactivar organización' : 'Reactivar organización'}</Button>}</>} />
-    {row.dataImportBatch && <Alert role="status" tone="info">Dato importado desde Excel · pendiente de verificación · lote {row.dataImportBatch.id} · {row.dataImportBatch.originalFilename}</Alert>}
-    {row.duplicateOf && <Alert role="status" tone="warning">Este registro fue consolidado en: <Link className="underline" to={'/organizations/'+row.duplicateOf.id}>{row.duplicateOf.name}</Link>. Su historial permanece disponible.</Alert>}
-    {!!row.consolidatedRecords?.length && <p>Fichas consolidadas: {row.consolidatedRecords.map(item=><Link key={item.id} className="inline-flex min-h-11 items-center px-2 underline" to={'/organizations/'+item.id}>{item.name}</Link>)}</p>}
 
-    {!row.duplicateOfId && identity.permissions.includes('directory.status.update') && confirmStatusChange && <ConfirmationPanel role="group" title={row.isActive ? 'Confirmar desactivación de organización' : 'Confirmar reactivación de organización'}>
-      <p>{row.isActive ? 'La ficha quedará inactiva. Sus datos y gestiones históricas se conservarán; podrás reactivarla después.' : 'La ficha volverá a estar activa para nuevas gestiones. Su historial se conservará.'}</p>
-      <div className="flex flex-wrap gap-3"><Button disabled={mutation.isPending || !!mutation.error} onClick={() => void changeStatus()}>{mutation.isPending ? 'Actualizando…' : row.isActive ? 'Confirmar desactivación' : 'Confirmar reactivación'}</Button>
+  return <section className="directory-detail organization-detail organization-workspace">
+    <ActionLink appearance="list" to="/organizations">Volver a Organizaciones</ActionLink>
+    <PageHeader eyebrow="Directorio / Organizaciones" title={organization.name}
+      metadata={<div className="organization-header-metadata">
+        <StatusBadge tone={organization.isActive ? 'success' : 'neutral'}>{organization.isActive ? 'Activa' : 'Inactiva'}</StatusBadge>
+        {organization.country && <span>{organization.country}</span>}
+      </div>}
+      actions={<>{!organization.duplicateOfId && identity.permissions.includes('directory.write') && <Button onClick={() => setEditing(organization)}>Editar ficha</Button>}
+        {!organization.duplicateOfId && identity.permissions.includes('directory.status.update') && <Button ref={statusAction} variant="ghost" disabled={mutation.isPending}
+          onClick={() => { mutation.reset(); setConfirmStatusChange(true); }}>{organization.isActive ? 'Desactivar organización' : 'Reactivar organización'}</Button>}</>} />
+
+    {organization.dataImportBatch && <Alert role="status" tone="info">Dato importado desde Excel · pendiente de verificación · lote {organization.dataImportBatch.id} · {organization.dataImportBatch.originalFilename}</Alert>}
+    {organization.duplicateOf && <Alert role="status" tone="warning">Este registro fue consolidado en: <Link className="underline" to={'/organizations/' + organization.duplicateOf.id}>{organization.duplicateOf.name}</Link>. Su historial permanece disponible.</Alert>}
+    {!!organization.consolidatedRecords?.length && <p>Fichas consolidadas: {organization.consolidatedRecords.map(item => <Link key={item.id} className="inline-flex min-h-11 items-center px-2 underline" to={'/organizations/' + item.id}>{item.name}</Link>)}</p>}
+
+    {!organization.duplicateOfId && identity.permissions.includes('directory.status.update') && confirmStatusChange && <ConfirmationPanel role="group"
+      title={organization.isActive ? 'Confirmar desactivación de organización' : 'Confirmar reactivación de organización'}>
+      <p>{organization.isActive ? 'La ficha quedará inactiva. Sus datos y gestiones históricas se conservarán; podrás reactivarla después.' : 'La ficha volverá a estar activa para nuevas gestiones. Su historial se conservará.'}</p>
+      <div className="flex flex-wrap gap-3"><Button disabled={mutation.isPending || !!mutation.error} onClick={() => void changeStatus()}>
+        {mutation.isPending ? 'Actualizando…' : organization.isActive ? 'Confirmar desactivación' : 'Confirmar reactivación'}</Button>
         <Button disabled={mutation.isPending} onClick={() => { setConfirmStatusChange(false); statusAction.current?.focus(); }}>Volver sin cambiar estado</Button></div>
     </ConfirmationPanel>}
     <MutationError modern error={mutation.error} reload={async () => { await detail.refetch(); mutation.reset(); }} />
-    <div className="directory-detail-main">
-    <Surface heading="Información institucional" className="directory-detail-summary"><Metadata items={[
-      {label:'País',value:row.country??'Sin dato'}, {label:'Sigla/nombre alternativo',value:row.alias??'Sin dato'},
-      {label:'Descripción',value:row.description??'Sin dato'}, {label:'Sitio oficial',value:row.officialWebsite??'Sin dato'},
-      {label:'Organización matriz',value:row.parent?<Link to={'/organizations/'+row.parent.id}>{row.parent.name}</Link>:'Sin matriz'},
-      {label:'Categorías',value:row.categories.map(category=>category.name+(category.isActive?'':' (inactiva)')).join(', ')||'Sin categorías'},
-      {label:'Creación',value:<time dateTime={row.createdAt}>{dateLabel(row.createdAt)}</time>},
-      {label:'Modificación',value:<time dateTime={row.updatedAt}>{dateLabel(row.updatedAt)}</time>}
-    ]}/></Surface>
-    <Surface className="directory-detail-verification"><VerificationPanel modern compactActionLabels hideEmptyHistoryPagination identity={identity} readOnly={!!row.duplicateOfId} lastVerifiedAtFallback={row.lastVerifiedAt} path={'organizations/'+id} label={'organización '+row.name}/></Surface>
-    <Surface className="directory-detail-contacts"><ContactSection key={'contacts-'+id} identity={identity} actorPath={'organizations/'+id} readOnly={!!row.duplicateOfId} presentation="organization"/></Surface>
-    </div>
-    <Surface className="space-y-3"><h2 className="text-xl font-semibold">Sedes y representaciones</h2>
-      <QueryState pending={children.isPending} error={children.isError} retry={children.refetch} />
-      {children.data?.total === 0 && <p>No tiene sedes registradas.</p>}
-      <ul>{children.data?.items.map(child => <li key={child.id}><Link className="inline-flex min-h-11 items-center underline" to={'/organizations/' + child.id}>{child.name}</Link>{!child.isActive && ' (inactiva)'}</li>)}</ul>
-      {children.data && children.data.total > 0 && <Pagination page={page} total={children.data.total} onPage={setPage} />}
-    </Surface>
-    <Surface className="organization-detail-relations"><PersonRelations key={'people-'+id} identity={identity} organizationId={id} readOnly={!!row.duplicateOfId} presentation="organization"/></Surface>
-    <Surface className="directory-detail-duplicates"><DuplicatePanel key={'duplicates-'+id} identity={identity} actorPath={'organizations/'+id} hideEmptyPagination/></Surface>
-    {identity.permissions.includes('directory.history.read') && <Surface className="directory-detail-history"><DirectoryHistory modern key={id} identity={identity} path={'organizations/' + id + '/history'} hideEmptyPagination /></Surface>}
+
+    <nav className="organization-section-nav" aria-label="Secciones de la organización">
+      {sections.map(section => <NavLink key={section.label} to={section.path} end={'end' in section ? section.end : undefined}
+        className={({ isActive }) => isActive ? 'organization-section-link is-active' : 'organization-section-link'}>{section.label}</NavLink>)}
+    </nav>
+
+    {(editing || creatingBranch) ? <Surface className="organization-workspace-content organization-form-surface" heading={editing ? 'Editar ficha institucional' : 'Añadir sede o representación'}>
+      <OrganizationForm identity={identity} initial={editing ?? undefined} branchOfId={creatingBranch ? id : undefined}
+        saved={() => { setEditing(null); setCreatingBranch(false); }} cancel={() => { setEditing(null); setCreatingBranch(false); }}
+        reload={async () => { const response = await detail.refetch(); if (!response.isSuccess) return undefined; setEditing(response.data); return response.data; }} />
+    </Surface> : <div className="organization-workspace-content"><Outlet context={{ identity, organization, readOnly: !!organization.duplicateOfId,
+      addBranch: () => setCreatingBranch(true) } satisfies OrganizationWorkspaceContext} /></div>}
   </section>;
 }

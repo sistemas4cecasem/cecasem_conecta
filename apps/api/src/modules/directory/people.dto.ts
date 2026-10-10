@@ -19,6 +19,8 @@ export class PeopleQueryDto extends PageQueryDto {
 }
 export class RelationsQueryDto extends PageQueryDto {
   @ApiPropertyOptional({ enum: ['current','historical','all'], default:'all' }) @IsIn(['current','historical','all']) status: 'current' | 'historical' | 'all' = 'all';
+  @ApiPropertyOptional({ maxLength: 250, description:'Busca por nombre de persona vinculada, sin distinguir mayúsculas.' })
+  @Transform(trim) @ValidateIf((_o,v) => v !== undefined) @IsString() @MaxLength(250) name?: string;
 }
 export class RelationFieldsDto {
   @ApiPropertyOptional({ nullable:true }) @Transform(trim) @ValidateIf((_o,v) => v != null) @IsString() @MaxLength(250) positionTitle?: string | null;

@@ -11,7 +11,7 @@ import { clearForbiddenDirectory } from './queries';
 const identity: AuthIdentity = { id: 'qa52', givenNames: 'QA', familyNames: 'Filtros', username: 'qa52', email: 'qa52@example.test', role: 'PLANNING', permissions: ['directory.read', 'relationships.process.read', 'communications.read'] };
 const categoryId = '11111111-1111-4111-8111-111111111111', stamp = '2026-10-05T00:00:00Z';
 const category = { id: categoryId, name: 'Educación', version: 1, isActive: true, createdAt: stamp, updatedAt: stamp };
-const row = { id: 'org52', name: 'Organización Bolivia', country: 'Bolivia', alias: null, description: null, officialWebsite: null, parentId: null, parent: null, isActive: true, version: 1, categories: [category], createdAt: stamp, updatedAt: stamp, lastVerifiedAt: null };
+const row = { id: 'org52', name: 'Organización Bolivia', country: 'Bolivia', alias: null, description: null, officialWebsite: null, branchOfId: null, branchOf: null, isActive: true, version: 1, categories: [category], createdAt: stamp, updatedAt: stamp, lastVerifiedAt: null };
 function Location() {
   const location = useLocation(), navigate = useNavigate();
   return <><output aria-label="URL actual">{location.pathname + location.search}</output><button onClick={() => navigate(-1)}>Volver filtro</button><button onClick={() => navigate(1)}>Avanzar filtro</button></>;
@@ -37,13 +37,21 @@ describe('5.2 controles, URL y caché de filtros', () => {
     }); vi.stubGlobal('fetch', fetchMock);
   });
   afterEach(() => { client.clear(); vi.unstubAllGlobals(); });
-  function view(route = '/organizations') { return render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[route]}><Location /><AppRoutes /></MemoryRouter></QueryClientProvider>); }
+  function view(route = '/organizations', openFilters = true) {
+    const result = render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[route]}><Location /><AppRoutes /></MemoryRouter></QueryClientProvider>);
+    if (openFilters && route.startsWith('/organizations')) {
+      const toggle = screen.getByRole('button', { name: /^Filtros/ });
+      if (toggle.getAttribute('aria-expanded') === 'false') fireEvent.click(toggle);
+    }
+    return result;
+  }
   const calls = () => fetchMock.mock.calls.filter(([url]) => url.includes('/organizations?'));
   const last = () => new URL(calls().at(-1)![0], 'http://localhost').searchParams;
   const results = () => within(screen.getByRole('region', { name: 'Resultados de organizaciones' }));
   it('restaura cinco filtros y página al abrir URL compartida', async () => {
     view('/organizations?country=Bolivia&categoryId=' + categoryId + '&status=all&verificationStatus=REVIEW_DUE&withCommunications=false&page=2');
     await screen.findByRole('link', { name: 'Segunda página' });
+    expect(screen.getByRole('button', { name: 'Filtros, 4 activos' })).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByLabelText('País')).toHaveValue('Bolivia'); expect(screen.getByLabelText('Categoría')).toHaveValue(categoryId);
     expect(screen.getByLabelText('Estado')).toHaveValue('all'); expect(screen.getByLabelText('Condición de verificación')).toHaveValue('REVIEW_DUE'); expect(screen.getByLabelText('Comunicaciones externas')).toHaveValue('false');
     expect(last().get('page')).toBe('2'); expect(last().get('withCommunications')).toBe('false');
@@ -65,6 +73,19 @@ describe('5.2 controles, URL y caché de filtros', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Avanzar filtro' })); await screen.findByText('No hay organizaciones para estos filtros.');
     fireEvent.change(screen.getByLabelText('País'), { target: { value: '' } }); await waitFor(() => expect(screen.getByLabelText('URL actual').textContent).not.toContain('country='));
   });
+  it('abre automáticamente el panel al restaurar filtros con navegación atrás/adelante', async () => {
+    view('/organizations', false); await screen.findByRole('link', { name: row.name });
+    const toggle = screen.getByRole('button', { name: 'Filtros' }); expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await userEvent.click(toggle); fireEvent.change(screen.getByLabelText('País'), { target: { value: 'Bolivia' } });
+    await waitFor(() => expect(screen.getByLabelText('URL actual')).toHaveTextContent('country=Bolivia'));
+    await userEvent.click(toggle); expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await userEvent.click(screen.getByRole('button', { name: 'Volver filtro' }));
+    await waitFor(() => expect(screen.getByLabelText('URL actual')).not.toHaveTextContent('country=Bolivia'));
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await userEvent.click(screen.getByRole('button', { name: 'Avanzar filtro' }));
+    await waitFor(() => expect(screen.getByLabelText('URL actual')).toHaveTextContent('country=Bolivia'));
+    expect(toggle).toHaveAttribute('aria-expanded', 'true'); expect(screen.getByLabelText('País')).toHaveValue('Bolivia');
+  });
   it('cambiar filtro reinicia página, paginar conserva criterios', async () => {
     total = 26; view('/organizations?country=Bolivia&withCommunications=true'); await screen.findByRole('link', { name: row.name });
     await userEvent.click(results().getByRole('button', { name: 'Siguiente' })); await screen.findByRole('link', { name: 'Segunda página' }); expect(last().get('withCommunications')).toBe('true');
@@ -72,7 +93,7 @@ describe('5.2 controles, URL y caché de filtros', () => {
   });
   it('carga nueva no muestra resultados anteriores y error permite reintentar conservando filtros', async () => {
     view(); await screen.findByRole('link', { name: row.name }); mode = 'pending'; fireEvent.change(screen.getByLabelText('País'), { target: { value: 'Bolivia' } });
-    expect(await results().findByText('Cargando…')).toBeVisible(); expect(screen.queryByRole('link', { name: row.name })).not.toBeInTheDocument();
+    expect(await results().findByText('Cargando organizaciones…')).toBeVisible(); expect(screen.queryByRole('link', { name: row.name })).not.toBeInTheDocument();
     mode = 'error'; await userEvent.selectOptions(screen.getByLabelText('Condición de verificación'), 'CURRENT'); await waitFor(() => expect(results().getByRole('alert')).toBeVisible());
     mode = 'ok'; await userEvent.click(results().getByRole('button', { name: 'Reintentar' })); expect(await screen.findByRole('link', { name: row.name })).toBeVisible(); expect(screen.getByLabelText('País')).toHaveValue('Bolivia');
   });

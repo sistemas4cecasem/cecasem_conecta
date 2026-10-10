@@ -81,7 +81,7 @@ describe('Restricciones explícitas PostgreSQL/HTTP', () => {
     const audit = await prisma.auditEvent.findFirstOrThrow({ where: { contactRestrictionId: row.id }, include: { contactRestriction: true } });
     expect(audit).toMatchObject({ action: 'CONTACT_RESTRICTION_CREATED', actorUserId: owner.id, contactRestriction: { reason: row.reason, organizationId: goal.organizationId } });
   });
-  it.each(Object.values(UserRole))('%s levantamiento según matriz', async role => {
+  it.each(Object.values(UserRole))('%s levantamiento según rol', async role => {
     const owner = await actor(UserRole.RESEARCH), other = await actor(role), row = await register(owner), allowed = role === 'ADMINISTRATOR' || role === 'BOARD';
     const response = await restrictionPost(other.cookie, { expectedVersion: 1, reason: 'Decisión autorizada' }, '/' + row.id + '/lift').expect(allowed ? 201 : 403);
     if (allowed) {
@@ -108,10 +108,10 @@ describe('Restricciones explícitas PostgreSQL/HTTP', () => {
     const newer = await restrictions().create({ ...goal, reason: 'Nueva solicitud expresa' }, owner.id);
     expect(newer.id).not.toBe(row.id);
   });
-  it('no propaga a matriz, sede o antiguos vínculos personales', async () => {
-    const owner = await actor(), parent = await target(owner.id), child = await app.get(DirectoryService).createOrganization({ name: 'Sede QA', parentId: parent.organizationId }, owner.id);
+  it('no propaga entre organizaciones asociadas, sedes o antiguos vínculos personales', async () => {
+    const owner = await actor(), organization = await target(owner.id), child = await app.get(DirectoryService).createOrganization({ name: 'Sede QA', branchOfId: organization.organizationId }, owner.id);
     orgIds.push(child.id);
-    await restrictions().create({ ...parent, reason: 'Solo matriz' }, owner.id);
+    await restrictions().create({ ...organization, reason: 'Solo esta organización' }, owner.id);
     await processes.create({ organizationId: child.id, purpose: 'Sede con objetivo propio' }, owner.id);
     const person = await target(owner.id, 'person');
     await app.get(PeopleService).createRelation(person.personId!, { organizationId: child.id, isCurrent: false }, owner.id);

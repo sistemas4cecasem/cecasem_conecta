@@ -26,8 +26,8 @@ export function usePeople(identity:AuthIdentity|null|undefined,path:string,activ
   return useQuery({queryKey:['directory',identity?.id,'people',path],enabled:active&&!!identity?.permissions.includes('directory.read'),
     queryFn:async({signal})=>pageSchema(personSchema).parse(await apiRequest(path,{signal})),retry:false});
 }
-export function usePerson(identity:AuthIdentity|null|undefined,id:string) {
-  return useQuery({queryKey:['directory',identity?.id,'person',id],enabled:!!identity?.permissions.includes('directory.read'),
+export function usePerson(identity:AuthIdentity|null|undefined,id:string|undefined) {
+  return useQuery({queryKey:['directory',identity?.id,'person',id],enabled:!!id&&!!identity?.permissions.includes('directory.read'),
     queryFn:async({signal})=>personSchema.parse(await apiRequest('people/'+id,{signal})),retry:false});
 }
 export function usePersonRelations(identity:AuthIdentity|null|undefined,path:string,active=true) {

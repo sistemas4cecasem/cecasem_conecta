@@ -82,19 +82,19 @@ async function representative(client) {
   await client.query('INSERT INTO "AuditEvent" (action,"actorUserId","targetUserId","passwordResetTokenId") VALUES ($1,$2,$3,$4)', ['PASSWORD_RESET_ISSUED', actor, user, reset]);
   await client.query('INSERT INTO "AuditEvent" (action,"actorUserId","targetUserId","emailAccountId") VALUES ($1,$2,$3,$4)', ['MAILBOX_ASSIGNED', actor, user, account]);
   if (!phase21) {
-    const parent=randomUUID(),child=randomUUID(),category=randomUUID(),operation=randomUUID();
-    await client.query('INSERT INTO "Organization" (id,name) VALUES ($1,$2)',[parent,'Matriz QA']);
-    await client.query('INSERT INTO "Organization" (id,name,"parentId",version,country) VALUES ($1,$2,$3,2,$4)',[child,'Sede QA',parent,'Bolivia']);
+    const branchOwner=randomUUID(),branch=randomUUID(),category=randomUUID(),operation=randomUUID();
+    await client.query('INSERT INTO "Organization" (id,name) VALUES ($1,$2)',[branchOwner,'Organización referente QA']);
+    await client.query('INSERT INTO "Organization" (id,name,"branchOfId",version,country) VALUES ($1,$2,$3,2,$4)',[branch,'Sede QA',branchOwner,'Bolivia']);
     await client.query('INSERT INTO "Category" (id,name,"normalizedName") VALUES ($1,$2,$3)',[category,'Categoría QA','categoría qa']);
-    await client.query('INSERT INTO "OrganizationCategory" ("organizationId","categoryId") VALUES ($1,$2)',[child,category]);
-    await client.query('INSERT INTO "DirectoryChange" ("organizationId","actorUserId","operationId",field,"previousValue","newValue") VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb)',[child,actor,operation,'country','null','"Bolivia"']);
-    await client.query('INSERT INTO "AuditEvent" (action,"actorUserId","organizationId","operationId") VALUES ($1,$2,$3,$4)',['ORGANIZATION_UPDATED',actor,child,operation]);
+    await client.query('INSERT INTO "OrganizationCategory" ("organizationId","categoryId") VALUES ($1,$2)',[branch,category]);
+    await client.query('INSERT INTO "DirectoryChange" ("organizationId","actorUserId","operationId",field,"previousValue","newValue") VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb)',[branch,actor,operation,'country','null','"Bolivia"']);
+    await client.query('INSERT INTO "AuditEvent" (action,"actorUserId","organizationId","operationId") VALUES ($1,$2,$3,$4)',['ORGANIZATION_UPDATED',actor,branch,operation]);
     if (!phase22) {
       const independent=randomUUID(),person=randomUUID(),past=randomUUID(),current=randomUUID(),personOperation=randomUUID(),relationOperation=randomUUID();
       await client.query('INSERT INTO "Person" (id,"displayName") VALUES ($1,$2)',[independent,'Independiente QA']);
       await client.query('INSERT INTO "Person" (id,"displayName","givenNames",version) VALUES ($1,$2,$3,2)',[person,'Persona QA','QA']);
-      await client.query('INSERT INTO "PersonOrganizationRelation" (id,"personId","organizationId","positionTitle","isCurrent","startDate","endDate") VALUES ($1,$2,$3,$4,false,$5,$6)',[past,person,child,'Coordinadora','2024-01-01','2025-01-01']);
-      await client.query('INSERT INTO "PersonOrganizationRelation" (id,"personId","organizationId","positionTitle",version,"sourceDescription") VALUES ($1,$2,$3,$4,2,$5)',[current,person,child,'Directora','Documento QA']);
+      await client.query('INSERT INTO "PersonOrganizationRelation" (id,"personId","organizationId","positionTitle","isCurrent","startDate","endDate") VALUES ($1,$2,$3,$4,false,$5,$6)',[past,person,branch,'Coordinadora','2024-01-01','2025-01-01']);
+      await client.query('INSERT INTO "PersonOrganizationRelation" (id,"personId","organizationId","positionTitle",version,"sourceDescription") VALUES ($1,$2,$3,$4,2,$5)',[current,person,branch,'Directora','Documento QA']);
       await client.query('INSERT INTO "DirectoryChange" ("personId","actorUserId","operationId",field,"previousValue","newValue") VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb)',[person,actor,personOperation,'givenNames','null','"QA"']);
       await client.query('INSERT INTO "DirectoryChange" ("personRelationId","actorUserId","operationId",field,"previousValue","newValue") VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb)',[current,actor,relationOperation,'positionTitle','"Coordinadora"','"Directora"']);
       await client.query('INSERT INTO "AuditEvent" (action,"actorUserId","personId","operationId") VALUES ($1,$2,$3,$4)',['PERSON_UPDATED',actor,person,personOperation]);
@@ -103,14 +103,14 @@ async function representative(client) {
         const contact=randomUUID(),personContact=randomUUID(),organizationContact=randomUUID(),contactOperation=randomUUID();
         await client.query('INSERT INTO "ContactMethod" (id,type,value,"normalizedValue",condition,version) VALUES ($1,$2,$3,$3,$4,3)',[contact,'EMAIL','fixture@example.test','UNUSABLE']);
         await client.query('INSERT INTO "PersonContact" (id,"personId","contactMethodId","isActive",version,"sourceDescription") VALUES ($1,$2,$3,false,2,$4)',[personContact,person,contact,'Fuente personal']);
-        await client.query('INSERT INTO "OrganizationContact" (id,"organizationId","contactMethodId","sourceDescription") VALUES ($1,$2,$3,$4)',[organizationContact,child,contact,'Fuente institucional']);
+        await client.query('INSERT INTO "OrganizationContact" (id,"organizationId","contactMethodId","sourceDescription") VALUES ($1,$2,$3,$4)',[organizationContact,branch,contact,'Fuente institucional']);
         await client.query('INSERT INTO "DirectoryChange" ("personContactId","actorUserId","operationId",field,"previousValue","newValue") VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb)',[personContact,actor,contactOperation,'isActive','true','false']);
         await client.query('INSERT INTO "AuditEvent" (action,"actorUserId","personContactId","operationId") VALUES ($1,$2,$3,$4)',['CONTACT_ASSOCIATION_ENDED',actor,personContact,contactOperation]);
         if (phase25 || phase26) {
           const frozen = { previous: [], next: [], related: [{ id: person, kind: 'person', label: 'Persona histórica QA' }, { id: contact, kind: 'contactMethod', label: 'fixture@example.test' }], replacement: null };
           await client.query('UPDATE "DirectoryChange" SET "referenceSnapshot"=$1::jsonb WHERE "operationId"=$2', [JSON.stringify(frozen), contactOperation]);
           if (phase26) {
-            for (const [column,id,version,valueVersion] of [['organizationId',child,2,null],['personId',person,2,null],['personRelationId',current,2,null],['personContactId',personContact,2,1],['organizationContactId',organizationContact,1,1]]) {
+            for (const [column,id,version,valueVersion] of [['organizationId',branch,2,null],['personId',person,2,null],['personRelationId',current,2,null],['personContactId',personContact,2,1],['organizationContactId',organizationContact,1,1]]) {
               await client.query('INSERT INTO "Verification" ("'+column+'","actorUserId","objectVersion","contactValueVersion","sourceDescription") VALUES ($1,$2,$3,$4,$5)',[id,actor,version,valueVersion,'Corroboración previa QA']);
             }
             await client.query('UPDATE "VerificationSettings" SET "personalVerificationMonths"=8,"institutionalVerificationMonths"=14,version=2');
@@ -123,7 +123,7 @@ async function representative(client) {
 }
 async function verify(client,withFixtures=false) {
   assert.equal(Number((await client.query('SELECT count(*) AS count FROM "_prisma_migrations" WHERE finished_at IS NOT NULL')).rows[0].count), targetCount);
-  const checks = (await client.query("SELECT conname FROM pg_constraint WHERE conname IN ('Organization_parent_check','DirectoryChange_target_check','AuditEvent_action_fields_check')")).rows;
+  const checks = (await client.query("SELECT conname FROM pg_constraint WHERE conname IN ('Organization_branchOf_check','DirectoryChange_target_check','AuditEvent_action_fields_check')")).rows;
   assert.equal(checks.length, 3);
   if (!phase21) {
     if (phase22) assert.equal(Number((await client.query('SELECT count(*) AS count FROM "Person"')).rows[0].count),0);

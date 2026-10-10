@@ -5,7 +5,7 @@ describe('XLSX export workbook', () => {
   it('opens the structured organization workbook with literal formula-like text, blanks, filters and stable headers', async () => {
     const rows: NonNullable<ExportRows['organizations']> = [{
       id: 'org-1', name: '=HYPERLINK("https://example.test")', alias: '+cmd', country: '-1+1', isActive: true,
-      parent: null, categories: [{ category: { id: 'cat-1', name: '@TEST' } }], contacts: [], createdAt: new Date('2026-10-06T10:15:30.000Z'),
+      branchOf: null, categories: [{ category: { id: 'cat-1', name: '@TEST' } }], contacts: [], createdAt: new Date('2026-10-06T10:15:30.000Z'),
       updatedAt: new Date('2026-10-06T12:30:00.000Z'), lastVerifiedAt: null, verificationStatus: 'NEVER_VERIFIED',
       dataImportBatchId: null, dataImportBatch: null,
     }];

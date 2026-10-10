@@ -11,24 +11,25 @@ import type { Organization } from './contracts';
 const stamp = '2026-10-07T00:00:00Z';
 const category = { id: '11111111-1111-4111-8111-111111111111', name: 'Educación', isActive: true, version: 1, createdAt: stamp, updatedAt: stamp };
 const organization = { id: 'org-ui23', name: 'Organización institucional', country: 'Bolivia', alias: null, description: null, officialWebsite: null,
-  isActive: true, parentId: 'parent', parent: { id: 'parent', name: 'Matriz institucional', isActive: true }, categories: [category], version: 1, createdAt: stamp, updatedAt: stamp, lastVerifiedAt: null };
+  isActive: true, branchOfId: 'branch-owner', branchOf: { id: 'branch-owner', name: 'Organización regional', isActive: true }, categories: [category], version: 1, createdAt: stamp, updatedAt: stamp, lastVerifiedAt: null };
 const baseIdentity: AuthIdentity = { id: 'ui23', givenNames: 'QA', familyNames: 'Directorio', username: 'ui23', email: 'qa@example.test', role: 'ADMINISTRATOR',
   permissions: ['directory.read', 'directory.write', 'relationships.process.read', 'communications.read'] };
 function Location() { return <output aria-label="URL actual">{useLocation().search}</output>; }
 
 describe('UI 2.3 listado de organizaciones', () => {
-  let client = createQueryClient(), identity = baseIdentity, mode = 'ok', total = 1;
+  let client = createQueryClient(), identity = baseIdentity, mode = 'ok', total = 1, includeInactive = false;
   let row: Organization = organization;
   const fetchMock = vi.fn<(url: string) => Promise<Response>>();
   beforeEach(() => {
-    client = createQueryClient(); identity = baseIdentity; mode = 'ok'; total = 1; row = organization;
+    client = createQueryClient(); identity = baseIdentity; mode = 'ok'; total = 1; includeInactive = false; row = organization;
     fetchMock.mockReset(); fetchMock.mockImplementation(url => {
       if (url.endsWith('/auth/me')) return Promise.resolve(Response.json(identity));
       if (url.includes('/categories?')) return Promise.resolve(Response.json({ items: [category], total: 1, page: 1, pageSize: 25 }));
       if (url.includes('/organizations?')) {
         if (mode === 'pending') return new Promise(() => undefined);
         if (mode === 'error') return Promise.resolve(new Response(null, { status: 500 }));
-        return Promise.resolve(Response.json({ items: mode === 'empty' ? [] : [row], total: mode === 'empty' ? 0 : total, page: 1, pageSize: 25 }));
+        const items = mode === 'empty' ? [] : includeInactive ? [row, { ...row, id: 'org-inactive', name: 'Organización inactiva', isActive: false }] : [row];
+        return Promise.resolve(Response.json({ items, total: mode === 'empty' ? 0 : includeInactive ? 2 : total, page: 1, pageSize: 25 }));
       }
       return Promise.reject(new Error('Ruta inesperada: ' + url));
     }); vi.stubGlobal('fetch', fetchMock);
@@ -39,12 +40,34 @@ describe('UI 2.3 listado de organizaciones', () => {
     render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[path]}><Location /><AppRoutes /></MemoryRouter></QueryClientProvider>);
   }
   const results = () => within(screen.getByRole('region', { name: 'Resultados de organizaciones' }));
+  async function openFilters() {
+    const toggle = screen.getByRole('button', { name: /^Filtros/ });
+    if (toggle.getAttribute('aria-expanded') === 'false') await userEvent.click(toggle);
+  }
 
   it('presenta contexto, título único y creación con la ruta original', async () => {
     view(); expect(await screen.findByRole('heading', { level: 1, name: 'Organizaciones' })).toBeVisible();
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Crear organización' })).toHaveAttribute('href', '/organizations/new');
     expect(screen.getByText('Consulta y administra las organizaciones registradas.')).toBeVisible();
+  });
+  it('consulta todas las organizaciones por defecto y mantiene los filtros avanzados cerrados', async () => {
+    includeInactive = true; view();
+    expect(await screen.findByRole('link', { name: row.name })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Organización inactiva' })).toBeVisible();
+    expect(results().getByText('2 organizaciones registradas')).toBeVisible();
+    expect(fetchMock.mock.calls.find(([url]) => url.includes('/organizations?'))?.[0]).toContain('status=all');
+    expect(screen.getByLabelText('URL actual')).toHaveTextContent('');
+    const toggle = screen.getByRole('button', { name: 'Filtros' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(document.getElementById('organization-filters-panel')).toHaveAttribute('hidden');
+    expect(screen.queryByRole('button', { name: 'Limpiar filtros' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Estado: Todas')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'País' })).not.toBeInTheDocument();
+    await userEvent.click(toggle);
+    expect(screen.getByLabelText('Estado')).toHaveValue('all');
+    await userEvent.click(toggle);
+    expect(document.getElementById('organization-filters-panel')).toHaveAttribute('hidden');
   });
   it('limita el grupo Directorio a sus dos destinos principales', async () => {
     view(); await screen.findByRole('link', { name: row.name });
@@ -66,17 +89,18 @@ describe('UI 2.3 listado de organizaciones', () => {
   it('muestra lectura sin creación cuando no tiene directory.write', async () => {
     identity = { ...baseIdentity, role: 'PLANNING', permissions: ['directory.read'] }; view();
     expect(await screen.findByRole('link', { name: row.name })).toBeVisible();
+    await openFilters();
     expect(screen.queryByRole('link', { name: 'Crear organización' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Comunicaciones externas')).not.toBeInTheDocument();
   });
-  it('presenta enlace, estado, país, categorías y matriz en una lista semántica', async () => {
+  it('presenta enlace, estado, país, categorías y organización de la sede en una lista semántica', async () => {
     view(); const link = await screen.findByRole('link', { name: row.name });
     expect(link).toHaveAttribute('href', '/organizations/org-ui23');
-    const item = within(results().getByRole('listitem'));
-    for (const text of ['Activa', 'Bolivia', 'Educación', 'Matriz institucional']) expect(item.getByText(text)).toBeVisible();
+    const item = within(document.querySelector('.organizations-results .organizations-list > li')!);
+    for (const text of ['Activa', 'Bolivia', 'Educación', 'Sede de', 'Organización regional']) expect(item.getByText(text)).toBeVisible();
   });
   it('mantiene los fallbacks y el estado inactivo sin depender del color', async () => {
-    row = { ...organization, country: null, parent: null, categories: [], isActive: false }; view('/organizations?status=inactive');
+    row = { ...organization, country: null, branchOf: null, categories: [], isActive: false }; view('/organizations?status=inactive');
     await screen.findByRole('link', { name: row.name });
     for (const text of ['Inactiva', 'País sin registrar', 'Sin categorías']) expect(results().getByText(text)).toBeVisible();
   });
@@ -87,16 +111,37 @@ describe('UI 2.3 listado de organizaciones', () => {
     await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url.includes('name=Horizonte') && url.includes('page=1'))).toBe(true));
     await userEvent.click(screen.getByRole('button', { name: 'Limpiar filtros' }));
     expect(screen.getByLabelText('URL actual')).toHaveTextContent('?page=1&context=retain&name=Horizonte');
-    expect(screen.getByLabelText('País')).toHaveValue(''); expect(screen.getByLabelText('Estado')).toHaveValue('active');
+    expect(screen.getByLabelText('País')).toHaveValue(''); expect(screen.getByLabelText('Estado')).toHaveValue('all');
     expect(screen.getByLabelText('Filtrar organizaciones por nombre')).toHaveValue('Horizonte');
   });
+  it('cierra el panel sin perder la selección de filtros ni sus parámetros URL', async () => {
+    view('/organizations?country=Bolivia'); await screen.findByRole('link', { name: row.name });
+    const toggle = screen.getByRole('button', { name: 'Filtros, 1 activo' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'true'); expect(screen.getByText('País: Bolivia')).toBeVisible();
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'false'); expect(document.getElementById('organization-filters-panel')).toHaveAttribute('hidden');
+    expect(screen.getByLabelText('URL actual')).toHaveTextContent('country=Bolivia'); expect(screen.getByText('País: Bolivia')).toBeVisible();
+    await userEvent.click(toggle); expect(screen.getByLabelText('País')).toHaveValue('Bolivia');
+    await userEvent.click(screen.getByRole('button', { name: 'Filtros, 1 activo' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Limpiar filtros' }));
+    expect(screen.getByLabelText('URL actual')).not.toHaveTextContent('country=');
+    expect(screen.queryByText('País: Bolivia')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Limpiar filtros' })).not.toBeInTheDocument();
+  });
+  it('abre filtros avanzados si la URL contiene estado Todas sin contarlo como filtro activo', async () => {
+    view('/organizations?status=all'); await screen.findByRole('link', { name: row.name });
+    expect(screen.getByRole('button', { name: 'Filtros' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByLabelText('Estado')).toHaveValue('all');
+    expect(screen.queryByText('Estado: Todas')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Limpiar filtros' })).not.toBeInTheDocument();
+  });
   it('asocia la explicación de comunicaciones a su selector', async () => {
-    view(); await screen.findByRole('link', { name: row.name });
+    view(); await screen.findByRole('link', { name: row.name }); await openFilters();
     expect(screen.getByLabelText('Comunicaciones externas')).toHaveAccessibleDescription('Incluye comunicaciones enviadas y recibidas, también invalidadas. Las notas internas y los medios de contacto no cuentan.');
   });
   it('distingue el directorio vacío cuando se consultan todas sin filtros', async () => {
     mode = 'empty'; view('/organizations?status=all'); expect(await screen.findByText('No hay organizaciones registradas.')).toBeVisible();
-    expect(results().getByText('0 organizaciones')).toBeVisible();
+    expect(results().getByText('0 organizaciones registradas')).toBeVisible();
   });
   it('mantiene el vacío filtrado y no fabrica filas', async () => {
     mode = 'empty'; view('/organizations?name=Inexistente'); expect(await screen.findByText('No hay organizaciones para estos filtros.')).toBeVisible();
@@ -109,7 +154,7 @@ describe('UI 2.3 listado de organizaciones', () => {
   });
   it('usa el total real y pagina conservando filtros y límites', async () => {
     total = 26; view('/organizations?country=Bolivia'); await screen.findByRole('link', { name: row.name });
-    expect(results().getByText('26 organizaciones')).toBeVisible(); expect(results().getByRole('button', { name: 'Anterior' })).toBeDisabled();
+    expect(results().getByText('26 organizaciones registradas')).toBeVisible(); expect(results().getByRole('button', { name: 'Anterior' })).toBeDisabled();
     await userEvent.click(results().getByRole('button', { name: 'Siguiente' }));
     await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url.includes('country=Bolivia') && url.includes('page=2'))).toBe(true));
     expect(results().getByRole('button', { name: 'Siguiente' })).toBeDisabled();

@@ -14,7 +14,7 @@ const fieldLabels: Record<string, string> = {
   duplicateOfOrganizationId: 'Consolidado en organización', duplicateOfPersonId: 'Consolidado en persona',
   consolidatedOrganizationIds: 'Organizaciones consolidadas', consolidatedPersonIds: 'Personas consolidadas',
   name: 'Nombre', country: 'País', alias: 'Sigla o nombre alternativo', description: 'Descripción', officialWebsite: 'Sitio oficial',
-  parentId: 'Organización matriz', categoryIds: 'Categorías', isActive: 'Estado', displayName: 'Nombre de presentación',
+  branchOfId: 'Sede de organización', parentId: 'Sede de organización', categoryIds: 'Categorías', isActive: 'Estado', displayName: 'Nombre de presentación',
   givenNames: 'Nombres', familyNames: 'Apellidos', positionTitle: 'Cargo', area: 'Área o función', isCurrent: 'Vigencia',
   startDate: 'Fecha inicial', endDate: 'Fecha final', sourceDescription: 'Fuente', sourceUrl: 'URL de fuente', notes: 'Observaciones',
   value: 'Valor del medio', label: 'Etiqueta del medio', condition: 'Condición global del medio',
@@ -36,7 +36,7 @@ export function referenceIds(field: string, value: HistoryValue): { kind: Histor
   if (field === 'duplicateOfOrganizationId' || field === 'duplicateOfPersonId') return {
     kind: field === 'duplicateOfOrganizationId' ? 'organization' : 'person', ids: typeof value === 'string' ? [value] : [] };
   if (field === 'categoryIds') return { kind: 'category', ids: Array.isArray(value) ? value : [] };
-  const kind = field === 'parentId' || field === 'relationCreated' ? 'organization' : field === 'associationCreated' ? 'contactMethod' : null;
+  const kind = ['branchOfId', 'parentId', 'relationCreated'].includes(field) ? 'organization' : field === 'associationCreated' ? 'contactMethod' : null;
   return kind ? { kind, ids: typeof value === 'string' ? [value] : [] } : null;
 }
 function reference(item: unknown): item is HistoryReference {

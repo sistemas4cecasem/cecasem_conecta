@@ -30,10 +30,10 @@ describe('Similitud calibrada como advertencia, no identidad', () => {
     expect(similarity('person', actor({ displayName: 'M. Pérez', givenNames: 'María Fernanda', familyNames: 'Pérez' }),
       actor({ displayName: 'Maria Fernanda Perez' })).score).toBe(1);
   });
-  it('país diferente y matriz añaden contexto sin provocar falso negativo', () => {
+  it('país diferente y sede asociada añaden contexto sin provocar falso negativo', () => {
     const result = similarity('organization', actor({ name: 'Fundación Esperanza', country: 'Bolivia' }),
-      actor({ name: 'Fundacion Esperanza', country: 'Perú', parentId: randomUUID() }));
-    expect(result.matches).toBe(true); expect(result.signals).toEqual(expect.arrayContaining(['DIFFERENT_COUNTRIES', 'REVIEW_PARENT_OFFICE_CONTEXT']));
+      actor({ name: 'Fundacion Esperanza', country: 'Perú', branchOfId: randomUUID() }));
+    expect(result.matches).toBe(true); expect(result.signals).toEqual(expect.arrayContaining(['DIFFERENT_COUNTRIES', 'REVIEW_BRANCH_CONTEXT']));
   });
   it('puntuación simétrica y vacíos sin coincidencia', () => {
     expect(trigramScore('Fundación Esperanza', 'Esperanza Bolivia')).toBe(trigramScore('Esperanza Bolivia', 'Fundación Esperanza'));

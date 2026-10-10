@@ -9,7 +9,7 @@ import { OrganizationFilterService } from './organization-filter.service';
 import { verificationCondition } from './verification.rules';
 
 const organizationSelect = {
-  id: true, name: true, alias: true, country: true, isActive: true, parent: { select: { id: true, name: true } },
+  id: true, name: true, alias: true, country: true, isActive: true, branchOf: { select: { id: true, name: true } },
   categories: { orderBy: { categoryId: 'asc' }, select: { category: { select: { id: true, name: true } } } },
   contacts: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: { id: true, isActive: true, lastVerifiedAt: true, dataImportBatchId: true,
     contactMethod: { select: { id: true, type: true, value: true, label: true, condition: true } } } },

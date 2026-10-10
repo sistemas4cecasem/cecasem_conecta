@@ -18,12 +18,12 @@ export class OrganizationsController {
   @Post() @RequirePermissions(PERMISSIONS.DIRECTORY_WRITE)
   create(@Body() body: OrganizationInputDto, @Req() request: AuthenticatedRequest) { return this.directory.createOrganization(body, request.authenticatedUser.id); }
   @Put(':id') @RequirePermissions(PERMISSIONS.DIRECTORY_WRITE)
-  @ApiOperation({ summary: 'Reemplazar ficha, matriz y categorías con versión esperada' })
+  @ApiOperation({ summary: 'Reemplazar ficha, asociación de sede y categorías con versión esperada' })
   edit(@Param('id', new ParseUUIDPipe()) id: string, @Body() body: OrganizationEditDto, @Req() request: AuthenticatedRequest) { return this.directory.editOrganization(id, body, request.authenticatedUser.id); }
   @Patch(':id/status') @RequirePermissions(PERMISSIONS.DIRECTORY_STATUS_UPDATE)
   status(@Param('id', new ParseUUIDPipe()) id: string, @Body() body: DirectoryStatusDto, @Req() request: AuthenticatedRequest) { return this.directory.organizationStatus(id, body, request.authenticatedUser.id); }
-  @Get(':id/children') @Header('Cache-Control', 'no-store') @RequirePermissions(PERMISSIONS.DIRECTORY_READ)
-  children(@Param('id', new ParseUUIDPipe()) id: string, @Query() query: DirectoryQueryDto) { return this.directory.children(id, query); }
+  @Get(':id/branches') @Header('Cache-Control', 'no-store') @RequirePermissions(PERMISSIONS.DIRECTORY_READ)
+  branches(@Param('id', new ParseUUIDPipe()) id: string, @Query() query: DirectoryQueryDto) { return this.directory.branches(id, query); }
   @Get(':id/history') @Header('Cache-Control', 'no-store') @RequirePermissions(PERMISSIONS.DIRECTORY_HISTORY_READ)
   history(@Param('id', new ParseUUIDPipe()) id: string, @Query() query: PageQueryDto) { return this.directory.organizationHistory(id, query); }
 }

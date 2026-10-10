@@ -6,7 +6,7 @@ export const categorySchema = z.object({ id: z.string(), name: z.string(), isAct
 export const importProvenanceSchema = z.object({ id: z.string(), originalFilename: z.string(), createdAt: z.string() }).nullable();
 export const organizationSchema = z.object({ duplicateOfId:z.string().nullable().optional(),duplicateOf:z.object({id:z.string(),name:z.string()}).nullable().optional(),consolidatedRecords:z.array(z.object({id:z.string(),name:z.string()})).optional(), id: z.string(), name: z.string(), country: z.string().nullable(), alias: z.string().nullable(),
   description: z.string().nullable(), officialWebsite: z.string().nullable(), isActive: z.boolean(), version: z.number().int().positive(),
-  parentId: z.string().nullable(), parent: z.object({ id: z.string(), name: z.string(), isActive: z.boolean() }).nullable(),
+  branchOfId: z.string().nullable(), branchOf: z.object({ id: z.string(), name: z.string(), isActive: z.boolean() }).nullable(),
   categories: z.array(categorySchema), createdAt: z.string(), updatedAt: z.string(), lastVerifiedAt: z.string().nullable(), dataImportBatchId:z.string().uuid().nullable().optional(), dataImportBatch:importProvenanceSchema.optional() });
 export const historyReferenceSchema = z.object({id:z.string(),kind:z.enum(['organization','category','person','contactMethod']),label:z.string().nullable()});
 const historyValueSchema=z.union([z.string(),z.boolean(),z.array(z.string()),z.null()]);
@@ -28,7 +28,7 @@ export const organizationFormSchema = z.object({
   officialWebsite: text(2048).refine(value => {
     if (!value) return true;
     try { const url = new URL(value); return ['http:', 'https:'].includes(url.protocol) && !!url.hostname && !url.username && !url.password; } catch { return false; }
-  }, 'Introduce un sitio http o https válido.'), parentId: z.string(), categoryIds: z.array(z.string()).max(100),
+  }, 'Introduce un sitio http o https válido.'), branchOfId: z.string(), categoryIds: z.array(z.string()).max(100),
 });
 export type OrganizationFormValues = z.infer<typeof organizationFormSchema>;
 export const categoryFormSchema = z.object({ name: text(150).pipe(z.string().min(1, 'El nombre es obligatorio.')) });

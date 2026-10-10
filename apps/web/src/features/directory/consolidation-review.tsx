@@ -14,7 +14,7 @@ function ActorPreview({ row, title }: { row: ConsolidationPreview['principal']; 
       {row.displayName ? <><div><dt className="font-semibold">Nombres</dt><dd>{row.givenNames ?? 'Sin dato'}</dd></div>
         <div><dt className="font-semibold">Apellidos</dt><dd>{row.familyNames ?? 'Sin dato'}</dd></div></> : <>
         <div><dt className="font-semibold">País / sigla / sitio</dt><dd>{row.country ?? 'Sin dato'} · {row.alias ?? 'Sin dato'} · {row.officialWebsite ?? 'Sin dato'}</dd></div>
-        <div><dt className="font-semibold">Matriz / sedes</dt><dd>{row.parent?.name ?? 'Sin matriz'} · {row.children?.map(item => item.name).join(', ') || 'Sin sedes'}</dd></div>
+        <div><dt className="font-semibold">Organización asociada / sedes</dt><dd>{row.branchOf?.name ?? 'Sin asociación a sede'} · {row.branches?.map(item => item.name).join(', ') || 'Sin sedes'}</dd></div>
         <div><dt className="font-semibold">Categorías</dt><dd>{row.categories?.map(item => item.category.name).join(', ') || 'Sin categorías'}</dd></div></>}
       <div><dt className="font-semibold">Verificación propia</dt><dd>{row.verifications.length ? row.verifications.map(event =>
         <p key={event.id}>{dateLabel(event.verifiedAt)} · {event.actor.givenNames} {event.actor.familyNames} · Versión corroborada {event.objectVersion}.
@@ -70,7 +70,7 @@ export function ConsolidationReview({ identity, candidate, completed }: { identi
         {contact.reactivate && ' Se reactivará la asociación del principal.'}</li>)}</ul>
       <ul>{row.relations.map(relation => <li key={relation.sourceId}>{relation.positionTitle ?? 'Vínculo sin cargo'}: {relation.outcome === 'CREATED'
         ? 'crear representación operativa trazada del episodio original, sin heredar su verificación' : 'reutilizar episodio equivalente'}.</li>)}</ul>
-      {!!row.blockers.length && <p role="alert">No se puede consolidar esta selección: existe una matriz/sede, hijos o una cadena previa. Conserva estas fichas y revisa la jerarquía.</p>}
+      {!!row.blockers.length && <p role="alert">No se puede consolidar esta selección: existe una sede asociada, otras sedes o una cadena previa. Conserva estas fichas y revisa las asociaciones.</p>}
       <form className="space-y-3" onSubmit={confirm}>
         <label className="flex min-h-11 items-start gap-2"><input type="checkbox" {...confirmation.register('reconcileCurrentRelations', { required: true })} />Confirmo la reconciliación explícita de contactos activos y episodios vigentes descritos arriba.</label>
         <label className="flex min-h-11 items-start gap-2"><input type="checkbox" {...confirmation.register('keepContext', { required: true })} />Confirmo mantener el contexto del principal en conflictos y las reactivaciones indicadas, conservando la evidencia original.</label>

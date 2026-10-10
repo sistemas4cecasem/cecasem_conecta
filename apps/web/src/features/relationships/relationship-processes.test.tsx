@@ -33,7 +33,7 @@ describe('Procesos de relación frontend', () => {
       if (url.endsWith('auth/me')) return Promise.resolve(Response.json(identity ?? {}, { status: identity ? 200 : 401 }));
       if (url.endsWith('auth/logout')) { identity = null; return Promise.resolve(new Response(null, { status: 204 })); }
       if (url.includes('/search?')) return Promise.resolve(Response.json({ query: 'QA', email: null,
-        organizations: { items: [{ type: 'ORGANIZATION', id: goal, name: 'Fundación QA', alias: null, country: null, parent: null, duplicateOf: null, isActive: true }], total: 1, page: 1, pageSize: 25 },
+        organizations: { items: [{ type: 'ORGANIZATION', id: goal, name: 'Fundación QA', alias: null, country: null, branchOf: null, duplicateOf: null, isActive: true }], total: 1, page: 1, pageSize: 25 },
         people: { items: [], total: 0, page: 1, pageSize: 25 } }));
       if (options?.method === 'POST') {
         if (status !== 201) return Promise.resolve(Response.json({ code: status === 409 ? 'VERSION_CONFLICT' : 'FORBIDDEN' }, { status }));

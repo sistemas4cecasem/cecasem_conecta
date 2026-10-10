@@ -16,12 +16,12 @@ const aId = '11111111-1111-4111-8111-111111111111', bId = '22222222-2222-4222-82
 const stamp = '2026-10-02T12:00:00.000Z';
 const reader: AuthIdentity = { id: 'reader', givenNames: 'Autora', familyNames: 'QA', username: 'reader', email: 'reader@example.test', role: 'RESEARCH',
   permissions: ['directory.read', 'directory.write', 'directory.history.read', 'directory.verify', 'directory.duplicates.dismiss'] };
-const actor = { id: aId, name: 'Fundación Esperanza', alias: null, country: 'Bolivia', parentId: null, parent: null, version: 1, duplicateOfId: null,
+const actor = { id: aId, name: 'Fundación Esperanza', alias: null, country: 'Bolivia', branchOfId: null, branchOf: null, version: 1, duplicateOfId: null,
   isActive: true, lastVerifiedAt: null };
 const candidate: DuplicateCandidate = { id, kind: 'organization', a: actor, b: { ...actor, id: bId, name: 'Fundacion Esperanza' }, score: 1,
-  signals: ['SIMILAR_ORGANIZATION_NAMES', 'REVIEW_PARENT_OFFICE_CONTEXT'], state: 'PENDING', version: 1, examinedVersionA: 1, examinedVersionB: 1,
+  signals: ['SIMILAR_ORGANIZATION_NAMES', 'REVIEW_BRANCH_CONTEXT'], state: 'PENDING', version: 1, examinedVersionA: 1, examinedVersionB: 1,
   detectedAt: stamp, stale: false, resolvedAt: null, resolvedBy: null, principalId: null };
-const previewActor = { ...actor, label: actor.name, officialWebsite: 'https://example.test', children: [], categories: [], contacts: [], relations: [], verifications: [] };
+const previewActor = { ...actor, label: actor.name, officialWebsite: 'https://example.test', branches: [], categories: [], contacts: [], relations: [], verifications: [] };
 describe('Revisión humana de candidatos y consolidación', () => {
   let client = createQueryClient(), identity = reader, candidates: DuplicateCandidate[] = [], mode = 'ok', principal = '', loggedOut = false;
   let preview: ConsolidationPreview;
@@ -67,9 +67,9 @@ describe('Revisión humana de candidatos y consolidación', () => {
     }); vi.stubGlobal('fetch', fetchMock);
   });
   afterEach(() => { client.clear(); vi.unstubAllGlobals(); });
-  function view(full = false) {
+  function view(full = false, path = '/organizations/' + bId) {
     if (full) client.setQueryData(AUTH_QUERY_KEY, identity);
-    return render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/organizations/' + bId]}>
+    return render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[path]}>
       {full ? <AppRoutes /> : <DuplicatePanel identity={identity} actorPath={'organizations/' + bId} />}
     </MemoryRouter></QueryClientProvider>);
   }
@@ -115,8 +115,8 @@ describe('Revisión humana de candidatos y consolidación', () => {
     mode = 'listError'; view(); await screen.findByRole('alert'); mode = 'ok'; await userEvent.setup().click(screen.getByRole('button', { name: 'Reintentar' }));
     expect(await screen.findByText(/Posible coincidencia:/)).toBeInTheDocument();
   });
-  it('presenta advertencia y contexto matriz/sede, sin afirmar duplicado', async () => {
-    view(); expect(await screen.findByText(/Posible coincidencia:/)).toBeInTheDocument(); expect(screen.getByText(/Revisar matriz y sede/)).toBeInTheDocument();
+  it('presenta advertencia y contexto de sedes, sin afirmar duplicado', async () => {
+    view(); expect(await screen.findByText(/Posible coincidencia:/)).toBeInTheDocument(); expect(screen.getByText(/Revisar si pertenecen a una misma organización/)).toBeInTheDocument();
     expect(screen.queryByText('Duplicado detectado')).not.toBeInTheDocument();
   });
   it('comparar conserva nombres originales, contexto y enlaces a ambas fichas', async () => {
@@ -170,9 +170,9 @@ describe('Revisión humana de candidatos y consolidación', () => {
     expect(JSON.parse(call[1]?.body as string)).toMatchObject({ principalId: aId, expectedCandidateVersion: 1, expectedVersionA: 1, expectedVersionB: 1,
       confirmed: true, reconcileCurrentRelations: true, contactConflictPolicy: 'KEEP_PRINCIPAL_CONTEXT', previewToken: 'a'.repeat(64) });
   });
-  it('matriz/sede y cadena bloquean confirmación administrativa', async () => {
+  it('una sede asociada y una cadena bloquean confirmación administrativa', async () => {
     preview.blockers = ['CONSOLIDATION_HIERARCHY_CONFLICT']; await adminPreview();
-    expect(screen.getByRole('alert')).toHaveTextContent(/matriz\/sede/); expect(screen.getByRole('button', { name: 'Confirmar consolidación' })).toBeDisabled();
+    expect(screen.getByRole('alert')).toHaveTextContent(/sede asociada/); expect(screen.getByRole('button', { name: 'Confirmar consolidación' })).toBeDisabled();
   });
   it('conflictos de contexto y reactivación se explican antes de confirmar', async () => {
     preview.contacts = [{ sourceId: 'contact', targetId: 'target', value: 'contacto@example.test', outcome: 'KEPT_PRINCIPAL', contextConflict: true,
@@ -210,7 +210,7 @@ describe('Revisión humana de candidatos y consolidación', () => {
     expect(await screen.findByText(/Efectos que debes revisar/)).toBeInTheDocument();
   });
   it('ficha consolidada mantiene historial y enlace al principal, sin escrituras ordinarias', async () => {
-    candidates = [{ ...candidate, state: 'CONSOLIDATED', principalId: aId, resolvedAt: stamp }]; view(true);
+    candidates = [{ ...candidate, state: 'CONSOLIDATED', principalId: aId, resolvedAt: stamp }]; view(true, '/organizations/' + bId + '/control');
     const banner = await screen.findByText(/Este registro fue consolidado en:/);
     expect(within(banner).getByRole('link', { name: actor.name })).toHaveAttribute('href', '/organizations/' + aId);
     expect(screen.queryByRole('button', { name: 'Editar ficha' })).not.toBeInTheDocument();

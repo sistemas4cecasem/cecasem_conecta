@@ -134,14 +134,14 @@ describe('Historial de fichas PostgreSQL y HTTP', () => {
     expect(ids).toEqual([newest, second, first]);
     expect((await directory.organizationHistory(org.id, { page: 4, pageSize: 1 }))).toMatchObject({ total: 3, items: [] });
   });
-  it('renombrar categoría y matriz no reescribe etiquetas históricas; retirar categorías es semántico', async () => {
-    const actor = await user(), org = await organization(actor.id), parent = await organization(actor.id, 'Matriz histórica'), cat = await category(actor.id);
-    await directory.editOrganization(org.id, { name: org.name, parentId: parent.id, categoryIds: [cat.id], expectedVersion: 1 }, actor.id);
+  it('renombrar categoría y organización asociada no reescribe etiquetas históricas', async () => {
+    const actor = await user(), org = await organization(actor.id), owner = await organization(actor.id, 'Organización regional'), cat = await category(actor.id);
+    await directory.editOrganization(org.id, { name: org.name, branchOfId: owner.id, categoryIds: [cat.id], expectedVersion: 1 }, actor.id);
     const before = await prisma.directoryChange.findMany({ where: { organizationId: org.id }, orderBy: { field: 'asc' } });
     await directory.editCategory(cat.id, { name: 'Derechos y Ciudadanía', expectedVersion: 1 }, actor.id);
-    await directory.editOrganization(parent.id, { name: 'Matriz renombrada', expectedVersion: 1 }, actor.id);
+    await directory.editOrganization(owner.id, { name: 'Organización renombrada', expectedVersion: 1 }, actor.id);
     const result = await directory.organizationHistory(org.id, { page: 1, pageSize: 25 });
-    expect(result.items[0].changes.find(change => change.field === 'parentId')?.newReferences).toEqual([{ id: parent.id, kind: 'organization', label: 'Matriz histórica' }]);
+    expect(result.items[0].changes.find(change => change.field === 'branchOfId')?.newReferences).toEqual([{ id: owner.id, kind: 'organization', label: 'Organización regional' }]);
     expect(result.items[0].changes.find(change => change.field === 'categoryIds')?.added).toEqual([{ id: cat.id, kind: 'category', label: 'Derechos Humanos' }]);
     expect(await prisma.directoryChange.findMany({ where: { organizationId: org.id }, orderBy: { field: 'asc' } })).toEqual(before);
     await directory.editOrganization(org.id, { name: org.name, expectedVersion: 2 }, actor.id);
@@ -149,10 +149,10 @@ describe('Historial de fichas PostgreSQL y HTTP', () => {
     expect(removal.items[0].changes.find(change => change.field === 'categoryIds')?.removed).toEqual([{ id: cat.id, kind: 'category', label: 'Derechos y Ciudadanía' }]);
   });
   it('las relaciones iniciales al crear una ficha ya tienen etiquetas históricas', async () => {
-    const actor = await user(), parent = await organization(actor.id), cat = await category(actor.id);
-    const org = await directory.createOrganization({ name: 'Sede inicial', parentId: parent.id, categoryIds: [cat.id] }, actor.id); organizationIds.push(org.id);
+    const actor = await user(), owner = await organization(actor.id), cat = await category(actor.id);
+    const org = await directory.createOrganization({ name: 'Sede inicial', branchOfId: owner.id, categoryIds: [cat.id] }, actor.id); organizationIds.push(org.id);
     const result = await directory.organizationHistory(org.id, { page: 1, pageSize: 25 });
-    expect(result.total).toBe(1); expect(result.items[0].changes.map(change => change.field)).toEqual(['categoryIds', 'parentId']);
+    expect(result.total).toBe(1); expect(result.items[0].changes.map(change => change.field)).toEqual(['branchOfId', 'categoryIds']);
   });
   it('vínculo y asociaciones conservan actores y canal observados al registrar, después de correcciones', async () => {
     const actor = await user(), rows = await targets(actor.id);
@@ -246,7 +246,7 @@ describe('Historial de fichas PostgreSQL y HTTP', () => {
     await expect(people.createRelation(p.id, { organizationId: org.id, isCurrent: true }, actor.id)).rejects.toThrow();
     expect(await prisma.personOrganizationRelation.count({ where: { personId: p.id } })).toBe(0);
     jest.spyOn(history, 'record').mockRejectedValueOnce(new Error('fixture'));
-    await expect(directory.createOrganization({ name: 'Sede sin confirmar', parentId: org.id }, actor.id)).rejects.toThrow();
+    await expect(directory.createOrganization({ name: 'Sede sin confirmar', branchOfId: org.id }, actor.id)).rejects.toThrow();
     expect(await prisma.organization.count({ where: { name: 'Sede sin confirmar' } })).toBe(0);
   });
   it('constraint rechaza snapshots mal formados y los endpoints no permiten editar/borrar historial', async () => {

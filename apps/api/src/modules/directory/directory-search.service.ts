@@ -7,7 +7,7 @@ import { searchInput } from './directory-search.rules';
 import { normalizedSearchText as normalized } from '../../common/search/search-text';
 
 const organizationSelect = { id: true, name: true, alias: true, country: true, isActive: true,
-  parent: { select: { id: true, name: true, isActive: true } }, duplicateOf: { select: { id: true, name: true, isActive: true } } } satisfies Prisma.OrganizationSelect;
+  branchOf: { select: { id: true, name: true, isActive: true } }, duplicateOf: { select: { id: true, name: true, isActive: true } } } satisfies Prisma.OrganizationSelect;
 const personIdentity = { id: true, displayName: true, isActive: true,
   duplicateOf: { select: { id: true, displayName: true, isActive: true } } } satisfies Prisma.PersonSelect;
 const organizationIdentity = { id: true, name: true, isActive: true,

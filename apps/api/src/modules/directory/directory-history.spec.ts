@@ -17,8 +17,8 @@ describe('Contrato y operaciones de historial del directorio', () => {
     expect(change.removed).toEqual([reference]); expect(change.added).toEqual([]);
   });
   it('una referencia anterior sin snapshot conserva ID y no fabrica una etiqueta', () => {
-    expect(changeContract({ field: 'parentId', previousValue: null, newValue: 'organization', referenceSnapshot: null })).toMatchObject({
-      previousValue: null, newReferences: [{ id: 'organization', kind: 'organization', label: null }], label: 'Organización matriz' });
+    expect(changeContract({ field: 'branchOfId', previousValue: null, newValue: 'organization', referenceSnapshot: null })).toMatchObject({
+      previousValue: null, newReferences: [{ id: 'organization', kind: 'organization', label: null }], label: 'Sede de organización' });
   });
   it.each([null, 'Directora', false, ['id']])('conserva el valor tipado %j', value => expect(historicalValue(value)).toEqual(value));
   it('rechaza estructuras privadas o tipos no reconocidos', () => {

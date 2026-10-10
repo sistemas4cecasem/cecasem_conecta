@@ -7,7 +7,7 @@ import { DuplicateDetectionService, candidateContract, type CandidateRow } from 
 const service = new DuplicateDetectionService({} as PrismaService, {} as UsersService, {} as DirectoryActorPolicy);
 function candidate(): CandidateRow {
   const a = { id: '11111111-1111-4111-8111-111111111111', name: 'Fundación Esperanza', alias: null, country: null,
-    parentId: null, parent: null, version: 1, duplicateOfId: null, isActive: true, lastVerifiedAt: null };
+    branchOfId: null, branchOf: null, version: 1, duplicateOfId: null, isActive: true, lastVerifiedAt: null };
   const b = { ...a, id: '22222222-2222-4222-8222-222222222222' };
   return { id: randomUUID(), organizationAId: a.id, organizationBId: b.id, personAId: null, personBId: null,
     identityA: 'a'.repeat(64), identityB: 'b'.repeat(64), examinedVersionA: 1, examinedVersionB: 1, score: 1, signals: ['SIMILAR_ORGANIZATION_NAMES'],

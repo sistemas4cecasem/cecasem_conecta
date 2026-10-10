@@ -232,7 +232,7 @@ No se agregan dependencias ni se replica el mapa de roles backend.
 ## Organizaciones — Subfase 2.1
 
 `features/directory` implementa navegación Directorio, listado paginado, fichas,
-creación/edición, matriz/sedes, categorías e historial. Las capabilities de sesión
+creación/edición, sedes y representaciones, categorías e historial. Las capabilities de sesión
 controlan los accesos. Un conflicto conserva el borrador y ofrece recargar con
 advertencia; las queries se invalidan por identidad y se limpian al cerrar sesión.
 Detalles en [Organizaciones](../../docs/subfase-2.1-organizaciones.md).

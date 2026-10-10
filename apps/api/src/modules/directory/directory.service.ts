@@ -15,9 +15,9 @@ import type { CategoryInputDto, CategoryEditDto, DirectoryQueryDto, DirectorySta
 const categorySelect = { id: true, name: true, isActive: true, version: true, createdAt: true, updatedAt: true } satisfies Prisma.CategorySelect;
 const organizationSelect = {
   id: true, name: true, country: true, alias: true, description: true, officialWebsite: true, isActive: true,
-  duplicateOfId: true, duplicateOf: { select: { id: true, name: true } }, consolidatedRecords: { select: { id: true, name: true } }, version: true, parentId: true, createdAt: true, updatedAt: true, lastVerifiedAt: true,
+  duplicateOfId: true, duplicateOf: { select: { id: true, name: true } }, consolidatedRecords: { select: { id: true, name: true } }, version: true, branchOfId: true, createdAt: true, updatedAt: true, lastVerifiedAt: true,
   dataImportBatchId: true, dataImportBatch: { select: { id: true, originalFilename: true, createdAt: true } },
-  parent: { select: { id: true, name: true, isActive: true } },
+  branchOf: { select: { id: true, name: true, isActive: true } },
   categories: { select: { category: { select: categorySelect } }, orderBy: { categoryId: 'asc' } },
 } satisfies Prisma.OrganizationSelect;
 type OrganizationRow = Prisma.OrganizationGetPayload<{ select: typeof organizationSelect }>;
@@ -25,7 +25,7 @@ function organizationContract(row: OrganizationRow) { return { ...row, categorie
 function normalizedOrganization(input: OrganizationInputDto) {
   return { name: institutionalText(input.name, 250, true)!, country: institutionalText(input.country, 150),
     alias: institutionalText(input.alias, 150), description: institutionalText(input.description, 5000),
-    officialWebsite: website(input.officialWebsite), parentId: input.parentId ?? null };
+    officialWebsite: website(input.officialWebsite), branchOfId: input.branchOfId ?? null };
 }
 function paging(query: PageQueryDto) { return { skip: (query.page - 1) * query.pageSize, take: query.pageSize }; }
 
@@ -52,7 +52,7 @@ export class DirectoryService {
         const filter = await this.filters.predicate(query, tx, actorId);
         const [result] = await tx.$queryRaw<{ ids: string[]; total: number }[]>(Prisma.sql`
           WITH matches AS (SELECT o.id, o.name FROM "Organization" o WHERE (${filter})
-            ${query.parentId ? Prisma.sql`AND o."parentId" = ${query.parentId}::uuid` : Prisma.empty}
+            ${query.branchOfId ? Prisma.sql`AND o."branchOfId" = ${query.branchOfId}::uuid` : Prisma.empty}
             ${query.name ? Prisma.sql`AND o.name ILIKE ${'%' + query.name + '%'}` : Prisma.empty})
           SELECT ARRAY(SELECT id::text FROM matches ORDER BY name, id LIMIT ${query.pageSize} OFFSET ${(query.page - 1) * query.pageSize}) AS ids,
             (SELECT count(*)::int FROM matches) AS total`);
@@ -62,7 +62,7 @@ export class DirectoryService {
       }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
     }
     const where: Prisma.OrganizationWhereInput = { ...(query.status === 'all' ? {} : { isActive: query.status === 'active' }),
-      ...(query.parentId ? { parentId: query.parentId } : {}), ...(query.name ? { name: { contains: query.name, mode: 'insensitive' } } : {}),
+      ...(query.branchOfId ? { branchOfId: query.branchOfId } : {}), ...(query.name ? { name: { contains: query.name, mode: 'insensitive' } } : {}),
       ...(query.categoryId ? { categories: { some: { categoryId: query.categoryId } } } : {}) };
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.organization.findMany({ where, select: organizationSelect, orderBy: [{ name: 'asc' }, { id: 'asc' }], ...paging(query) }),
@@ -70,25 +70,25 @@ export class DirectoryService {
     ], { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
     return { items: rows.map(organizationContract), total, page: query.page, pageSize: query.pageSize };
   }
-  async children(id: string, query: DirectoryQueryDto) {
+  async branches(id: string, query: DirectoryQueryDto) {
     await this.organization(id);
-    return this.listOrganizations({ ...query, parentId: id });
+    return this.listOrganizations({ ...query, branchOfId: id });
   }
 
   // Namespace exclusivo del directorio, clave jerarquía. Nunca usa el lock administrativo.
   async lockHierarchy(tx: Prisma.TransactionClient): Promise<void> {
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(1128612692, 1)::text`;
   }
-  private async validateParent(id: string | undefined, parentId: string | null, tx: Prisma.TransactionClient): Promise<void> {
+  private async validateBranchOwner(id: string | undefined, branchOfId: string | null, tx: Prisma.TransactionClient): Promise<void> {
     const ancestors: string[] = [];
-    let next = parentId;
+    let next = branchOfId;
     while (next) {
       ancestors.push(next);
       await this.actors.writable('organization', next, tx);
       assertAcyclic(id ?? '', ancestors);
-      const parent = await tx.organization.findUnique({ where: { id: next }, select: { parentId: true } });
-      if (!parent) throw new DirectoryError('ORGANIZATION_NOT_FOUND');
-      next = parent.parentId;
+      const owner = await tx.organization.findUnique({ where: { id: next }, select: { branchOfId: true } });
+      if (!owner) throw new DirectoryError('ORGANIZATION_NOT_FOUND');
+      next = owner.branchOfId;
     }
   }
   private async validateCategories(ids: string[], retainedIds: string[], tx: Prisma.TransactionClient): Promise<void> {
@@ -104,12 +104,12 @@ export class DirectoryService {
     const categoryIds = input.categoryIds ?? [];
     return this.prisma.$transaction(async tx => {
       await this.authorize(actorId, PERMISSIONS.DIRECTORY_WRITE, tx);
-      if (normalized.parentId) { await this.lockHierarchy(tx); await this.validateParent(undefined, normalized.parentId, tx); }
+      if (normalized.branchOfId) { await this.lockHierarchy(tx); await this.validateBranchOwner(undefined, normalized.branchOfId, tx); }
       await this.validateCategories(categoryIds, [], tx);
       const row = await tx.organization.create({ data: { ...normalized,
         categories: { create: categoryIds.map(categoryId => ({ categoryId })) } }, select: organizationSelect });
       const initialRelations: FieldChange[] = [];
-      if (normalized.parentId) initialRelations.push({ field: 'parentId', previousValue: null, newValue: normalized.parentId });
+      if (normalized.branchOfId) initialRelations.push({ field: 'branchOfId', previousValue: null, newValue: normalized.branchOfId });
       if (categoryIds.length) initialRelations.push({ field: 'categoryIds', previousValue: [], newValue: [...categoryIds].sort() });
       if (initialRelations.length) await this.history.record({ organizationId: row.id }, actorId, initialRelations, tx);
       return organizationContract(row);
@@ -125,12 +125,12 @@ export class DirectoryService {
       const current = await this.organization(id, tx);
       await this.actors.writable('organization', id, tx);
       assertVersion(current.version, input.expectedVersion);
-      await this.validateParent(id, normalized.parentId, tx);
+      await this.validateBranchOwner(id, normalized.branchOfId, tx);
       const previousIds = current.categories.map(link => link.category.id).sort();
       const categoryIds = [...(input.categoryIds ?? [])].sort();
       await this.validateCategories(categoryIds, previousIds, tx);
       const changes: FieldChange[] = [];
-      for (const field of ['name', 'country', 'alias', 'description', 'officialWebsite', 'parentId'] as const) {
+      for (const field of ['name', 'country', 'alias', 'description', 'officialWebsite', 'branchOfId'] as const) {
         if (current[field] !== normalized[field]) changes.push({ field, previousValue: current[field], newValue: normalized[field] });
       }
       if (JSON.stringify(previousIds) !== JSON.stringify(categoryIds)) changes.push({ field: 'categoryIds', previousValue: previousIds, newValue: categoryIds });

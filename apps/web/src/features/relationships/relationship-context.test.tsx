@@ -54,7 +54,7 @@ describe('Contexto institucional previo', () => {
         return Promise.resolve(mode === 'error' ? new Response(null, { status: 500 }) : Response.json(row));
       }
       if (url.includes('/search?')) return Promise.resolve(Response.json({ query: 'QA', email: null,
-        organizations: { items: [{ type: 'ORGANIZATION', id: orgId, name: 'Fundación QA', alias: null, country: null, parent: null, duplicateOf: null, isActive: true }], total: 1, page: 1, pageSize: 25 },
+        organizations: { items: [{ type: 'ORGANIZATION', id: orgId, name: 'Fundación QA', alias: null, country: null, branchOf: null, duplicateOf: null, isActive: true }], total: 1, page: 1, pageSize: 25 },
         people: { items: [], total: 0, page: 1, pageSize: 25 } }));
       if (options?.method === 'POST') {
         if (writeStatus !== 201) return Promise.resolve(Response.json({ code: 'CONTACT_RESTRICTED' }, { status: writeStatus }));

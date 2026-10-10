@@ -14,6 +14,11 @@ import { ChangePasswordPage } from '../../features/auth/change-password-page';
 import { UsersPage } from '../../features/users/users-page';
 import { OrganizationsPage, OrganizationCreationPage } from '../../features/directory/organizations-page';
 import { OrganizationDetailPage } from '../../features/directory/organization-detail-page';
+import { OrganizationSummary } from '../../features/directory/organization-summary';
+import { OrganizationPeoplePage } from '../../features/directory/organization-people-page';
+import { OrganizationContactsPage } from '../../features/directory/organization-contacts-page';
+import { OrganizationLocationsPage } from '../../features/directory/organization-locations-page';
+import { OrganizationControlPage } from '../../features/directory/organization-control-page';
 import { CategoriesPage } from '../../features/directory/categories-page';
 import { PeoplePage, PersonCreationPage } from '../../features/directory/people-page';
 import { PersonDetailPage } from '../../features/directory/person-detail-page';
@@ -60,7 +65,13 @@ export function AppRoutes() {
         <Route path="directory/search" element={<Suspense fallback={<p role="status">Cargando búsqueda…</p>}><DirectorySearchPage /></Suspense>} />
         <Route path="organizations/new" element={<OrganizationCreationPage />} />
         <Route path="organizations/categories" element={<CategoriesPage />} />
-        <Route path="organizations/:id" element={<OrganizationDetailPage />} />
+        <Route path="organizations/:id" element={<OrganizationDetailPage />}>
+          <Route index element={<OrganizationSummary />} />
+          <Route path="people" element={<OrganizationPeoplePage />} />
+          <Route path="contacts" element={<OrganizationContactsPage />} />
+          <Route path="locations" element={<OrganizationLocationsPage />} />
+          <Route path="control" element={<OrganizationControlPage />} />
+        </Route>
         <Route path="people" element={<PeoplePage />} />
         <Route path="people/new" element={<PersonCreationPage />} />
         <Route path="people/:id" element={<PersonDetailPage />} />

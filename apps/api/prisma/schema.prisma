@@ -325,19 +325,19 @@ model Organization {
   officialWebsite String? @db.VarChar(2048)
   isActive        Boolean @default(true)
   version         Int @default(1)
-  parentId        String? @db.Uuid
+  branchOfId      String? @db.Uuid
   createdAt       DateTime @default(now()) @db.Timestamptz(3)
   updatedAt       DateTime @default(now()) @updatedAt @db.Timestamptz(3)
   lastVerifiedAt  DateTime? @db.Timestamptz(3)
-  parent          Organization? @relation("OrganizationHierarchy", fields: [parentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  children        Organization[] @relation("OrganizationHierarchy")
+  branchOf        Organization? @relation("OrganizationBranches", fields: [branchOfId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  branches        Organization[] @relation("OrganizationBranches")
   categories      OrganizationCategory[]
   changes         DirectoryChange[]
   auditEvents     AuditEvent[]
   personRelations PersonOrganizationRelation[]
   contacts        OrganizationContact[]
 
-  @@index([parentId, name, id])
+  @@index([branchOfId, name, id])
   @@index([isActive, name, id])
   verifications Verification[]
 }

@@ -43,7 +43,7 @@ describe('Directorio PostgreSQL y HTTP', () => {
       prisma.auditEvent.deleteMany({ where: { actorUserId: { in: userIds } } }),
       prisma.directoryChange.deleteMany({ where: { actorUserId: { in: userIds } } }),
       prisma.organizationCategory.deleteMany({ where: { organizationId: { in: organizationIds } } }),
-      prisma.organization.updateMany({ where: { id: { in: organizationIds } }, data: { parentId: null } }),
+      prisma.organization.updateMany({ where: { id: { in: organizationIds } }, data: { branchOfId: null } }),
       prisma.organization.deleteMany({ where: { id: { in: organizationIds } } }),
       prisma.category.deleteMany({ where: { id: { in: categoryIds } } }),
       prisma.userSession.deleteMany({ where: { userId: { in: userIds } } }),
@@ -56,8 +56,8 @@ describe('Directorio PostgreSQL y HTTP', () => {
     const user = await users.createIdentity({ givenNames: 'QA', familyNames: randomUUID(), email: randomUUID() + '@example.test', role });
     userIds.push(user.id); await prisma.user.update({ where: { id: user.id }, data: { passwordHash } }); return user;
   }
-  async function organization(actor: string, name = 'Organización', parentId?: string) {
-    const row = await directory.createOrganization({ name, parentId }, actor); organizationIds.push(row.id); return row;
+  async function organization(actor: string, name = 'Organización', branchOfId?: string) {
+    const row = await directory.createOrganization({ name, branchOfId }, actor); organizationIds.push(row.id); return row;
   }
   async function category(actor: string, name: string = randomUUID()) {
     const row = await directory.createCategory({ name }, actor); categoryIds.push(row.id); return row;
@@ -149,7 +149,7 @@ describe('Directorio PostgreSQL y HTTP', () => {
     expect(list).not.toHaveBeenCalled();
   });
   const routes = [
-    ['get', 'organizations'], ['get', 'organizations/ID'], ['get', 'organizations/ID/children'], ['get', 'organizations/ID/history'],
+    ['get', 'organizations'], ['get', 'organizations/ID'], ['get', 'organizations/ID/branches'], ['get', 'organizations/ID/history'],
     ['post', 'organizations'], ['put', 'organizations/ID'], ['patch', 'organizations/ID/status'],
     ['get', 'categories'], ['post', 'categories'], ['put', 'categories/ID'], ['patch', 'categories/ID/status'], ['get', 'categories/ID/history'],
   ] as const;
@@ -174,7 +174,7 @@ describe('Directorio PostgreSQL y HTTP', () => {
     const edited = await request(app.getHttpServer()).put('/api/v1/organizations/' + org.id).set('Cookie', auth)
       .send({ name: 'Fundación Inicial', expectedVersion: 1, country: '  Bolivia  ', categoryIds: [catRow.id] }).expect(200);
     expect(edited.body).toMatchObject({ version: 2, country: 'Bolivia', lastVerifiedAt: null });
-    for (const path of ['organizations', 'organizations/' + org.id, 'organizations/' + org.id + '/children', 'organizations/' + org.id + '/history',
+    for (const path of ['organizations', 'organizations/' + org.id, 'organizations/' + org.id + '/branches', 'organizations/' + org.id + '/history',
       'categories', 'categories/' + catRow.id + '/history']) await request(app.getHttpServer()).get('/api/v1/' + path).set('Cookie', auth).expect(200);
     for (const [path, version] of [['organizations/' + org.id, 2], ['categories/' + catRow.id, 2]] as const) {
       await request(app.getHttpServer()).patch('/api/v1/' + path + '/status').set('Cookie', auth)
@@ -186,7 +186,7 @@ describe('Directorio PostgreSQL y HTTP', () => {
     {}, { name: '' }, { name: ' '.repeat(5) }, { name: 12 }, { name: 'x'.repeat(251) }, { name: 'Ficha', country: 'x'.repeat(151) },
     { name: 'Ficha', officialWebsite: 'javascript:alert(1)' }, { name: 'Ficha', isActive: false },
     { name: 'Ficha', lastVerifiedAt: new Date().toISOString() }, { name: 'Ficha', categoryIds: null },
-    { name: 'Ficha', categoryIds: ['bad'] }, { name: 'Ficha', parentId: 'bad' },
+    { name: 'Ficha', categoryIds: ['bad'] }, { name: 'Ficha', branchOfId: 'bad' },
   ])('rechaza DTO inválido %j con 400', async input => {
     const actor = await fixture(); const auth = await cookie(actor);
     await request(app.getHttpServer()).post('/api/v1/organizations').set('Cookie', auth).send(input).expect(400);
@@ -263,13 +263,13 @@ describe('Directorio PostgreSQL y HTTP', () => {
     await expect(directory.editCategory(cat.id, { name: 'Sobrescribir', expectedVersion: 1 }, actor.id)).rejects.toMatchObject({ code: 'VERSION_CONFLICT' });
     expect(await prisma.directoryChange.findFirst({ where: { categoryId: cat.id } })).toMatchObject({ field: 'name', previousValue: 'Educación Ambiental', newValue: 'Educación y ambiente' });
   });
-  it('self/indirect cycle, matriz ausente y sedes públicas', async () => {
+  it('rechaza ciclos y expone las sedes asociadas', async () => {
     const actor = await fixture(); const a = await organization(actor.id, 'A'); const b = await organization(actor.id, 'B', a.id); const c = await organization(actor.id, 'C', b.id);
     const auth = await cookie(actor);
-    for (const parentId of [a.id, c.id]) await request(app.getHttpServer()).put('/api/v1/organizations/' + a.id).set('Cookie', auth)
-      .send({ name: 'A', parentId, expectedVersion: 1 }).expect(409).expect(({ body }: { body: { code: string } }) => expect(body.code).toBe('INVALID_HIERARCHY'));
-    await expect(directory.editOrganization(a.id, { name: 'A', parentId: randomUUID(), expectedVersion: 1 }, actor.id)).rejects.toMatchObject({ code: 'ORGANIZATION_NOT_FOUND' });
-    expect((await directory.children(a.id, { page: 1, pageSize: 25, status: 'all' })).items.map(r => r.id)).toEqual([b.id]);
+    for (const branchOfId of [a.id, c.id]) await request(app.getHttpServer()).put('/api/v1/organizations/' + a.id).set('Cookie', auth)
+      .send({ name: 'A', branchOfId, expectedVersion: 1 }).expect(409).expect(({ body }: { body: { code: string } }) => expect(body.code).toBe('INVALID_HIERARCHY'));
+    await expect(directory.editOrganization(a.id, { name: 'A', branchOfId: randomUUID(), expectedVersion: 1 }, actor.id)).rejects.toMatchObject({ code: 'ORGANIZATION_NOT_FOUND' });
+    expect((await directory.branches(a.id, { page: 1, pageSize: 25, status: 'all' })).items.map(r => r.id)).toEqual([b.id]);
   });
   it('dos ediciones de versión N: solo una confirma, sin perder historial', async () => {
     const actor = await fixture(); const row = await organization(actor.id); const entered = barrier(); const release = barrier(); const queued = barrier();
@@ -286,7 +286,7 @@ describe('Directorio PostgreSQL y HTTP', () => {
     expect(results[0].status).toBe('fulfilled'); expect(results[1]).toMatchObject({ status: 'rejected', reason: { code: 'VERSION_CONFLICT' } });
     expect((await directory.getOrganization(row.id)).name).toBe('Primera'); expect(await prisma.directoryChange.count()).toBe(1);
   });
-  it('matrices concurrentes A→B/B→A no forman ciclo con barrera determinista', async () => {
+  it('asociaciones de sede concurrentes A→B/B→A no forman ciclo con barrera determinista', async () => {
     const actor = await fixture(); const a = await organization(actor.id, 'A'); const b = await organization(actor.id, 'B');
     const entered = barrier(); const release = barrier(); const queued = barrier(); let calls = 0;
     const original = directory.lockHierarchy.bind(directory);
@@ -294,16 +294,16 @@ describe('Directorio PostgreSQL y HTTP', () => {
       const order = ++calls; if (order === 2) queued.release();
       await original(tx); if (order === 1) { entered.release(); await release.promise; }
     });
-    const first = directory.editOrganization(a.id, { name: 'A', parentId: b.id, expectedVersion: 1 }, actor.id);
+    const first = directory.editOrganization(a.id, { name: 'A', branchOfId: b.id, expectedVersion: 1 }, actor.id);
     await entered.promise;
-    const second = directory.editOrganization(b.id, { name: 'B', parentId: a.id, expectedVersion: 1 }, actor.id);
+    const second = directory.editOrganization(b.id, { name: 'B', branchOfId: a.id, expectedVersion: 1 }, actor.id);
     await queued.promise; release.release();
     expect((await Promise.allSettled([first, second]))[1]).toMatchObject({ status: 'rejected', reason: { code: 'INVALID_HIERARCHY' } });
-    expect((await directory.getOrganization(a.id)).parentId).toBe(b.id); expect((await directory.getOrganization(b.id)).parentId).toBeNull();
+    expect((await directory.getOrganization(a.id)).branchOfId).toBe(b.id); expect((await directory.getOrganization(b.id)).branchOfId).toBeNull();
   });
-  it('SQL protege nombres, versión, parent FK y self, historial tipado/target', async () => {
+  it('SQL protege nombres, versión, sede asociada y self, historial tipado/target', async () => {
     const actor = await fixture(); const row = await organization(actor.id);
-    for (const data of [{ name: '   ' }, { version: 0 }, { parentId: row.id }, { parentId: randomUUID() }]) {
+    for (const data of [{ name: '   ' }, { version: 0 }, { branchOfId: row.id }, { branchOfId: randomUUID() }]) {
       await expect(prisma.organization.update({ where: { id: row.id }, data })).rejects.toThrow();
     }
     const base = { organizationId: row.id, actorUserId: actor.id, operationId: randomUUID(), field: 'country', newValue: 'Bolivia' };

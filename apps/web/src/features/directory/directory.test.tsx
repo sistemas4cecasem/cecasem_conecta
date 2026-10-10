@@ -15,8 +15,8 @@ const stamp = '2026-10-02T00:00:00.000Z';
 const catA = { id: 'cat-a', name: 'Educación QA', isActive: true, version: 1, createdAt: stamp, updatedAt: stamp };
 const catB = { ...catA, id: 'cat-b', name: 'Ambiente QA' };
 const base: Organization = { id: 'org', name: 'Institución QA', country: null, alias: null, description: null, officialWebsite: null,
-  isActive: true, version: 1, parentId: null, parent: null, categories: [], createdAt: stamp, updatedAt: stamp, lastVerifiedAt: null };
-const parent = { ...base, id: 'parent', name: 'Matriz QA' };
+  isActive: true, version: 1, branchOfId: null, branchOf: null, categories: [], createdAt: stamp, updatedAt: stamp, lastVerifiedAt: null };
+const branchOwner = { id: 'branch-owner', name: 'Organización regional', isActive: true };
 const page = (items: unknown[], total = items.length, number = 1) => ({ items, total, page: number, pageSize: 25 });
 
 describe('Directorio operativo', () => {
@@ -38,7 +38,7 @@ describe('Directorio operativo', () => {
         ...page(showHistory ? [{operationId:'operation-qa',createdAt:stamp,objectType:'ORGANIZATION',actor:{id:identity.id,givenNames:identity.givenNames,familyNames:identity.familyNames,isActive:true},contextRecorded:true,relatedReferences:[],replacement:null,changes:[{field:'categoryIds',label:'Categorías',previousValue:[],newValue:[catA.id,catB.id],previousReferences:[],newReferences:[{id:catA.id,kind:'category',label:catA.name},{id:catB.id,kind:'category',label:catB.name}],added:[{id:catA.id,kind:'category',label:catA.name},{id:catB.id,kind:'category',label:catB.name}],removed:[]}]}] : []),
         references: { [catA.id]: catA.name, [catB.id]: catB.name },
       }));
-      if (path.includes('/children')) return Promise.resolve(Response.json(page([])));
+      if (path.includes('/branches')) return Promise.resolve(Response.json(page([])));
       if (path.includes('/people?')) return Promise.resolve(Response.json(page([])));
       if (path.includes('/contacts?')) return Promise.resolve(Response.json(page([])));
       if (path === 'organizations' && method === 'POST') {
@@ -58,7 +58,7 @@ describe('Directorio operativo', () => {
       if (path.startsWith('organizations?')) {
         if (listState === 'pending') return new Promise<Response>(() => undefined);
         if (listState === 'error') return Promise.resolve(new Response(null, { status: 500 }));
-        return Promise.resolve(Response.json(page(listState === 'empty' ? [] : path.includes('status=all') ? [parent] : [row], listState === 'empty' ? 0 : total)));
+        return Promise.resolve(Response.json(page(listState === 'empty' ? [] : [row], listState === 'empty' ? 0 : total)));
       }
       return Promise.reject(new Error('Ruta inesperada: ' + path));
     });
@@ -97,6 +97,31 @@ describe('Directorio operativo', () => {
     expect(screen.getByRole('button', { name: 'Reintentar' })).toBeVisible();
     expect(screen.queryByText(/internal detail/)).not.toBeInTheDocument();
   });
+  it('abre secciones por URL y carga datos de la sección activa', async () => {
+    const user = userEvent.setup(); app('/organizations/org/contacts');
+    await screen.findByRole('heading', { name: 'Contactos' });
+    expect(screen.getByRole('link', { name: /^Contactos$/ })).toHaveAttribute('aria-current', 'page');
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url.includes('/organizations/org/contacts?page=1&pageSize=10'))).toBe(true));
+    expect(fetchMock.mock.calls.some(([url]) => url.includes('/organizations/org/branches?'))).toBe(false);
+    expect(fetchMock.mock.calls.some(([url]) => url.includes('/organizations/org/people?'))).toBe(false);
+    expect(fetchMock.mock.calls.some(([url]) => url.includes('/organizations/org/history'))).toBe(false);
+
+    await user.click(screen.getByRole('link', { name: /^Sedes$/ }));
+    await screen.findByRole('heading', { name: 'Sedes y representaciones' });
+    expect(screen.getByRole('link', { name: /^Sedes$/ })).toHaveAttribute('aria-current', 'page');
+    await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url.includes('/organizations/org/branches?status=all&page=1&pageSize=10'))).toBe(true));
+  });
+  it('resumen carga conteos con consultas pequeñas, sin traer historiales ni candidatos', async () => {
+    app('/organizations/org');
+    await screen.findByRole('heading', { name: 'Información institucional' });
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(([url]) => url.includes('/organizations/org/people?status=all&page=1&pageSize=1'))).toBe(true);
+      expect(fetchMock.mock.calls.some(([url]) => url.includes('/organizations/org/contacts?page=1&pageSize=1'))).toBe(true);
+      expect(fetchMock.mock.calls.some(([url]) => url.includes('/organizations/org/branches?status=all&page=1&pageSize=1'))).toBe(true);
+    });
+    expect(fetchMock.mock.calls.some(([url]) => url.includes('/organizations/org/history'))).toBe(false);
+    expect(fetchMock.mock.calls.some(([url]) => url.includes('/duplicate-candidates?'))).toBe(false);
+  });
   it('sin capability no consulta ni muestra navegación', async () => {
     current = { ...identity, permissions: [] }; app();
     expect(await screen.findByRole('alert')).toHaveTextContent('No tienes permiso');
@@ -105,9 +130,9 @@ describe('Directorio operativo', () => {
   });
   it.each(['pending', 'error', 'empty'])('listado maneja %s', async state => {
     listState = state; app();
-    if (state === 'pending') expect(await screen.findByText('Cargando…')).toBeVisible();
+    if (state === 'pending') expect(await screen.findByText('Cargando organizaciones…')).toBeVisible();
     if (state === 'error') expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo cargar');
-    if (state === 'empty') expect(await screen.findByText('No hay organizaciones para estos filtros.')).toBeVisible();
+    if (state === 'empty') expect(await screen.findByText('No hay organizaciones registradas.')).toBeVisible();
   });
   it('crea ficha con solo nombre; invalida caché y conserva verificación vacía', async () => {
     const user = userEvent.setup(); withCategories = false; const invalidate = vi.spyOn(client, 'invalidateQueries');
@@ -115,21 +140,33 @@ describe('Directorio operativo', () => {
     await user.click(screen.getByRole('button', { name: 'Guardar organización' }));
     await screen.findByRole('heading', { name: 'Nueva institución' });
     const call = fetchMock.mock.calls.find(([url, options]) => url.endsWith('/organizations') && options?.method === 'POST');
-    expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ name: 'Nueva institución', parentId: null, categoryIds: [] });
+    expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ name: 'Nueva institución', branchOfId: null, categoryIds: [] });
     expect(JSON.parse(String(call?.[1]?.body))).not.toHaveProperty('lastVerifiedAt');
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['directory', 'qa'] });
   });
-  it('edita descripción, matriz y dos categorías con versión obtenida', async () => {
+  it('registra una sede con datos institucionales y la asocia a la organización actual', async () => {
+    const user = userEvent.setup(); app('/organizations/org/locations');
+    await user.click(await screen.findByRole('button', { name: 'Añadir sede o representación' }));
+    await user.type(await screen.findByLabelText('Nombre'), 'Sede regional QA');
+    await user.type(screen.getByLabelText('País (opcional)'), 'Bolivia');
+    await user.type(screen.getByLabelText('Sitio oficial (opcional)'), 'https://sede.example.test');
+    await user.click(screen.getByRole('checkbox', { name: 'Educación QA' }));
+    await user.click(screen.getByRole('button', { name: 'Guardar sede' }));
+    await screen.findByRole('button', { name: 'Añadir sede o representación' });
+    const call = fetchMock.mock.calls.find(([url, options]) => url.endsWith('/organizations') && options?.method === 'POST');
+    expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ name: 'Sede regional QA', country: 'Bolivia', officialWebsite: 'https://sede.example.test', branchOfId: 'org', categoryIds: ['cat-a'] });
+  });
+  it('edita la ficha de una sede y conserva su organización asociada y categorías', async () => {
+    row = { ...base, branchOfId: branchOwner.id, branchOf: branchOwner };
     const user = userEvent.setup(); app('/organizations/org');
     await user.click(await screen.findByRole('button', { name: 'Editar ficha' }));
     await user.type(screen.getByLabelText('Descripción (opcional)'), 'Descripción revisada');
-    await user.click(await screen.findByRole('radio', { name: 'Matriz QA' }));
     await user.click(await screen.findByRole('checkbox', { name: 'Educación QA' }));
     await user.click(screen.getByRole('checkbox', { name: 'Ambiente QA' }));
-    await user.click(screen.getByRole('button', { name: 'Guardar organización' }));
+    await user.click(screen.getByRole('button', { name: 'Guardar sede' }));
     await screen.findByRole('button', { name: 'Editar ficha' });
     const call = fetchMock.mock.calls.find(([, options]) => options?.method === 'PUT');
-    expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ expectedVersion: 1, parentId: 'parent', categoryIds: ['cat-a', 'cat-b'], description: 'Descripción revisada' });
+    expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ expectedVersion: 1, branchOfId: branchOwner.id, categoryIds: ['cat-a', 'cat-b'], description: 'Descripción revisada' });
   });
   it('409 conserva borrador, no reintenta y recarga solo con advertencia visible', async () => {
     const user = userEvent.setup(); conflicting = true; app('/organizations/org');
@@ -154,11 +191,14 @@ describe('Directorio operativo', () => {
     await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url.includes('page=2'))).toBe(true));
     expect(screen.getByRole('button', { name: 'Siguiente' })).toBeDisabled();
   });
-  it('historial vacío y navegación matriz/sedes son visibles', async () => {
-    row = { ...row, parentId: 'parent', parent: { id: 'parent', name: 'Matriz QA', isActive: true } };
-    app('/organizations/org'); expect(await screen.findByText('Aún no hay modificaciones.')).toBeVisible();
-    expect(screen.getByRole('link', { name: 'Matriz QA' })).toHaveAttribute('href', '/organizations/parent');
-    expect(screen.getByText('No tiene sedes registradas.')).toBeVisible();
+  it('historial vacío, sede asociada y sedes registradas son visibles', async () => {
+    row = { ...row, branchOfId: branchOwner.id, branchOf: branchOwner };
+    const user = userEvent.setup(); app('/organizations/org/locations');
+    await screen.findByRole('heading', { name: 'Institución QA' });
+    expect(screen.getByRole('link', { name: 'Organización regional' })).toHaveAttribute('href', '/organizations/branch-owner');
+    expect(await screen.findByText('No hay sedes o representaciones registradas.')).toBeVisible();
+    await user.click(screen.getByRole('link', { name: /^Control$/ }));
+    expect(await screen.findByText('Aún no hay modificaciones.')).toBeVisible();
   });
   it('catálogo mínimo crea categoría sin seeds', async () => {
     withCategories = false; const user = userEvent.setup(); app('/organizations/categories');
@@ -168,7 +208,8 @@ describe('Directorio operativo', () => {
     await waitFor(() => expect(screen.getByLabelText('Nombre de categoría')).toHaveValue(''));
   });
   it('historial muestra nombres de asociaciones y valores anteriores sin códigos técnicos', async () => {
-    showHistory = true; app('/organizations/org');
+    showHistory = true; app('/organizations/org/control');
+    await userEvent.click(await screen.findByText('Ver detalle del cambio'));
     expect(await screen.findByText('Después: Educación QA, Ambiente QA')).toBeVisible();
     expect(screen.getByText('Antes: Sin categorías')).toBeVisible();
     expect(screen.queryByText('operation-qa')).not.toBeInTheDocument();
@@ -186,7 +227,7 @@ describe('Directorio operativo', () => {
     expect(client.getQueryData(AUTH_QUERY_KEY)).toBeNull();
   });
   it('Zod valida nombre, sitio y opcionales sin completar datos desconocidos', () => {
-    const blank = { name: '', country: '', alias: '', description: '', officialWebsite: '', parentId: '', categoryIds: [] };
+    const blank = { name: '', country: '', alias: '', description: '', officialWebsite: '', branchOfId: '', categoryIds: [] };
     expect(organizationFormSchema.safeParse(blank).success).toBe(false);
     expect(organizationFormSchema.safeParse({ ...blank, name: ' Parcial  ' }).success).toBe(true);
     expect(organizationFormSchema.safeParse({ ...blank, name: 'Ficha', officialWebsite: 'javascript:alert(1)' }).success).toBe(false);

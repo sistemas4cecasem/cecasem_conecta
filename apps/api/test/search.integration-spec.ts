@@ -66,7 +66,7 @@ describe('Búsqueda del directorio PostgreSQL/HTTP', () => {
       prisma.contactMethod.deleteMany({ where: { id: { in: methodIds } } }),
       prisma.person.updateMany({ where: { id: { in: personIds } }, data: { duplicateOfId: null } }),
       prisma.person.deleteMany({ where: { id: { in: personIds } } }),
-      prisma.organization.updateMany({ where: { id: { in: orgIds } }, data: { duplicateOfId: null, parentId: null } }),
+      prisma.organization.updateMany({ where: { id: { in: orgIds } }, data: { duplicateOfId: null, branchOfId: null } }),
       prisma.organization.deleteMany({ where: { id: { in: orgIds } } }),
       prisma.userSession.deleteMany({ where: { userId: { in: userIds } } }),
       prisma.userEmailAccount.deleteMany({ where: { userId: { in: userIds } } }),
@@ -81,8 +81,8 @@ describe('Búsqueda del directorio PostgreSQL/HTTP', () => {
     const response = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ email: row.email, password }).expect(200);
     return { ...row, cookie: (response.headers['set-cookie'] as unknown as string[])[0].split(';')[0] };
   }
-  async function org(actor: string, name = 'Fundación Esperanza', alias?: string, parentId?: string) {
-    const row = await directory.createOrganization({ name, alias, parentId }, actor); orgIds.push(row.id); return row;
+  async function org(actor: string, name = 'Fundación Esperanza', alias?: string, branchOfId?: string) {
+    const row = await directory.createOrganization({ name, alias, branchOfId }, actor); orgIds.push(row.id); return row;
   }
   async function person(actor: string, displayName = 'María Fernanda Pérez', givenNames?: string, familyNames?: string) {
     const row = await people.create({ displayName, givenNames, familyNames }, actor); personIds.push(row.id); return row;
@@ -151,10 +151,10 @@ describe('Búsqueda del directorio PostgreSQL/HTTP', () => {
     expect((await queries.searchOrganizations(query('esperanza', { includeInactive: true }))).items[0].isActive).toBe(false);
     expect((await queries.searchPeople(query('maria', { includeInactive: true }))).items[0].isActive).toBe(false);
   });
-  it('distingue sede y matriz sin convertirlas en alias', async () => {
-    const actor = await user(), matrix = await org(actor.id), office = await org(actor.id, 'Fundación Esperanza — Oficina Bolivia', undefined, matrix.id);
+  it('distingue una sede de su organización asociada sin convertirla en alias', async () => {
+    const actor = await user(), owner = await org(actor.id), office = await org(actor.id, 'Fundación Esperanza — Oficina Bolivia', undefined, owner.id);
     const result = await queries.searchOrganizations(query('esperanza'));
-    expect(result.total).toBe(2); expect(result.items.find(row => row.id === office.id)?.parent).toMatchObject({ id: matrix.id, name: matrix.name });
+    expect(result.total).toBe(2); expect(result.items.find(row => row.id === office.id)?.branchOf).toMatchObject({ id: owner.id, name: owner.name });
   });
   it('resume vínculos vigentes con límite y no mezcla episodios históricos', async () => {
     const actor = await user(), individual = await person(actor.id), organization = await org(actor.id);
@@ -199,7 +199,7 @@ describe('Búsqueda del directorio PostgreSQL/HTTP', () => {
   it('expone solamente campos públicos con límites de página', async () => {
     const actor = await user(); await org(actor.id); await person(actor.id);
     const response = await http(actor.cookie, { q: 'esperanza', pageSize: 1 }).expect(200);
-    expect(Object.keys((response.body as SearchResponse).organizations.items[0]).sort()).toEqual(['alias', 'country', 'duplicateOf', 'id', 'isActive', 'name', 'parent', 'type']);
+    expect(Object.keys((response.body as SearchResponse).organizations.items[0]).sort()).toEqual(['alias', 'branchOf', 'country', 'duplicateOf', 'id', 'isActive', 'name', 'type']);
     const payload = JSON.stringify(response.body); for (const field of ['normalizedValue', 'passwordHash', 'previewToken', 'version', 'actorUserId', '_count']) expect(payload).not.toContain(field);
   });
   it('parametriza signos y fragmentos SQL sin ampliar resultados', async () => {

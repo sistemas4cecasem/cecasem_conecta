@@ -247,9 +247,9 @@ describe('Contexto institucional PostgreSQL/HTTP', () => {
     const current = await processes.get(first.id, owner.id); await processes.close(first.id, { expectedVersion: current.version, result: 'REJECTED' }, owner.id);
     expect((await read(owner, goal)).communicationSummary.total).toBe(8);
   });
-  it.each(['organization', 'person'] as const)('%s: actor exacto excluye matriz/sucursal y otras personas', async kind => {
+  it.each(['organization', 'person'] as const)('%s: actor exacto excluye sedes y otras personas', async kind => {
     const owner = await actor(), goal = await target(owner.id, kind), other = await target(owner.id, kind);
-    if (kind === 'organization') await prisma.organization.update({ where: { id: other.organizationId }, data: { parentId: goal.organizationId } });
+    if (kind === 'organization') await prisma.organization.update({ where: { id: other.organizationId }, data: { branchOfId: goal.organizationId } });
     const own = await processes.create({ ...goal, purpose: 'Directo' }, owner.id), unrelated = await processes.create({ ...other, purpose: 'Otro actor' }, owner.id);
     const communication = await incoming(own.id, owner.id); await incoming(unrelated.id, owner.id);
     const row = await read(owner, goal); expect(row.communicationSummary.total).toBe(1); expect(row.recentCommunications.map(item => item.id)).toEqual([communication.id]);

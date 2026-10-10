@@ -46,7 +46,7 @@ function SearchResults({ data, identity }: { data: DirectorySearchResponse; iden
         <div className="directory-row-heading"><Link appearance="list" to={'/organizations/' + row.id}>{row.name}</Link>
         <ActorState isActive={row.isActive} duplicateOf={row.duplicateOf} kind="organizations" /></div>
         <p className="directory-search-context">{row.country ?? 'País sin registrar'}{row.alias ? ' · ' + row.alias : ''}</p>
-        {row.parent && <p>Matriz: <Link className="underline" to={'/organizations/' + row.parent.id}>{row.parent.name}</Link>{!row.parent.isActive && ' (inactiva)'}</p>}
+        {row.branchOf && <p>Sede de: <Link className="underline" to={'/organizations/' + row.branchOf.id}>{row.branchOf.name}</Link>{!row.branchOf.isActive && ' (inactiva)'}</p>}
       </DataListItem>)}</DataList></Surface>
     <Surface aria-label="Personas encontradas"><h2 className="directory-result-title">Personas · {data.people.total}</h2>
       {data.people.total > 0 && data.people.items.length === 0 && <p>No hay personas en esta página.</p>}

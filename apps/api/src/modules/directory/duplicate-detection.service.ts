@@ -10,9 +10,9 @@ import { canonicalPair, identityFingerprint, similarity, type DuplicateKind } fr
 import type { PageQueryDto } from './directory.dto';
 import type { DuplicateDecisionDto } from './duplicates.dto';
 
-export const duplicateOrganizationSelect = { id: true, name: true, alias: true, country: true, parentId: true,
+export const duplicateOrganizationSelect = { id: true, name: true, alias: true, country: true, branchOfId: true,
   version: true, duplicateOfId: true, isActive: true, lastVerifiedAt: true,
-  parent: { select: { id: true, name: true } } } satisfies Prisma.OrganizationSelect;
+  branchOf: { select: { id: true, name: true } } } satisfies Prisma.OrganizationSelect;
 export const duplicatePersonSelect = { id: true, displayName: true, givenNames: true, familyNames: true,
   version: true, duplicateOfId: true, isActive: true, lastVerifiedAt: true } satisfies Prisma.PersonSelect;
 const candidateInclude = { organizationA: { select: duplicateOrganizationSelect }, organizationB: { select: duplicateOrganizationSelect },

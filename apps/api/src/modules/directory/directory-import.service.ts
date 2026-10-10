@@ -34,14 +34,14 @@ export class DirectoryImportService {
       : typeof row.normalizedValues?.email === 'string' ? [row.normalizedValues.email] : []))];
     const [organizations, people, contacts, pendingCandidates] = await Promise.all([
       orgNames.length ? tx.organization.findMany({ where: { duplicateOfId: null, OR: orgNames.map(name => ({ name: { equals: name, mode: 'insensitive' as const } })) },
-        select: { id: true, name: true, alias: true, country: true, parentId: true, version: true, duplicateOfId: true } }) : [],
+        select: { id: true, name: true, alias: true, country: true, branchOfId: true, version: true, duplicateOfId: true } }) : [],
       personNames.length ? tx.person.findMany({ where: { duplicateOfId: null, OR: personNames.map(name => ({ displayName: { equals: name, mode: 'insensitive' as const } })) },
         select: { id: true, displayName: true, givenNames: true, familyNames: true, version: true, duplicateOfId: true } }) : [],
       emailValues.length ? tx.contactMethod.findMany({ where: { type: ContactType.EMAIL, normalizedValue: { in: emailValues } },
         select: { id: true, value: true, normalizedValue: true } }) : [],
       tx.duplicateCandidate.findMany({ where: { state: 'PENDING' }, take: 1000, orderBy: [{ detectedAt: 'desc' }, { id: 'desc' }],
-        select: { organizationA: { select: { id: true, name: true, alias: true, country: true, parentId: true, version: true, duplicateOfId: true } },
-          organizationB: { select: { id: true, name: true, alias: true, country: true, parentId: true, version: true, duplicateOfId: true } },
+        select: { organizationA: { select: { id: true, name: true, alias: true, country: true, branchOfId: true, version: true, duplicateOfId: true } },
+          organizationB: { select: { id: true, name: true, alias: true, country: true, branchOfId: true, version: true, duplicateOfId: true } },
           personA: { select: { id: true, displayName: true, givenNames: true, familyNames: true, version: true, duplicateOfId: true } },
           personB: { select: { id: true, displayName: true, givenNames: true, familyNames: true, version: true, duplicateOfId: true } } } }),
     ]);

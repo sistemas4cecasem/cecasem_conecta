@@ -43,7 +43,7 @@ describe('Oportunidades: flujos, conflictos y privacidad de identidad', () => {
       if (url.includes('/history?'))
         return Response.json({ items: [], nextCursor: null });
       if (url.includes('/search?'))
-        return Response.json({ query: 'regional', email: null, organizations: { items: [{ type: 'ORGANIZATION', alias: null, country: null, parent: null, id: orgId, name: 'Organización regional', isActive: true, duplicateOf: null }], total: 1, page: 1, pageSize: 25 }, people: { items: [], total: 0, page: 1, pageSize: 25 }, contactMethods: { items: [], total: 0, page: 1, pageSize: 25 } });
+        return Response.json({ query: 'regional', email: null, organizations: { items: [{ type: 'ORGANIZATION', alias: null, country: null, branchOf: null, id: orgId, name: 'Organización regional', isActive: true, duplicateOf: null }], total: 1, page: 1, pageSize: 25 }, people: { items: [], total: 0, page: 1, pageSize: 25 }, contactMethods: { items: [], total: 0, page: 1, pageSize: 25 } });
       if (url.includes('/opportunities?'))
         return Response.json({ items: [row], total: 1, page: 1, pageSize: 25 });
       if (url.endsWith('/opportunities/' + id))

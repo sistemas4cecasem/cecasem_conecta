@@ -1,0 +1,92 @@
+services:
+  db:
+    restart: unless-stopped
+
+  api:
+    image: node:24.21.0-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6
+    working_dir: /workspace
+    command:
+      - /bin/sh
+      - -c
+      - >-
+        apt-get update &&
+        apt-get install -y --no-install-recommends openssl &&
+        rm -rf /var/lib/apt/lists/* &&
+        corepack enable &&
+        corepack prepare yarn@4.18.1 --activate &&
+        yarn install --immutable &&
+        yarn workspace @cecasem-conecta/api prisma:migrate:deploy &&
+        yarn workspace @cecasem-conecta/api dev
+    environment:
+      NODE_ENV: development
+      APP_PORT: "3001"
+      SESSION_COOKIE_SECURE: "false"
+      FILE_STORAGE_ROOT: /workspace/storage/private
+      DATABASE_URL: postgresql://postgres:${DEV_POSTGRES_PASSWORD:?Configure DEV_POSTGRES_PASSWORD}@db:5432/cecasem_conecta_development
+    volumes:
+      - ../..:/workspace
+      - development_node_modules:/workspace/node_modules
+      - development_api_node_modules:/workspace/apps/api/node_modules
+      - development_web_node_modules:/workspace/apps/web/node_modules
+    ports:
+      - 127.0.0.1:3001:3001
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch("http://127.0.0.1:3001/api/v1/health").then(r => { if (!r.ok) process.exit(1); }).catch(() => process.exit(1))
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 45s
+    restart: unless-stopped
+
+  web:
+    image: node:24.21.0-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6
+    working_dir: /workspace
+    command:
+      - /bin/sh
+      - -c
+      - corepack enable && corepack prepare yarn@4.18.1 --activate && yarn workspace @cecasem-conecta/web dev --host 0.0.0.0
+    environment:
+      API_PROXY_TARGET: http://api:3001
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ../..:/workspace
+      - development_node_modules:/workspace/node_modules
+      - development_api_node_modules:/workspace/apps/api/node_modules
+      - development_web_node_modules:/workspace/apps/web/node_modules
+    ports:
+      - 127.0.0.1:5173:5173
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch("http://127.0.0.1:5173/").then(r => { if (!r.ok) process.exit(1); }).catch(() => process.exit(1))
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  development_postgres_data:
+    external: true
+    name: cecasem_conecta_development_development_postgres_data
+  development_node_modules:
+    external: true
+    name: cecasem_conecta_dev_root_modules
+  development_api_node_modules:
+    external: true
+    name: cecasem_conecta_dev_api_modules
+  development_web_node_modules:
+    external: true
+    name: cecasem_conecta_dev_web_modules

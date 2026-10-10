@@ -5,7 +5,7 @@ export type CellValue = string | number | boolean | null;
 
 export interface ExportRows {
   organizations?: { id: string; name: string; alias: string | null; country: string | null; isActive: boolean;
-    parent: { id: string; name: string } | null; categories: { category: { id: string; name: string } }[];
+    branchOf: { id: string; name: string } | null; categories: { category: { id: string; name: string } }[];
     contacts: { id: string; isActive: boolean; lastVerifiedAt: Date | null; dataImportBatchId: string | null;
       contactMethod: { id: string; type: string; value: string; label: string | null; condition: string } }[];
     createdAt: Date; updatedAt: Date; lastVerifiedAt: Date | null; verificationStatus: string;
@@ -60,8 +60,8 @@ export function buildExportWorkbook(type: ExportType, data: ExportRows): ExcelJS
 
   if (type === 'organizations') {
     const rows = data.organizations ?? [];
-    addSheet(workbook, 'Organizaciones', ['Identificador', 'Nombre', 'Alias', 'País', 'Estado', 'Organización matriz', 'Creada', 'Última modificación', 'Última verificación', 'Condición de verificación', 'Lote de importación', 'Archivo de origen'],
-      rows.map(row => [row.id, row.name, row.alias, row.country, row.isActive ? 'Activa' : 'Inactiva', row.parent?.name ?? null,
+    addSheet(workbook, 'Organizaciones', ['Identificador', 'Nombre', 'Alias', 'País', 'Estado', 'Sede de organización', 'Creada', 'Última modificación', 'Última verificación', 'Condición de verificación', 'Lote de importación', 'Archivo de origen'],
+      rows.map(row => [row.id, row.name, row.alias, row.country, row.isActive ? 'Activa' : 'Inactiva', row.branchOf?.name ?? null,
         timestamp(row.createdAt), timestamp(row.updatedAt), timestamp(row.lastVerifiedAt), row.verificationStatus, row.dataImportBatchId, row.dataImportBatch?.originalFilename ?? null]));
     const categories = rows.flatMap(row => row.categories.map(link => [row.id, row.name, link.category.id, link.category.name]));
     addSheet(workbook, 'Categorías', ['Identificador de organización', 'Organización', 'Identificador de categoría', 'Categoría'], categories);

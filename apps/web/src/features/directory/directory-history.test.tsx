@@ -19,7 +19,7 @@ const change = (field = 'country', before: string | null = null, after = 'Bolivi
 const operation = (id = 'operation', changes = [change()]): HistoryOperation => ({ operationId: id, createdAt: stamp, objectType: 'ORGANIZATION',
   actor: { id: 'author', givenNames: 'Autora', familyNames: 'QA', isActive: true }, contextRecorded: true, relatedReferences: [], replacement: null, changes });
 const organization: Organization = { id: 'organization', name: 'Organización QA', country: null, description: null, alias: null, officialWebsite: null,
-  parentId: null, parent: null, categories: [], isActive: false, version: 1, createdAt: stamp, updatedAt: stamp, lastVerifiedAt: null };
+  branchOfId: null, branchOf: null, categories: [], isActive: false, version: 1, createdAt: stamp, updatedAt: stamp, lastVerifiedAt: null };
 describe('Historial agrupado de fichas', () => {
   let client = createQueryClient(), operations: HistoryOperation[] = [], mode = 'ok', loggedOut = false;
   const fetchMock = vi.fn<(url: string, options?: RequestInit) => Promise<Response>>();
@@ -49,7 +49,7 @@ describe('Historial agrupado de fichas', () => {
   });
   afterEach(() => { client.clear(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
   function view(fullApp = false) {
-    return render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/organizations/organization']}>
+    return render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[fullApp ? '/organizations/organization/control' : '/organizations/organization']}>
       {fullApp ? <AppRoutes /> : <DirectoryHistory identity={identity} path="organizations/organization/history" />}
     </MemoryRouter></QueryClientProvider>);
   }
@@ -77,7 +77,7 @@ describe('Historial agrupado de fichas', () => {
     expect(screen.queryByText('old')).not.toBeInTheDocument();
   });
   it('registros anteriores sin snapshot nunca reciben nombres actuales como históricos', async () => {
-    operations = [{ ...operation('legacy', [{ ...change(), field: 'parentId', label: 'Organización matriz', newValue: 'opaque-id',
+    operations = [{ ...operation('legacy', [{ ...change(), field: 'parentId', label: 'Sede de organización', newValue: 'opaque-id',
       newReferences: [{ id: 'opaque-id', kind: 'organization', label: null }] }]), contextRecorded: false }]; view();
     expect(await screen.findByText('Después: Referencia conservada (etiqueta histórica no registrada)')).toBeVisible();
     expect(screen.getByText(/Registro anterior: no se guardaron etiquetas/)).toBeVisible(); expect(screen.queryByText('opaque-id')).not.toBeInTheDocument();
@@ -104,13 +104,15 @@ describe('Historial agrupado de fichas', () => {
     expect(await screen.findByText('Después: Bolivia')).toBeVisible();
   });
   it('editar ficha invalida y actualiza su historial agrupado', async () => {
-    view(true); const user = userEvent.setup(); await screen.findByText('Después: Bolivia'); await user.click(screen.getByRole('button', { name: 'Editar ficha' }));
+    view(true); const user = userEvent.setup(); await user.click(await screen.findByText('Ver detalle del cambio')); await screen.findByText('Después: Bolivia'); await user.click(screen.getByRole('button', { name: 'Editar ficha' }));
     await user.type(screen.getByLabelText('País (opcional)'), 'Perú'); await user.type(screen.getByLabelText('Descripción (opcional)'), 'Nueva descripción');
     await user.click(screen.getByRole('button', { name: 'Guardar organización' }));
+    const updated = await screen.findByRole('heading', { name: 'Modificación · Organización · 2 cambios' });
+    await user.click(within(updated.closest('li')!).getByText('Ver detalle del cambio'));
     expect(await screen.findByText('Después: Nueva descripción')).toBeVisible(); expect(screen.getByText('Después: Perú')).toBeVisible();
   });
   it('logout elimina historial y cancela una identidad anterior', async () => {
-    view(true); await screen.findByText('Después: Bolivia'); expect(client.getQueriesData({ queryKey: ['directory', 'reader', 'history'] })).toHaveLength(1);
+    view(true); await userEvent.click(await screen.findByText('Ver detalle del cambio')); await screen.findByText('Después: Bolivia'); expect(client.getQueriesData({ queryKey: ['directory', 'reader', 'history'] })).toHaveLength(1);
     await userEvent.setup().click(screen.getByRole('button', { name: 'Cerrar sesión' })); await screen.findByRole('heading', { name: 'Iniciar sesión' });
     expect(client.getQueriesData({ queryKey: ['directory'] })).toHaveLength(0);
     client.setQueryData(['directory', 'old-reader', 'history', 'old'], { items: operations, total: 1, page: 1, pageSize: 25 });

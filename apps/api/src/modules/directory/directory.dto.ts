@@ -9,7 +9,7 @@ export class OrganizationInputDto {
   @ApiPropertyOptional({ nullable: true }) @Transform(trim) @ValidateIf((_o, v) => v != null) @IsString() @MaxLength(150) alias?: string | null;
   @ApiPropertyOptional({ nullable: true }) @Transform(trim) @ValidateIf((_o, v) => v != null) @IsString() @MaxLength(5000) description?: string | null;
   @ApiPropertyOptional({ nullable: true }) @Transform(trim) @ValidateIf((_o, v) => v != null) @IsString() @MaxLength(2048) officialWebsite?: string | null;
-  @ApiPropertyOptional({ nullable: true, format: 'uuid' }) @ValidateIf((_o, v) => v != null) @IsUUID() parentId?: string | null;
+  @ApiPropertyOptional({ nullable: true, format: 'uuid' }) @ValidateIf((_o, v) => v != null) @IsUUID() branchOfId?: string | null;
   @ApiPropertyOptional({ type: [String] }) @ValidateIf((_o, v) => v !== undefined) @IsArray() @ArrayUnique() @ArrayMaxSize(100) @IsUUID(undefined, { each: true }) categoryIds?: string[];
 }
 export class OrganizationEditDto extends OrganizationInputDto {
@@ -32,7 +32,7 @@ export class PageQueryDto {
 export class DirectoryQueryDto extends PageQueryDto {
   @ApiPropertyOptional({ enum: ['active', 'inactive', 'all'], default: 'active' }) @IsIn(['active', 'inactive', 'all']) status: 'active' | 'inactive' | 'all' = 'active';
   @ApiPropertyOptional() @Transform(trim) @ValidateIf((_o, v) => v !== undefined) @IsString() @MaxLength(250) name?: string;
-  @ApiPropertyOptional({ format: 'uuid' }) @ValidateIf((_o, v) => v !== undefined) @IsUUID() parentId?: string;
+  @ApiPropertyOptional({ format: 'uuid' }) @ValidateIf((_o, v) => v !== undefined) @IsUUID() branchOfId?: string;
 }
 export class OrganizationQueryDto extends DirectoryQueryDto {
   @ApiPropertyOptional({ maxLength: 150, description: 'País completo, sin distinguir mayúsculas.' })

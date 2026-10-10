@@ -12,7 +12,7 @@ import type { DirectorySearchResponse } from './search.contracts';
 
 const orgId = '11111111-1111-4111-8111-111111111111', personId = '22222222-2222-4222-8222-222222222222', emailId = '33333333-3333-4333-8333-333333333333';
 const identity: AuthIdentity = { id: 'qa-search', email: 'qa@example.test', givenNames: 'QA', familyNames: 'Búsqueda', username: 'qa-search', role: 'RESEARCH', permissions: ['directory.read', 'directory.write'] };
-const org = { type: 'ORGANIZATION' as const, id: orgId, name: 'Fundación Esperanza', alias: 'FE', country: 'Bolivia', isActive: true, parent: null, duplicateOf: null };
+const org = { type: 'ORGANIZATION' as const, id: orgId, name: 'Fundación Esperanza', alias: 'FE', country: 'Bolivia', isActive: true, branchOf: null, duplicateOf: null };
 const person = { type: 'PERSON' as const, id: personId, displayName: 'María Fernanda Pérez', isActive: true, duplicateOf: null, currentRelations: [], currentRelationsTotal: 0 };
 const processId = '44444444-4444-4444-8444-444444444444';
 const process = { type: 'PROCESS' as const, id: processId, purpose: 'Cooperación educativa', state: 'WAITING_RESPONSE' as const,
@@ -79,9 +79,9 @@ describe('Búsqueda inicial del Directorio', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Reintentar' })); expect(await screen.findByText('No se encontraron resultados.')).toBeInTheDocument(); expect(searchCalls()).toHaveLength(2);
   });
   it('presenta sin resultados', async () => { view('/directory/search?q=maria'); expect(await screen.findByText('No se encontraron resultados.')).toBeInTheDocument(); });
-  it('muestra organizaciones con país/sigla/matriz y abre la ficha', async () => {
-    data.organizations = { ...data.organizations, items: [{ ...org, parent: { id: emailId, name: 'Matriz Esperanza', isActive: true } }], total: 1 };
-    view('/directory/search?q=esperanza'); const link = await screen.findByRole('link', { name: org.name }); expect(screen.getByText('Bolivia · FE')).toBeInTheDocument(); expect(screen.getByRole('link', { name: 'Matriz Esperanza' })).toHaveAttribute('href', '/organizations/' + emailId);
+  it('muestra organizaciones con país/sigla/sede asociada y abre la ficha', async () => {
+    data.organizations = { ...data.organizations, items: [{ ...org, branchOf: { id: emailId, name: 'Organización regional', isActive: true } }], total: 1 };
+    view('/directory/search?q=esperanza'); const link = await screen.findByRole('link', { name: org.name }); expect(screen.getByText('Bolivia · FE')).toBeInTheDocument(); expect(screen.getByRole('link', { name: 'Organización regional' })).toHaveAttribute('href', '/organizations/' + emailId);
     await userEvent.click(link); expect(screen.getByRole('heading', { name: 'Ficha abierta de organización' })).toBeInTheDocument();
   });
   it('muestra personas y vínculos vigentes y abre la ficha', async () => {

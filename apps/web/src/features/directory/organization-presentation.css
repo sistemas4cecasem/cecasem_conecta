@@ -72,6 +72,7 @@
   .organization-people-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; }
   .organization-person-success,
   .organization-person-existing-link { border-left: 3px solid var(--color-brand-accent); border-radius: var(--radius-control); padding: 0.625rem 0.75rem; background: var(--color-brand-soft); color: var(--color-app-text); }
+  .organization-person-edit { min-width: 0; border: 1px solid var(--color-app-border); border-radius: var(--radius-control); padding: 1rem; background: var(--color-app-background); }
   .organization-person-success a { color: var(--color-brand-primary); font-weight: 600; text-decoration: underline; text-underline-offset: 0.15em; }
   .organization-person-form { display: grid; gap: 1rem; min-width: 0; border: 1px solid var(--color-app-border); border-radius: var(--radius-control); padding: 1rem; background: var(--color-app-background); }
   .organization-person-form fieldset { display: grid; gap: 0.75rem; min-width: 0; border: 0; border-top: 1px solid var(--color-app-border); padding: 0.875rem 0 0; }
@@ -117,6 +118,70 @@
   .organization-detail .organization-episode-actions > * { flex: 0 1 auto; max-width: 100%; }
   .organization-detail .directory-verification-history { max-width: 100%; }
 
+  .organization-section-nav {
+    display: flex;
+    gap: 0.25rem;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    border-bottom: 1px solid var(--color-app-border);
+    scrollbar-width: thin;
+  }
+  .organization-section-link {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.875rem;
+    border-bottom: 3px solid transparent;
+    padding: 0.625rem 0.875rem;
+    color: var(--color-app-muted);
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .organization-section-link:hover,
+  .organization-section-link.is-active { color: var(--color-brand-primary); }
+  .organization-section-link.is-active { border-bottom-color: var(--color-brand-accent); }
+  .organization-section-link:focus-visible { outline: 3px solid var(--color-brand-accent); outline-offset: -3px; }
+  .organization-header-metadata { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.625rem; color: var(--color-app-muted); font-size: 0.875rem; }
+  .organization-workspace-content { min-width: 0; }
+  .organization-summary-layout,
+  .organization-locations-layout,
+  .organization-control-layout { display: grid; gap: 1rem; min-width: 0; }
+  .organization-section-surface { min-width: 0; padding: 1.125rem; }
+  .organization-summary-layout .organization-detail-summary .ui-metadata { margin-top: 0; }
+  .organization-summary-verification > section { margin-top: 0; }
+  .organization-summary-metrics { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; min-width: 0; }
+  .organization-summary-metric {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.25rem 0.75rem;
+    min-width: 0;
+    border: 1px solid var(--color-app-border);
+    border-radius: var(--radius-control);
+    padding: 0.875rem 1rem;
+    background: var(--color-app-surface);
+    text-decoration: none;
+  }
+  .organization-summary-metric > span:first-child { color: var(--color-app-muted); font-size: 0.8125rem; }
+  .organization-summary-metric > strong { color: var(--color-brand-primary); font-size: 1.25rem; }
+  .organization-summary-metric > span:last-child { grid-column: 1 / -1; color: var(--color-brand-primary); font-size: 0.8125rem; text-decoration: underline; text-underline-offset: 0.15em; }
+  .organization-people-filters { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem 1rem; min-width: 0; }
+  .organization-record-details { min-width: 0; border-top: 1px solid var(--color-app-border); padding-top: 0.5rem; }
+  .organization-record-details > summary { display: flex; align-items: center; min-height: 2.75rem; color: var(--color-brand-primary); cursor: pointer; font-size: 0.875rem; font-weight: 600; text-decoration: underline; text-underline-offset: 0.15em; }
+  .organization-record-detail-content { min-width: 0; padding-block: 0.75rem; }
+  .organization-record-detail-content > * { min-width: 0; }
+  .organization-history-details { min-width: 0; padding-block: 0.75rem; }
+  .organization-contact-primary { overflow-wrap: anywhere; }
+  .organization-location-list { border-top: 1px solid var(--color-app-border); }
+  .organization-location-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
+  .organization-location-primary,
+  .organization-location-status { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; min-width: 0; }
+  .organization-location-name { display: inline-flex; min-height: 2.75rem; align-items: center; color: var(--color-brand-primary); font-weight: 600; text-decoration: underline; text-underline-offset: 0.15em; overflow-wrap: anywhere; }
+  .organization-location-status > span:last-child { color: var(--color-app-muted); font-size: 0.8125rem; }
+
   .organization-contact-form { display: grid; gap: 0.875rem; width: min(100%, 52rem); min-width: 0; margin-inline: auto; }
   .organization-contact-group { min-width: 0; border: 0; border-top: 1px solid var(--color-app-border); padding: 0.875rem 0 0; }
   .organization-contact-group legend { padding: 0 0.375rem 0 0; color: var(--color-brand-primary); font-size: 0.9375rem; font-weight: 600; }
@@ -138,6 +203,9 @@
     .organization-contact-context-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .organization-contact-method-fields > :last-child,
     .organization-contact-context-fields > :last-child { grid-column: 1 / -1; }
+    .organization-people-filters { grid-template-columns: minmax(0, 2fr) minmax(12rem, 1fr); }
+    .organization-summary-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .organization-location-row { grid-template-columns: minmax(0, 1.2fr) minmax(13rem, 1fr); align-items: center; gap: 1rem; }
   }
   @media (min-width: 48rem) {
     .organization-detail-summary .ui-metadata { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -145,7 +213,10 @@
     .organization-detail-summary .ui-metadata > div:nth-child(5) { grid-column: span 1; }
   }
   @media (min-width: 80rem) {
-    .organization-detail .directory-detail-main { grid-template-columns: minmax(0, 1.5fr) minmax(18rem, 1fr); }
+    .organization-summary-layout { grid-template-columns: minmax(0, 1.5fr) minmax(18rem, 1fr); align-items: start; }
+    .organization-summary-layout > :first-child { grid-column: 1; grid-row: 1; }
+    .organization-summary-layout > :nth-child(2) { grid-column: 2; grid-row: 1; }
+    .organization-summary-metrics { grid-column: 1 / -1; }
     .organization-detail .directory-contact-list > li,
     .organization-detail .directory-episode-list > li { grid-template-columns: minmax(0, 1.25fr) minmax(18rem, 1fr); gap: 0.875rem 1.5rem; }
   }

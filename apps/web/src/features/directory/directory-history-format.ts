@@ -14,7 +14,7 @@ export function historyValueLabel(change: HistoryChange, side: 'previous' | 'new
   if (Array.isArray(value)) return value.length ? 'Referencias conservadas (etiquetas históricas no registradas)' : change.field === 'categoryIds' ? 'Sin categorías' : 'Sin fichas consolidadas';
   if (typeof value === 'boolean') return change.field === 'isCurrent' ? (value ? 'Vigente' : 'Finalizado') : (value ? 'Activa' : 'Inactiva');
   if (change.field === 'condition') return value === 'USABLE' ? 'Disponible' : 'No utilizable (reportado)';
-  if (['parentId', 'relationCreated', 'associationCreated'].includes(change.field)) return 'Referencia conservada (etiqueta histórica no registrada)';
+  if (['branchOfId', 'parentId', 'relationCreated', 'associationCreated'].includes(change.field)) return 'Referencia conservada (etiqueta histórica no registrada)';
   return value;
 }
 export function historyOperationLabel(operation: HistoryOperation): string {

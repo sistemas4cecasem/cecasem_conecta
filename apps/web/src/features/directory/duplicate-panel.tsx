@@ -11,12 +11,12 @@ import { ConsolidationReview } from './consolidation-review';
 
 const signalLabels: Record<string, string> = { SIMILAR_ORGANIZATION_NAMES: 'Nombres o siglas próximos', SIMILAR_PERSON_NAMES: 'Nombres próximos',
   COMPATIBLE_INITIALS: 'Iniciales compatibles: requieren revisión', DIFFERENT_COUNTRIES: 'Países diferentes: comprobar contexto',
-  REVIEW_PARENT_OFFICE_CONTEXT: 'Revisar matriz y sede: pueden ser organizaciones distintas' };
+  REVIEW_BRANCH_CONTEXT: 'Revisar si pertenecen a una misma organización o corresponden a sedes distintas' };
 function ComparisonActor({ actor, kind }: { actor: DuplicateActor; kind: DuplicateCandidate['kind'] }) {
   return <div className="min-w-0 space-y-2 rounded border p-3">
     <Link className="inline-flex min-h-11 items-center underline" to={'/' + (kind === 'person' ? 'people/' : 'organizations/') + actor.id}>{duplicateActorLabel(actor)}</Link>
     <p>{actor.isActive ? 'Ficha activa' : 'Ficha inactiva'} · Versión {actor.version}</p>
-    {kind === 'organization' ? <><p>País: {actor.country ?? 'Sin dato'}</p><p>Sigla: {actor.alias ?? 'Sin dato'}</p><p>Matriz: {actor.parent?.name ?? 'Sin matriz'}</p></>
+    {kind === 'organization' ? <><p>País: {actor.country ?? 'Sin dato'}</p><p>Sigla: {actor.alias ?? 'Sin dato'}</p>{actor.branchOf&&<p>Sede de: {actor.branchOf.name}</p>}</>
       : <><p>Nombres: {actor.givenNames ?? 'Sin dato'}</p><p>Apellidos: {actor.familyNames ?? 'Sin dato'}</p></>}
     <p>Última verificación: {dateLabel(actor.lastVerifiedAt)}. No es una prueba de identidad.</p>
   </div>;

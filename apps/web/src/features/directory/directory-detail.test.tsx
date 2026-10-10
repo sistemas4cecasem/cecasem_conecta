@@ -10,7 +10,7 @@ import { AUTH_QUERY_KEY, type AuthIdentity } from '../auth/session';
 const stamp = '2026-10-07T00:00:00Z';
 const category = { id: 'category', name: 'Educación', isActive: false, version: 1, createdAt: stamp, updatedAt: stamp };
 const organization = { id: 'org', name: 'Institución de prueba', country: 'Bolivia', alias: 'IP', description: 'Información institucional real del contrato.', officialWebsite: null,
-  isActive: true, version: 3, parentId: 'parent', parent: { id: 'parent', name: 'Matriz de prueba', isActive: true }, categories: [category], createdAt: stamp, updatedAt: stamp, lastVerifiedAt: null };
+  isActive: true, version: 3, branchOfId: 'parent', branchOf: { id: 'parent', name: 'Sede principal de prueba', isActive: true }, categories: [category], createdAt: stamp, updatedAt: stamp, lastVerifiedAt: null };
 const person = { id: 'person', displayName: 'Ana Prueba', givenNames: 'Ana', familyNames: 'Prueba', isActive: true, version: 3, createdAt: stamp, updatedAt: stamp, lastVerifiedAt: null, currentRelationsCount: 1 };
 const episode = { id: 'episode', personId: 'person', organizationId: 'org', person: { id: 'person', displayName: person.displayName, isActive: true },
   organization: { id: 'org', name: organization.name, isActive: true }, positionTitle: 'Coordinadora', area: 'Programas', isCurrent: true, startDate: null, endDate: null,
@@ -42,16 +42,17 @@ describe('UI 2.5 fichas institucionales', () => {
         contextRecorded: true, relatedReferences: [], replacement: null, changes: [{ field: 'displayName', label: 'Nombre de presentación', previousValue: 'Nombre anterior', newValue: person.displayName, previousReferences: [], newReferences: [], added: [], removed: [] }] }])));
       if (path.includes('/contacts?')) return Promise.resolve(Response.json(page([{ ...association, ...(path.startsWith('people/') ? { personId: person.id, person: episode.person } : { organizationId: organization.id, organization: episode.organization }) }])));
       if (path.includes('/relations?') || path.includes('/people?')) return Promise.resolve(Response.json(page(independent ? [] : [episode, { ...episode, id: 'past', positionTitle: 'Consultora', isCurrent: false, endDate: null }])));
-      if (path.includes('/children?')) return Promise.resolve(Response.json(page([{ ...organization, id: 'office', name: 'Sede de prueba', isActive: false }])));
+      if (path.includes('/branches?')) return Promise.resolve(Response.json(page([{ ...organization, id: 'office', name: 'Sede de prueba', isActive: false }])));
       if (path === 'organizations/org') return Promise.resolve(Response.json({ ...organization, ...(consolidated ? { duplicateOfId: 'principal', duplicateOf: { id: 'principal', name: 'Principal de prueba' } } : {}) }));
       if (path === 'people/person') return Promise.resolve(Response.json({ ...person, currentRelationsCount: independent ? 0 : 1 }));
       return Promise.reject(new Error('Ruta no prevista: ' + path));
     }); vi.stubGlobal('fetch', fetchMock);
   });
   afterEach(() => { client.clear(); vi.unstubAllGlobals(); });
-  function view(kind: 'organizations' | 'people') {
+  function view(kind: 'organizations' | 'people', section?: 'people' | 'contacts' | 'locations' | 'control') {
     client.setQueryData(AUTH_QUERY_KEY, identity); client.setQueryDefaults(AUTH_QUERY_KEY, { staleTime: Infinity });
-    render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[`/${kind}/${kind === 'people' ? 'person' : 'org'}`]}><AppRoutes /></MemoryRouter></QueryClientProvider>);
+    const basePath = `/${kind}/${kind === 'people' ? 'person' : 'org'}`;
+    render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[section ? `${basePath}/${section}` : basePath]}><AppRoutes /></MemoryRouter></QueryClientProvider>);
   }
   it('UI 2.12 cancelar desactivación devuelve el foco sin cambiar estado ni escribir', async () => {
     view('organizations');
@@ -63,18 +64,21 @@ describe('UI 2.5 fichas institucionales', () => {
     expect(screen.getByText('Activa')).toBeVisible();
     expect(fetchMock.mock.calls.some(([, options]) => options?.method && options.method !== 'GET')).toBe(false);
   });
-  it('organización conserva identidad, matriz, categorías inactivas y sede navegable', async () => {
+  it('organización conserva identidad, sede asociada, categorías inactivas y sede navegable', async () => {
     view('organizations'); expect(await screen.findByRole('heading', { level: 1, name: organization.name })).toBeVisible();
     const summary = within(screen.getByRole('region', { name: 'Información institucional' }));
     expect(summary.getByText('Bolivia')).toBeVisible(); expect(summary.getByText('Educación (inactiva)')).toBeVisible();
-    expect(summary.getByRole('link', { name: 'Matriz de prueba' })).toHaveAttribute('href', '/organizations/parent');
+    expect(summary.getByRole('link', { name: 'Sede principal de prueba' })).toHaveAttribute('href', '/organizations/parent');
+    await userEvent.click(screen.getByRole('link', { name: /^Sedes$/ }));
     expect(await screen.findByRole('link', { name: 'Sede de prueba' })).toHaveAttribute('href', '/organizations/office');
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   });
   it.each(['organizations', 'people'] as const)('%s preserva contacto compartido, antecedente, condición y fuente por asociación', async kind => {
-    view(kind); expect(await screen.findByRole('link', { name: method.value })).toHaveAttribute('href', '/contact-methods/method');
+    view(kind, kind === 'organizations' ? 'contacts' : undefined); expect(await screen.findByRole('link', { name: method.value })).toHaveAttribute('href', '/contact-methods/method');
     expect(screen.getByText('Asociación inactiva / antecedente · Medio: Disponible')).toBeVisible();
-    expect(screen.getByText('Medio compartido entre 2 asociaciones.')).toBeVisible(); expect(screen.getByText('Fuente: Fuente exclusiva de la asociación')).toBeVisible();
+    expect(screen.getByText('Medio compartido entre 2 asociaciones.')).toBeVisible();
+    if (kind === 'organizations') await userEvent.click(screen.getByText('Ver detalles, verificación y acciones'));
+    expect(await screen.findByText('Fuente: Fuente exclusiva de la asociación')).toBeVisible();
   });
   it('persona mantiene episodios actuales e históricos, cargos y fechas desconocidas', async () => {
     view('people'); await screen.findByText('Vigente · Cargo: Coordinadora');
@@ -100,7 +104,7 @@ describe('UI 2.5 fichas institucionales', () => {
     expect(await within(history).findByText('Antes: Nombre anterior')).toBeVisible(); expect(history).toHaveTextContent('Después: Ana Prueba'); expect(history).toHaveTextContent('Usuario actualmente desactivado');
   });
   it('ficha consolidada conserva destino e historia y bloquea mantenimiento del actor', async () => {
-    consolidated = true; view('organizations'); expect(await screen.findByRole('link', { name: 'Principal de prueba' })).toHaveAttribute('href', '/organizations/principal');
+    consolidated = true; view('organizations', 'control'); expect(await screen.findByRole('link', { name: 'Principal de prueba' })).toHaveAttribute('href', '/organizations/principal');
     expect(screen.queryByRole('button', { name: 'Editar ficha' })).not.toBeInTheDocument(); expect(screen.queryByRole('button', { name: 'Desactivar organización' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Registrar medio de contacto' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Marcar verificado: organización Institución de prueba' })).not.toBeInTheDocument(); expect(screen.getByRole('region', { name: 'Historial de modificaciones' })).toBeVisible();

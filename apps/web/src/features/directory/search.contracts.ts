@@ -5,7 +5,7 @@ const organizationIdentity = z.object({ id: z.uuid(), name: z.string(), isActive
 const personIdentity = z.object({ id: z.uuid(), displayName: z.string(), isActive: z.boolean(),
   duplicateOf: z.object({ id: z.uuid(), displayName: z.string(), isActive: z.boolean() }).nullable() });
 const organizationResult = organizationIdentity.extend({ type: z.literal('ORGANIZATION'), alias: z.string().nullable(), country: z.string().nullable(),
-  parent: z.object({ id: z.uuid(), name: z.string(), isActive: z.boolean() }).nullable() });
+  branchOf: z.object({ id: z.uuid(), name: z.string(), isActive: z.boolean() }).nullable() });
 const personResult = personIdentity.extend({ type: z.literal('PERSON'), currentRelationsTotal: z.number().int().nonnegative(),
   currentRelations: z.array(z.object({ id: z.uuid(), positionTitle: z.string().nullable(),
     organization: z.object({ id: z.uuid(), name: z.string(), isActive: z.boolean() }) })) });

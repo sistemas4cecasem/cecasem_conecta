@@ -35,7 +35,7 @@ describe('Restricciones de no contacto frontend', () => {
         contactAllowed: !total || row.state !== 'ACTIVE', hasRelationshipHistory: false, hasRegisteredCommunicationHistory: false, communicationSummary: { total: 0, lastOccurredAt: null, lastDirection: null }, recentCommunications: [],
         activeIntents: { items: [], total: 0 }, activeProcesses: { items: [], total: 0 }, recentClosedProcesses: { items: [], total: 0 }, relatedOrganizationContext: { items: [], total: 0 } }));
       if (url.includes('/search?')) return Promise.resolve(Response.json({ query: 'QA', email: null,
-        organizations: { items: [{ type: 'ORGANIZATION', id: goal, name: 'Fundación QA', alias: null, country: null, parent: null, duplicateOf: null, isActive: true }], total: 1, page: 1, pageSize: 25 },
+        organizations: { items: [{ type: 'ORGANIZATION', id: goal, name: 'Fundación QA', alias: null, country: null, branchOf: null, duplicateOf: null, isActive: true }], total: 1, page: 1, pageSize: 25 },
         people: { items: [{ type: 'PERSON', id: goal, displayName: 'Persona QA', isActive: true, duplicateOf: null, currentRelations: [], currentRelationsTotal: 0 }], total: 1, page: 1, pageSize: 25 } }));
       if (options?.method === 'POST') {
         if (status !== 201) return Promise.resolve(Response.json({ code: status === 403 ? 'FORBIDDEN' : url.includes('contact-restrictions') ? 'VERSION_CONFLICT' : 'CONTACT_RESTRICTED' }, { status }));

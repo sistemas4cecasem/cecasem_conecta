@@ -58,7 +58,7 @@ describe('Candidatos y consolidación PostgreSQL/HTTP', () => {
       prisma.person.updateMany({ where: { id: { in: personIds } }, data: { duplicateOfId: null } }),
       prisma.person.deleteMany({ where: { id: { in: personIds } } }),
       prisma.organizationCategory.deleteMany({ where: { organizationId: { in: organizationIds } } }),
-      prisma.organization.updateMany({ where: { id: { in: organizationIds } }, data: { duplicateOfId: null, parentId: null } }),
+      prisma.organization.updateMany({ where: { id: { in: organizationIds } }, data: { duplicateOfId: null, branchOfId: null } }),
       prisma.organization.deleteMany({ where: { id: { in: organizationIds } } }),
       prisma.category.deleteMany({ where: { id: { in: categoryIds } } }),
       prisma.userSession.deleteMany({ where: { userId: { in: userIds } } }), prisma.user.deleteMany({ where: { id: { in: userIds } } }),
@@ -74,7 +74,7 @@ describe('Candidatos y consolidación PostgreSQL/HTTP', () => {
     const result = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ email: actor.email, password }).expect(200);
     return (result.headers['set-cookie'] as unknown as string[])[0].split(';')[0];
   }
-  async function organization(actor: string, name = 'Fundación Esperanza', extra: { parentId?: string; categoryIds?: string[] } = {}) {
+  async function organization(actor: string, name = 'Fundación Esperanza', extra: { branchOfId?: string; categoryIds?: string[] } = {}) {
     const row = await directory.createOrganization({ name, ...extra }, actor); organizationIds.push(row.id); return row;
   }
   async function person(actor: string, displayName = 'María Fernanda Pérez') {
@@ -305,8 +305,8 @@ describe('Candidatos y consolidación PostgreSQL/HTTP', () => {
   });
   it.each(['office-to-parent', 'parent-to-office', 'duplicate-with-children'] as const)('jerarquía segura: %s', async scenario => {
     const actor = await user();
-    const a = await organization(actor.id), b = await organization(actor.id, 'Fundacion Esperanza', scenario === 'duplicate-with-children' ? {} : { parentId: a.id });
-    if (scenario === 'duplicate-with-children') await organization(actor.id, 'Sede legítima', { parentId: b.id });
+    const a = await organization(actor.id), b = await organization(actor.id, 'Fundacion Esperanza', scenario === 'duplicate-with-children' ? {} : { branchOfId: a.id });
+    if (scenario === 'duplicate-with-children') await organization(actor.id, 'Sede legítima', { branchOfId: b.id });
     const candidate = (await detection.listActor('organization', a.id, page, actor.id)).items.find(row => [row.a.id, row.b.id].includes(b.id))!;
     const principalId = scenario === 'parent-to-office' ? b.id : a.id;
     const preview = await consolidation.preview(candidate.id, principalId, actor.id);

@@ -4,7 +4,7 @@ import { DirectoryError } from './directory.errors';
 export type DuplicateKind = 'organization' | 'person';
 export interface SimilarityActor {
   id: string; version: number; duplicateOfId: string | null;
-  name?: string; alias?: string | null; country?: string | null; parentId?: string | null;
+  name?: string; alias?: string | null; country?: string | null; branchOfId?: string | null;
   displayName?: string; givenNames?: string | null; familyNames?: string | null;
 }
 // Umbrales iniciales calibrados en duplicates.rules.spec.ts. No deciden identidad.
@@ -41,11 +41,11 @@ export function similarity(kind: DuplicateKind, a: SimilarityActor, b: Similarit
   const signals = [kind === 'organization' ? 'SIMILAR_ORGANIZATION_NAMES' : 'SIMILAR_PERSON_NAMES'];
   if (abbreviation) signals.push('COMPATIBLE_INITIALS');
   if (kind === 'organization' && a.country && b.country && comparisonText(a.country) !== comparisonText(b.country)) signals.push('DIFFERENT_COUNTRIES');
-  if (kind === 'organization' && (a.parentId || b.parentId)) signals.push('REVIEW_PARENT_OFFICE_CONTEXT');
+  if (kind === 'organization' && (a.branchOfId || b.branchOfId)) signals.push('REVIEW_BRANCH_CONTEXT');
   return { score: Math.round(score * 10000) / 10000, signals, matches: score >= SIMILARITY_THRESHOLDS[kind] };
 }
 export function identityFingerprint(kind: DuplicateKind, actor: SimilarityActor): string {
-  const values = kind === 'organization' ? [actor.name, actor.alias, actor.country, actor.parentId]
+  const values = kind === 'organization' ? [actor.name, actor.alias, actor.country, actor.branchOfId]
     : [actor.displayName, actor.givenNames, actor.familyNames];
   return createHash('sha256').update(JSON.stringify(values.map(comparisonText))).digest('hex');
 }

@@ -25,6 +25,7 @@ function barrier(){let release!:()=>void;const promise=new Promise<void>(resolve
 type ContextualPersonResponse={person:{id:string;displayName:string;givenNames:string|null;familyNames:string|null;isActive:boolean;currentRelationsCount:number;institutionalStatus:string;lastVerifiedAt:string|null};
   relation:{id:string;personId:string;organizationId:string;isCurrent:boolean;positionTitle:string|null;area:string|null;lastVerifiedAt:string|null}};
 type PeoplePageResponse={total:number;items:Array<{id:string;institutionalStatus:string}>};
+type OrganizationPeoplePageResponse={total:number;page:number;pageSize:number;items:Array<{person:{displayName:string}}>};
 describe('Personas PostgreSQL y HTTP',()=>{
   let app:INestApplication<Server>,prisma:PrismaService,users:UsersService,directory:DirectoryService,people:PeopleService,contacts:ContactsService,history:DirectoryHistoryService,audit:AuditService,passwordHash:string;
   const password=randomBytes(24).toString('hex')+'Aa!';const userIds:string[]=[],personIds:string[]=[],organizationIds:string[]=[],contactMethodIds:string[]=[];
@@ -226,6 +227,25 @@ describe('Personas PostgreSQL y HTTP',()=>{
     expect((await people.relationsOfOrganization(a.id,{page:1,pageSize:25,status:'historical'})).total).toBe(1);
     await directory.organizationStatus(a.id,{isActive:false,expectedVersion:1},actor.id);await people.status(row.id,{isActive:false,expectedVersion:1},actor.id);
     expect(await prisma.personOrganizationRelation.count()).toBe(3);expect((await people.getRelation(first.id)).organization.isActive).toBe(false);
+  });
+  it('busca personas vinculadas en el servidor y conserva filtros de vigencia y paginación',async()=>{
+    const actor=await fixture(),auth=await cookie(actor),organization=await org(actor.id),prefix='Vínculo filtrable '+randomUUID();
+    const ana=await person(actor.id,prefix+' Ana'),beatriz=await person(actor.id,prefix+' Beatriz'),outside=await person(actor.id,'Otra persona '+randomUUID());
+    personIds.push(ana.id,beatriz.id,outside.id);
+    await people.createRelation(ana.id,{organizationId:organization.id,isCurrent:true,positionTitle:'Directora'},actor.id);
+    await people.createRelation(ana.id,{organizationId:organization.id,isCurrent:false,positionTitle:'Asesora'},actor.id);
+    await people.createRelation(beatriz.id,{organizationId:organization.id,isCurrent:true,positionTitle:'Coordinadora'},actor.id);
+    await people.createRelation(outside.id,{organizationId:organization.id,isCurrent:true},actor.id);
+    const path='/api/v1/organizations/'+organization.id+'/people';
+    const first=await request(app.getHttpServer()).get(path).query({name:prefix.toUpperCase(),status:'all',page:1,pageSize:1}).set('Cookie',auth).expect(200);
+    const second=await request(app.getHttpServer()).get(path).query({name:prefix,status:'all',page:2,pageSize:1}).set('Cookie',auth).expect(200);
+    const firstBody=first.body as OrganizationPeoplePageResponse,secondBody=second.body as OrganizationPeoplePageResponse;
+    expect(firstBody).toMatchObject({total:3,page:1,pageSize:1});expect(secondBody).toMatchObject({total:3,page:2,pageSize:1});
+    expect([...firstBody.items,...secondBody.items].every(row=>row.person.displayName.toLowerCase().includes(prefix.toLowerCase()))).toBe(true);
+    const current=await request(app.getHttpServer()).get(path).query({name:prefix,status:'current'}).set('Cookie',auth).expect(200);
+    const historical=await request(app.getHttpServer()).get(path).query({name:prefix,status:'historical'}).set('Cookie',auth).expect(200);
+    expect((current.body as OrganizationPeoplePageResponse).total).toBe(2);expect((historical.body as OrganizationPeoplePageResponse).total).toBe(1);
+    await request(app.getHttpServer()).get(path).query({name:'x'.repeat(251)}).set('Cookie',auth).expect(400);
   });
   it('edición persona y corrección episodio conservan autores/valores/operación, fechas de creación y verificación',async()=>{
     const actor=await fixture(),row=await person(actor.id),organization=await org(actor.id);

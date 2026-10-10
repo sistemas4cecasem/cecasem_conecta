@@ -129,7 +129,8 @@ export class PeopleService {
   async relationsOfPerson(id:string,query:RelationsQueryDto) {await this.person(id);return this.listRelations({personId:id},query);}
   async relationsOfOrganization(id:string,query:RelationsQueryDto) {await this.directory.getOrganization(id);return this.listRelations({organizationId:id},query);}
   private async listRelations(target:{personId:string}|{organizationId:string},query:RelationsQueryDto) {
-    const where={...target,...(query.status==='all'?{}:{isCurrent:query.status==='current'})};
+    const where:Prisma.PersonOrganizationRelationWhereInput={...target,...(query.status==='all'?{}:{isCurrent:query.status==='current'}),
+      ...(query.name?{person:{displayName:{contains:query.name,mode:'insensitive'}}}:{})};
     const [rows,total]=await this.prisma.$transaction([
       this.prisma.personOrganizationRelation.findMany({where,select:relationSelect,orderBy:[{createdAt:'desc'},{id:'desc'}],...paging(query)}),
       this.prisma.personOrganizationRelation.count({where})],{isolationLevel:Prisma.TransactionIsolationLevel.RepeatableRead});

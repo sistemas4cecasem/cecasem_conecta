@@ -55,7 +55,7 @@ export function OrganizationFilters({ identity, params, change, prefix = '', pre
   const summary = [
     ...(params.get('name') ? [`Nombre: ${params.get('name')}`] : []),
     ...(value('country') ? [`País: ${value('country')}`] : []),
-    `Estado: ${value('status') === 'inactive' ? 'Inactivas' : (value('status') || (prefix ? 'all' : 'active')) === 'all' ? 'Todas' : 'Activas'}`,
+    `Estado: ${value('status') === 'inactive' ? 'Inactivas' : (value('status') || (prefix || modern ? 'all' : 'active')) === 'all' ? 'Todas' : 'Activas'}`,
     ...(value('verificationStatus') ? [`Verificación: ${verificationLabels[value('verificationStatus') as keyof typeof verificationLabels] ?? value('verificationStatus')}`] : []),
     ...(canReadCommunications && value('withCommunications') ? [value('withCommunications') === 'true' ? 'Con comunicaciones históricas' : 'Sin comunicaciones históricas'] : []),
     ...(category ? [`Categoría: ${category.name}`] : []),
@@ -64,7 +64,7 @@ export function OrganizationFilters({ identity, params, change, prefix = '', pre
     {prefix && <p>Estos filtros reducen únicamente organizaciones. Personas, procesos y antecedentes de correo conservan su búsqueda.</p>}
     <div className={modern ? 'organizations-secondary-filters' : 'grid min-w-0 gap-4 sm:grid-cols-2'}>
       <FilterField label="País" modern={modern}>{control => <FilterInput {...control} className={modern ? undefined : inputClass} maxLength={150} value={value('country')} onChange={event => update('country', event.target.value)} />}</FilterField>
-      <FilterField label={prefix ? 'Estado de organizaciones' : 'Estado'} modern={modern}>{control => <FilterSelect {...control} className={modern ? undefined : inputClass} value={value('status') || (prefix ? 'all' : 'active')} onChange={event => update('status', event.target.value)}>
+      <FilterField label={prefix ? 'Estado de organizaciones' : 'Estado'} modern={modern}>{control => <FilterSelect {...control} className={modern ? undefined : inputClass} value={value('status') || (prefix || modern ? 'all' : 'active')} onChange={event => update('status', event.target.value)}>
         <option value="active">Activas</option><option value="inactive">Inactivas</option><option value="all">Todas</option></FilterSelect>}</FilterField>
       <FilterField label="Condición de verificación" modern={modern}>{control => <FilterSelect {...control} className={modern ? undefined : inputClass} value={value('verificationStatus')} onChange={event => update('verificationStatus', event.target.value)}>
         <option value="">Todas las condiciones</option>{Object.entries(verificationLabels).map(([code, label]) => <option key={code} value={code}>{label}</option>)}</FilterSelect>}</FilterField>
@@ -76,7 +76,7 @@ export function OrganizationFilters({ identity, params, change, prefix = '', pre
     {!modern && <CategoryFilter identity={identity} selected={category} onChange={next => { setSelected(next); update('categoryId', next?.id ?? ''); }} />}
     {!modern && canReadCommunications && <p className="text-sm">{communicationHelp}</p>}
     {prefix && <p className="text-sm">Para mostrar organizaciones inactivas, activa también «Incluir fichas inactivas».</p>}
-    {modern ? <div className="organizations-filter-footer"><p className="organizations-filter-summary">{summary}</p><Button onClick={clear}>Limpiar filtros{prefix ? ' de organizaciones' : ''}</Button></div>
-      : <button type="button" className={buttonClass} onClick={clear}>Limpiar filtros{prefix ? ' de organizaciones' : ''}</button>}
+    {modern && prefix && <div className="organizations-filter-footer"><p className="organizations-filter-summary">{summary}</p><Button onClick={clear}>Limpiar filtros de organizaciones</Button></div>}
+    {!modern && <button type="button" className={buttonClass} onClick={clear}>Limpiar filtros{prefix ? ' de organizaciones' : ''}</button>}
   </section>;
 }

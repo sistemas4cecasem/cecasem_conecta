@@ -10,7 +10,7 @@ import { contactMethodSchema,contactCreateFormSchema,type ContactMethod,type Con
 const stamp='2026-10-02T00:00:00.000Z',methodId='11111111-1111-4111-8111-111111111111',otherId='22222222-2222-4222-8222-222222222222';
 const identity:AuthIdentity={id:'qa',givenNames:'QA',familyNames:'Contactos',username:'qa',email:'qa@example.test',role:'RESEARCH',permissions:['directory.read','directory.write','directory.history.read']};
 const person={id:'person',displayName:'Ana QA',givenNames:null,familyNames:null,isActive:true,version:1,createdAt:stamp,updatedAt:stamp,lastVerifiedAt:null,currentRelationsCount:0};
-const organization={id:'org-a',name:'Organización A',country:null,alias:null,description:null,officialWebsite:null,parentId:null,parent:null,categories:[],isActive:true,version:1,createdAt:stamp,updatedAt:stamp,lastVerifiedAt:null};
+const organization={id:'org-a',name:'Organización A',country:null,alias:null,description:null,officialWebsite:null,branchOfId:null,branchOf:null,categories:[],isActive:true,version:1,createdAt:stamp,updatedAt:stamp,lastVerifiedAt:null};
 const base:ContactMethod={id:methodId,type:'EMAIL',value:'contacto@fundacion.org',label:null,condition:'USABLE',version:1,createdAt:stamp,updatedAt:stamp,associationCount:0};
 const context={sourceDescription:'Sitio oficial',sourceUrl:null,notes:'Contexto original',isActive:true,version:1,createdAt:stamp,updatedAt:stamp,lastVerifiedAt:null};
 const page=(items:unknown[],total=items.length)=>({items,total,page:1,pageSize:25});
@@ -33,7 +33,7 @@ describe('Medios canónicos y asociaciones en interfaz',()=>{
       if(route==='people/person')return Promise.resolve(Response.json(person));
       if(route==='organizations/org-a')return Promise.resolve(Response.json(organization));
       if(route.includes('/history'))return Promise.resolve(Response.json({...page([{operationId:'operation-test',createdAt:stamp,objectType:'PERSON',actor:{id:identity.id,givenNames:identity.givenNames,familyNames:identity.familyNames,isActive:true},contextRecorded:true,relatedReferences:[],replacement:null,changes:[{field:'notes',label:'Observaciones',previousValue:'Anterior',newValue:'Corregido',previousReferences:[],newReferences:[],added:[],removed:[]}]}]),references:{}}));
-      if(route.includes('/relations')||route.includes('/children')||route==='organizations/org-a/people')return Promise.resolve(Response.json(page([])));
+      if(route.includes('/relations')||route.includes('/branches')||route==='organizations/org-a/people')return Promise.resolve(Response.json(page([])));
       if(route==='contact-methods/email'){
         if(lookupMode==='error')return Promise.resolve(new Response(null,{status:500}));
         if(lookupMode==='slow'&&query.get('email')==='first@example.test')return new Promise<Response>(resolve=>{releaseObsolete=resolve;});
