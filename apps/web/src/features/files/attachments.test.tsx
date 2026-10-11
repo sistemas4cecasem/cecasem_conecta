@@ -27,9 +27,29 @@ describe('Adjuntos privados en interfaz y cliente binario', () => {
       return Promise.resolve(new Response(null, { status: 404 }));
     }); vi.stubGlobal('fetch', fetchMock);
   });
-  function view(blocked = false, resource: 'communications' | 'relationship-processes' = 'communications', current = identity, modern = false) {
-    return render(<QueryClientProvider client={client}><Attachments modern={modern} identity={current} resource={resource} resourceId={id} processId={id} blocked={blocked} /></QueryClientProvider>);
+  function view(blocked = false, resource: 'communications' | 'relationship-processes' = 'communications', current = identity, modern = false, compact = false) {
+    return render(<QueryClientProvider client={client}><Attachments modern={modern} compact={compact} identity={current} resource={resource} resourceId={id} processId={id} blocked={blocked} /></QueryClientProvider>);
   }
+  it('selector compacto conserva entrada nativa, foco, nombres completos y carga', async () => {
+    view(false, 'relationship-processes', identity, true, true); await screen.findByText(/Hasta 10 archivos/);
+    const input = screen.getByLabelText('Seleccionar archivos');
+    expect(input).toHaveAttribute('type', 'file'); expect(input).toHaveAttribute('aria-describedby');
+    expect(screen.getByText('Ningún archivo seleccionado.')).toBeVisible();
+    await userEvent.tab(); expect(input).toHaveFocus();
+    const name = 'acuerdo_institucional_con_nombre_muy_extenso_para_revision_de_cooperacion.txt';
+    await userEvent.upload(input, new File(['acuerdo'], name, { type: 'text/plain' }));
+    expect(screen.getByText('1 archivo seleccionado.')).toBeVisible(); expect(screen.getByText(name + ' · 7 bytes')).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Incorporar adjuntos' }));
+    await screen.findByText('Adjuntos incorporados.'); expect(screen.getByText('Ningún archivo seleccionado.')).toBeVisible();
+    expect(fetchMock.mock.calls.find(([, options]) => options?.method === 'POST')?.[1]?.body).toBeInstanceOf(FormData);
+  });
+  it('presentación compacta en cerrado conserva descarga y omite el selector', async () => {
+    items = [metadata]; view(true, 'relationship-processes', identity, true, true);
+    expect(await screen.findByRole('button', { name: 'Descargar acuerdo.txt' })).toBeVisible();
+    expect(screen.queryByLabelText('Seleccionar archivos')).not.toBeInTheDocument();
+    expect(screen.queryByText('Elegir archivos')).not.toBeInTheDocument();
+    expect(screen.getByText(/El proceso está cerrado/)).toBeVisible();
+  });
   it('UI 2.7 carga con presentación moderna conserva FormData y limpia selección', async () => {
     view(false, 'relationship-processes', identity, true); await screen.findByText(/Hasta 10 archivos/); await userEvent.upload(screen.getByLabelText('Seleccionar archivos'), new File(['acuerdo'], 'acuerdo.txt', { type: 'text/plain' }));
     await userEvent.click(screen.getByRole('button', { name: 'Incorporar adjuntos' })); await screen.findByRole('button', { name: 'Descargar acuerdo.txt' });

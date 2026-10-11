@@ -6,9 +6,9 @@ const permissions = ['relationships.process.read', 'communications.read', 'relat
 export const canReadTimeline = (identity: AuthIdentity) => ['relationships.process.read', 'communications.read'].every(permission => identity.permissions.includes(permission));
 export const timelineIdentityKey = (identity: AuthIdentity) => ['relationship-timeline', identity.id, identity.role, permissions.filter(permission => identity.permissions.includes(permission)).join(',')] as const;
 export function useTimeline(identity: AuthIdentity, processId: string) {
-  return useInfiniteQuery({ queryKey: [...timelineIdentityKey(identity), processId], enabled: !!processId && canReadTimeline(identity), initialPageParam: null as string | null,
+  return useInfiniteQuery({ queryKey: [...timelineIdentityKey(identity), processId, 'desc'], enabled: !!processId && canReadTimeline(identity), initialPageParam: null as string | null,
     queryFn: async ({ pageParam, signal }) => {
-      const query = new URLSearchParams({ pageSize: '25', ...(pageParam ? { after: pageParam } : {}) });
+      const query = new URLSearchParams({ pageSize: '25', order: 'desc', ...(pageParam ? { after: pageParam } : {}) });
       return timelinePageSchema.parse(await apiRequest('relationship-processes/' + processId + '/timeline?' + query, { signal }));
     }, getNextPageParam: page => page.nextCursor, retry: false });
 }

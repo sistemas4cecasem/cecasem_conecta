@@ -1,5 +1,3 @@
-import { ContextMeetings } from '../meetings/meeting-components';
-import { Attachments } from '../files/attachments';
 import { useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -14,11 +12,13 @@ import { FormField, Select, Textarea } from '../../components/ui/forms';
 import { Metadata, Pagination } from '../../components/ui/lists';
 import { iconCatalog } from '../../components/ui/icons';
 import './process-detail.css';
-import { PARTICIPANT_ORIGIN_LABELS, OPEN_STATES, PROCESS_RESULT_LABELS, PROCESS_STATE_LABELS, processCloseSchema, processReopenSchema, processStateFormSchema, type ProcessDetail, type ProcessEvent } from './process-contracts';
+import { OPEN_STATES, PROCESS_RESULT_LABELS, PROCESS_STATE_LABELS, processCloseSchema, processReopenSchema, processStateFormSchema, type ProcessDetail, type ProcessEvent } from './process-contracts';
 import { processIdentityKey, useProcess, useProcessEvents, useProcessMutation } from './process-queries';
-import { CommunicationsList } from '../communications/communications-list';
+import { ProcessContextPanel } from './process-context-panel';
+import { ContactRestrictionNotice } from './contact-restriction-notice';
+import { useTargetRestriction } from './restriction-queries';
 import { RelationshipTimeline } from './relationship-timeline';
-import { timelineIdentityKey } from './timeline-queries';
+import { canReadTimeline, timelineIdentityKey } from './timeline-queries';
 type Action = 'state' | 'close' | 'reopen';
 type FormProps = { pending: boolean; blocked: boolean; submit: (body: object) => Promise<void> };
 
@@ -49,6 +49,14 @@ function HistoryEvent({ event }: { event: ProcessEvent }) {
     {event.result && <p>Resultado histórico: {PROCESS_RESULT_LABELS[event.result]}</p>}{event.observation && <p className="whitespace-pre-wrap">{event.observation}</p>}
     {event.authority === 'ADMINISTRATOR' && <p>Intervención excepcional de Administración</p>}{event.authority === 'BOARD' && <p>Intervención de Directorio</p>}</li>;
 }
+function AdministrativeHistory({ identity, process }: { identity: AuthIdentity; process: ProcessDetail }) {
+  const [page, setPage] = useState(1), history = useProcessEvents(identity, process.id, page);
+  return <Surface aria-label="Historial del proceso" heading="Cronología del proceso" description="Acontecimientos administrativos disponibles con tus permisos." className="process-history">
+    {page > 1 && <QueryFeedback pending={history.isPending} error={history.isError} retry={history.refetch} />}
+    <ol>{(page === 1 ? process.events : history.data?.items ?? []).map(event => <HistoryEvent key={event.id} event={event} />)}</ol>
+    <Pagination page={page} total={page === 1 ? process.eventsTotal : history.data?.total ?? process.eventsTotal} pageSize={25} onPage={setPage} />
+  </Surface>;
+}
 export function RelationshipProcessDetailPage() {
   const identity = useSession().data, { id = '' } = useParams();
   if (!identity?.permissions.includes('relationships.process.read')) return <p role="alert">No tienes permiso para consultar procesos.</p>;
@@ -57,9 +65,10 @@ export function RelationshipProcessDetailPage() {
 function ProcessDetailView({ identity, id }: { identity: AuthIdentity; id: string }) {
   const detail = useProcess(identity, id), mutation = useProcessMutation(identity);
   const [parameters] = useSearchParams();
-  const [action, setAction] = useState<Action | null>(() => parameters.get('action') === 'reopen' ? 'reopen' : null), [page, setPage] = useState(1);
-  const history = useProcessEvents(identity, id, page);
+  const [action, setAction] = useState<Action | null>(() => parameters.get('action') === 'reopen' ? 'reopen' : null);
+
   const process = detail.data;
+  const restriction = useTargetRestriction(identity, process?.target ?? null);
   const actions: Record<Action, boolean> = {
     state: !!process?.allowedStates.length && identity.permissions.includes('relationships.process.state.change'),
     close: !!process?.canClose && identity.permissions.includes('relationships.process.close'),
@@ -69,7 +78,7 @@ function ProcessDetailView({ identity, id }: { identity: AuthIdentity; id: strin
     if (!process || !action) return;
     try {
       await mutation.mutateAsync({ path: 'relationship-processes/' + id + '/' + action, body: { ...body, expectedVersion: process.version } });
-      setAction(null); setPage(1);
+      setAction(null);
     } catch { /* Conserva formulario y contexto; requiere recargar tras conflicto. */ }
   }
   return <section className="process-detail">
@@ -78,17 +87,15 @@ function ProcessDetailView({ identity, id }: { identity: AuthIdentity; id: strin
       actions={<ActionLink appearance="context" to="/relationship-processes">Volver al listado</ActionLink>} />
     <QueryFeedback pending={detail.isPending} error={detail.isError} retry={detail.refetch} />
     {process && <>
-      {(process.state !== 'CLOSED' && identity.permissions.includes('communications.sent.create') || identity.permissions.includes('communications.received.create')) && <div className="process-primary-actions">
-        {process.state !== 'CLOSED' && identity.permissions.includes('communications.sent.create') && <ActionLink appearance="action" variant="primary" startIcon={<iconCatalog.action.sent size={18} />} to={'/relationship-processes/' + id + '/communications/sent'}>Registrar comunicación enviada</ActionLink>}
-        {identity.permissions.includes('communications.received.create') && <ActionLink appearance="action" variant="outline" startIcon={<iconCatalog.action.received size={18} />} to={'/relationship-processes/' + id + '/communications/received'}>Registrar comunicación recibida</ActionLink>}
-      </div>}
+      {identity.permissions.includes('relationships.restriction.read') && <QueryFeedback pending={restriction.isPending} error={restriction.isError} retry={restriction.refetch} />}
+      <ContactRestrictionNotice restriction={restriction.data?.items[0]} context="process" />
       <Surface className="process-summary" heading="Información del proceso"><Metadata items={[
         { label: 'Actor principal', value: <ActionLink to={'/' + (process.target.kind === 'ORGANIZATION' ? 'organizations/' : 'people/') + process.target.id}>{process.target.label}{!process.target.isActive && ' (inactivo)'}</ActionLink> },
         { label: 'Creador', value: process.createdBy.displayName + (!process.createdBy.isActive ? ' (cuenta inactiva)' : '') },
         { label: 'Creación', value: <time dateTime={process.createdAt}>{new Date(process.createdAt).toLocaleString('es-BO')}</time> },
         { label: 'Última actividad formal', value: <time dateTime={process.lastActivityAt}>{new Date(process.lastActivityAt).toLocaleString('es-BO')}</time> },
       ]} />{process.sourceIntentId && <ActionLink appearance="context" to={'/contact-intents/' + process.sourceIntentId}>Consultar intención de origen</ActionLink>}
-      {process.currentResult && <div className="process-closure"><p>Resultado: {PROCESS_RESULT_LABELS[process.currentResult]}</p><p>Cerrado por {process.closedBy?.displayName} · <time dateTime={process.closedAt!}>{new Date(process.closedAt!).toLocaleString('es-BO')}</time></p>{process.closureObservation && <p className="whitespace-pre-wrap">{process.closureObservation}</p>}</div>}</Surface>
+      {process.currentResult && <div className="process-closure"><p>Resultado: {PROCESS_RESULT_LABELS[process.currentResult]}</p><p>Cerrado por {process.closedBy?.displayName} · <time dateTime={process.closedAt!}>{new Date(process.closedAt!).toLocaleString('es-BO')}</time></p>{process.closureObservation && <p className="whitespace-pre-wrap">{process.closureObservation}</p>}</div>}
       {process.exceptionalAdministration && <Alert tone="neutral">El cierre o la reapertura por Administración se registrará como intervención excepcional.</Alert>}
       <section aria-label="Estado y acciones" className="process-state-actions">
       <h2>Estado y acciones</h2><div className="ui-actions">{(['state', 'close', 'reopen'] as const).map(value => actions[value] && <Button key={value} variant={value === 'close' ? 'danger' : 'secondary'} disabled={mutation.isPending || !!mutation.error} onClick={() => { mutation.reset(); setAction(value); }}>{value === 'state' ? 'Cambiar estado' : value === 'close' ? 'Cerrar proceso' : 'Reabrir proceso'}</Button>)}</div>
@@ -98,24 +105,21 @@ function ProcessDetailView({ identity, id }: { identity: AuthIdentity; id: strin
           <StateForm key={action} mode={action} states={action === 'reopen' ? [...OPEN_STATES] : process.allowedStates} pending={mutation.isPending} blocked={!!mutation.error} submit={submit} />}
         <Button disabled={mutation.isPending} onClick={() => setAction(null)}>Volver sin guardar</Button></ConfirmationPanel>}
       <MutationError modern error={mutation.error} />
-      {mutation.error && <Button onClick={() => { void detail.refetch().then(result => { if (!result.isError) { mutation.reset(); setPage(1); } }); }}>Recargar proceso y revisar estado</Button>}
+      {mutation.error && <Button onClick={() => { void detail.refetch().then(result => { if (!result.isError) { mutation.reset(); } }); }}>Recargar proceso y revisar estado</Button>}
       {mutation.isSuccess && <p role="status">Operación registrada.</p>}
-      </section>
+      </section></Surface>
       <div className="process-workspace"><div className="process-conversation">
-        <RelationshipTimeline key={timelineIdentityKey(identity).join(':') + ':' + id} identity={identity} processId={id} />
-      </div><aside aria-label="Recursos del proceso" className="process-resources">
-        <Attachments modern identity={identity} resource='relationship-processes' resourceId={id} processId={id} blocked={process.state === 'CLOSED'} />
-        <Surface heading="Recursos relacionados">
-          <ContextMeetings modern identity={identity} processId={id} />
-          {identity.permissions.includes('opportunities.create') && <ActionLink appearance="context" to={'/opportunities/new?processId=' + id}>Crear oportunidad desde este proceso</ActionLink>}
-        </Surface>
-        <Surface aria-label="Participantes" heading="Participantes"><ul className="process-participants">{process.participants.map(participant => <li key={participant.user.id}><p>{participant.user.displayName}{!participant.user.isActive && ' (cuenta inactiva)'}</p><p>{PARTICIPANT_ORIGIN_LABELS[participant.origin]} · <time dateTime={participant.joinedAt}>{new Date(participant.joinedAt).toLocaleString('es-BO')}</time></p></li>)}</ul></Surface>
-      </aside></div>
-      <CommunicationsList key={'communications-' + id} identity={identity} processId={id} />
-      <Surface aria-label="Historial del proceso" heading="Historial del proceso" description="Cambios administrativos de estado, cierre y reapertura. La conversación conserva los hechos del relacionamiento." className="process-history">
-        {page > 1 && <QueryFeedback pending={history.isPending} error={history.isError} retry={history.refetch} />}
-        <ol className="space-y-3">{(page === 1 ? process.events : history.data?.items ?? []).map(event => <HistoryEvent key={event.id} event={event} />)}</ol>
-        <Pagination page={page} total={page === 1 ? process.eventsTotal : history.data?.total ?? process.eventsTotal} pageSize={25} onPage={setPage} /></Surface>
+        {canReadTimeline(identity) ? <RelationshipTimeline key={timelineIdentityKey(identity).join(':') + ':' + id} identity={identity} processId={id} registrationActions={<>
+          {process.state !== 'CLOSED' && !restriction.data?.items.length && identity.permissions.includes('communications.sent.create') && <ActionLink appearance="action" variant="primary" startIcon={<iconCatalog.action.sent size={18} />} to={'/relationship-processes/' + id + '/communications/sent'}>Registrar comunicación enviada</ActionLink>}
+          {identity.permissions.includes('communications.received.create') && <ActionLink appearance="action" variant="outline" startIcon={<iconCatalog.action.received size={18} />} to={'/relationship-processes/' + id + '/communications/received'}>Registrar comunicación recibida</ActionLink>}
+          {identity.permissions.includes('meetings.read') && identity.permissions.includes('meetings.create') && <ActionLink appearance="context" startIcon={<iconCatalog.metric.meeting size={18} />} to={'/meetings/new?processId=' + id}>Crear reunión vinculada</ActionLink>}
+        </>} /> : <>
+          <div className="process-registration-actions">
+            {process.state !== 'CLOSED' && !restriction.data?.items.length && identity.permissions.includes('communications.sent.create') && <ActionLink appearance="action" variant="primary" to={'/relationship-processes/' + id + '/communications/sent'}>Registrar comunicación enviada</ActionLink>}
+            {identity.permissions.includes('communications.received.create') && <ActionLink appearance="action" variant="outline" to={'/relationship-processes/' + id + '/communications/received'}>Registrar comunicación recibida</ActionLink>}
+          </div><AdministrativeHistory key={process.version} identity={identity} process={process} />
+        </>}
+      </div><ProcessContextPanel identity={identity} process={process} /></div>
     </>}
   </section>;
 }

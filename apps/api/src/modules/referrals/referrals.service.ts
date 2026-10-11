@@ -11,7 +11,7 @@ import { AuditService } from '../audit/audit.service';
 import { referralFields, referralFingerprint, ReferralError } from './referral.rules';
 import type { CreateReferralDto, ReferralDto, ReferralQueryDto } from './referral.dto';
 import type { TimelineItem } from '../relationships/timeline.dto';
-import { timelineSeek, type TimelinePosition } from '../relationships/timeline.rules';
+import { timelineSeek, type TimelineOrder, type TimelinePosition } from '../relationships/timeline.rules';
 const select = { id: true, sourceCommunicationId: true, createdAt: true, recommendedName: true, recommendedRole: true, organizationNameSnapshot: true,
   mediumType: true, mediumValue: true, notes: true, personId: true, organizationId: true, contactMethodId: true,
   createdBy: { select: { id: true, givenNames: true, familyNames: true, isActive: true } },
@@ -70,11 +70,11 @@ export class ReferralsService {
       return (await this.contracts([row], tx))[0];
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
-  async timelineItems(processId: string, after: TimelinePosition | undefined, limit: number, tx: Prisma.TransactionClient): Promise<TimelineItem[]> {
-    const positions = await tx.referral.findMany({ where: { sourceCommunication: { processId }, ...timelineSeek(after, 'REFERRAL', 'createdAt') },
-      select: { id: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: limit });
+  async timelineItems(processId: string, after: TimelinePosition | undefined, limit: number, tx: Prisma.TransactionClient, order: TimelineOrder = 'asc'): Promise<TimelineItem[]> {
+    const positions = await tx.referral.findMany({ where: { sourceCommunication: { processId }, ...timelineSeek(after, 'REFERRAL', 'createdAt', order) },
+      select: { id: true }, orderBy: [{ createdAt: order }, { id: order }], take: limit });
     if (!positions.length) return [];
-    const rows = await tx.referral.findMany({ where: { id: { in: positions.map(row => row.id) } }, select, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
+    const rows = await tx.referral.findMany({ where: { id: { in: positions.map(row => row.id) } }, select, orderBy: [{ createdAt: order }, { id: order }] });
     return (await this.contracts(rows, tx)).map(row => ({ id: row.id, kind: 'REFERRAL_CREATED', occurredAt: row.createdAt, registeredAt: row.createdAt,
       actor: row.createdBy, summary: 'Contacto recomendado registrado', payload: { referralId: row.id, communicationId: row.sourceCommunicationId, referral: row } }));
   }

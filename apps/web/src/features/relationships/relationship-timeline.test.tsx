@@ -16,8 +16,8 @@ const id = '11111111-1111-4111-8111-111111111111', ownerId = '22222222-2222-4222
 const at = '2000-10-01T12:00:00.000Z', user = { id: ownerId, displayName: 'Ana QA', isActive: true };
 const identity: AuthIdentity = { id: ownerId, givenNames: 'Ana', familyNames: 'QA', username: 'ana', email: 'qa@example.test', role: 'PLANNING',
   permissions: ['relationships.process.read', 'communications.read', 'relationships.note.create', 'relationships.process.state.change', 'relationships.process.close', 'relationships.process.reopen', 'communications.sent.create', 'communications.received.create'] };
-function event(kind: 'PROCESS_CREATED' | 'PROCESS_STATE_CHANGED' | 'PROCESS_CLOSED' | 'PROCESS_REOPENED' = 'PROCESS_CREATED'): TimelineItem {
-  return { id, kind, occurredAt: at, registeredAt: at, actor: user, summary: 'Evento funcional', payload: { eventId: id, previousState: kind === 'PROCESS_CREATED' ? null : 'PREPARATION',
+function event(kind: 'PROCESS_CREATED' | 'PROCESS_STATE_CHANGED' | 'PROCESS_CLOSED' | 'PROCESS_REOPENED' = 'PROCESS_CREATED'): Extract<TimelineItem, { kind: 'PROCESS_CREATED' | 'PROCESS_STATE_CHANGED' | 'PROCESS_CLOSED' | 'PROCESS_REOPENED' }> {
+  return { id, kind, occurredAt: at, registeredAt: at, actor: user, summary: 'Evento funcional', payload: { authority: 'PARTICIPANT', eventId: id, previousState: kind === 'PROCESS_CREATED' ? null : 'PREPARATION',
     newState: kind === 'PROCESS_CLOSED' ? 'CLOSED' : kind === 'PROCESS_CREATED' ? 'PREPARATION' : 'IN_PROGRESS', result: kind === 'PROCESS_CLOSED' ? 'REJECTED' : null, observation: kind === 'PROCESS_CREATED' ? null : 'Motivo histórico' } };
 }
 function mail(kind: 'SENT_COMMUNICATION' | 'RECEIVED_COMMUNICATION', itemId = id): TimelineItem {
@@ -56,6 +56,13 @@ describe('Conversación institucional y notas internas', () => {
       }
       if (options?.method === 'POST') { items.push(event(url.endsWith('/close') ? 'PROCESS_CLOSED' : url.endsWith('/reopen') ? 'PROCESS_REOPENED' : 'PROCESS_STATE_CHANGED')); return Promise.resolve(Response.json(process(), { status: 201 })); }
       if (url.endsWith('/relationship-processes/' + id)) return Promise.resolve(Response.json(process(closed)));
+      if (url.endsWith('/communications/' + id)) {
+        if (mode === 'body-pending') return new Promise<Response>(() => undefined);
+        if (mode === 'body-error') return Promise.resolve(new Response(null, { status: 500 }));
+        return Promise.resolve(Response.json({ id, processId: id, direction: 'RECEIVED', subject: 'Asunto original', sentAt: null, receivedAt: at,
+          occurredAt: at, createdAt: at, validity: 'VALID', version: 1, sender: 'Old@Example.test', recipients: [],
+          bodyOriginal: '<script>literal</script>\n\n\n' + 'Contenido original extenso. '.repeat(1000) + '\n' + 'cadena'.repeat(500), registeredBy: user, emailAccount: null }));
+      }
       if (url.includes('/communications?page=')) return Promise.resolve(Response.json({ items: [], total: 0, page: 1, pageSize: 25 }));
       return Promise.resolve(new Response(null, { status: 404 }));
     }); vi.stubGlobal('fetch', fetchMock);
@@ -64,16 +71,62 @@ describe('Conversación institucional y notas internas', () => {
   const wrap = (content: React.ReactNode) => <QueryClientProvider client={client}><MemoryRouter>{content}</MemoryRouter></QueryClientProvider>;
   const panel = (actor = identity) => render(wrap(<RelationshipTimeline identity={actor} processId={id} />));
   const reads = () => fetchMock.mock.calls.filter(([url]) => url.includes('/timeline?'));
+  it('consulta el cuerpo solo al expandir, conserva texto literal y reutiliza el detalle al contraer', async () => {
+    items = [mail('RECEIVED_COMMUNICATION')]; panel(); await screen.findByText('Asunto original');
+    const bodies = () => fetchMock.mock.calls.filter(([url]) => url.endsWith('/communications/' + id));
+    expect(bodies()).toHaveLength(0);
+    await userEvent.click(screen.getByRole('button', { name: 'Consultar contenido' }));
+    await screen.findByText('Cuerpo original registrado');
+    const body = document.querySelector('.process-original-body pre');
+    expect(body?.textContent).toBe('<script>literal</script>\n\n\n' + 'Contenido original extenso. '.repeat(1000) + '\n' + 'cadena'.repeat(500));
+    expect(body?.querySelector('script')).toBeNull(); expect(bodies()).toHaveLength(1);
+    await userEvent.click(screen.getByRole('button', { name: 'Contraer contenido' }));
+    expect(screen.queryByText('Cuerpo original registrado')).not.toBeInTheDocument();
+    expect(document.querySelector('.process-body-excerpt')).toHaveTextContent('Contenido original extenso.');
+    expect(document.querySelector('.process-body-excerpt')?.textContent).not.toContain('\n');
+    expect(document.querySelector('.process-body-excerpt')?.textContent?.length).toBeLessThanOrEqual(241);
+    await userEvent.click(screen.getByRole('button', { name: 'Consultar contenido' }));
+    expect(screen.getByText('Cuerpo original registrado')).toBeVisible(); expect(bodies()).toHaveLength(2);
+  });
+  it('cuerpo bajo demanda muestra carga y permite contraer durante la consulta', async () => {
+    items = [mail('RECEIVED_COMMUNICATION')]; panel(); await screen.findByText('Asunto original'); mode = 'body-pending';
+    await userEvent.click(screen.getByRole('button', { name: 'Consultar contenido' }));
+    expect(screen.getByRole('status')).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Contraer contenido' }));
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+  it('error del cuerpo se reintenta sin perder el resumen ni navegar', async () => {
+    items = [mail('RECEIVED_COMMUNICATION')]; panel(); await screen.findByText('Asunto original'); mode = 'body-error';
+    await userEvent.click(screen.getByRole('button', { name: 'Consultar contenido' })); await screen.findByRole('alert');
+    expect(screen.getByText('Asunto original')).toBeVisible(); mode = 'ok';
+    await userEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
+    expect(await screen.findByText('Cuerpo original registrado')).toBeVisible();
+  });
+  it.each(['BOARD', 'ADMINISTRATOR'] as const)('autoridad %s conserva transición, motivo y resultado en un único evento', async authority => {
+    const original = event('PROCESS_CLOSED');
+    if (!('eventId' in original.payload)) throw new Error('Fixture administrativa inválida');
+    items = [{ ...original, payload: { ...original.payload, authority } }]; panel();
+    const entry = await screen.findByRole('listitem');
+    expect(entry).toHaveTextContent(authority === 'BOARD' ? 'Intervención de Directorio' : 'Intervención excepcional de Administración');
+    expect(entry).toHaveTextContent('En preparación → Cerrado'); expect(entry).toHaveTextContent('Motivo histórico');
+    expect(entry).toHaveTextContent('Resultado histórico: No aceptado');
+  });
+  it('archivos conservan nombres y acceso al índice privado del proceso', async () => {
+    items = [{ id, kind: 'FILES_ATTACHED', occurredAt: at, registeredAt: at, actor: user, summary: 'Adjuntos incorporados',
+      payload: { uploadId: id, communicationId: null, names: ['Acuerdo.pdf', 'Informe.xlsx'] } }]; panel();
+    const entry = await screen.findByRole('listitem'); expect(entry).toHaveTextContent('Acuerdo.pdf · Informe.xlsx');
+    expect(within(entry).getByRole('link', { name: 'Consultar adjuntos' })).toHaveAttribute('href', expect.stringContaining('#adjuntos'));
+  });
   it('UI 2.7 diferencia fecha del hecho y registro en comunicaciones y notas', async () => {
     items = [mail('SENT_COMMUNICATION'), note()]; panel(); const entries = await screen.findAllByRole('listitem');
-    for (const [index, entry] of entries.entries()) { const times = entry.querySelectorAll('time'); expect(times).toHaveLength(2); expect(times[0]).toHaveAttribute('datetime', items[index]!.occurredAt); expect(times[1]).toHaveAttribute('datetime', items[index]!.registeredAt); }
+    for (const [index, entry] of entries.entries()) { const times = entry.querySelectorAll('time'); expect(times).toHaveLength(index === 0 ? 2 : 1); expect(times[0]).toHaveAttribute('datetime', items[index]!.occurredAt); if (index === 0) expect(times[1]).toHaveAttribute('datetime', items[index]!.registeredAt); }
     expect(entries[1]).toHaveTextContent('Contexto interno; no es una comunicación enviada ni recibida.');
   });
   it('UI 2.7 nota inválida mantiene asociación accesible y no registra una actuación', async () => {
-    panel(); await screen.findByText('No hay hechos registrados en este historial.'); await userEvent.click(screen.getByRole('button', { name: 'Guardar nota interna' }));
+    panel(); await screen.findByText('No hay hechos registrados en este historial.'); await userEvent.click(screen.getByRole('button', { name: 'Añadir nota interna' })); await userEvent.click(screen.getByRole('button', { name: 'Guardar nota interna' }));
     expect(screen.getByLabelText('Contenido de la nota interna')).toHaveAttribute('aria-invalid', 'true'); expect(screen.getByLabelText('Contenido de la nota interna')).toHaveAttribute('aria-describedby'); expect(fetchMock.mock.calls.some(([, options]) => options?.method === 'POST')).toBe(false);
   });
-  it('vacío, sin insinuar contacto ni mensajería', async () => { panel(); expect(await screen.findByText('No hay hechos registrados en este historial.')).toBeVisible(); expect(screen.getByText(/no se envía al contacto/)).toBeVisible(); });
+  it('vacío, sin insinuar contacto ni mensajería', async () => { panel(); expect(await screen.findByText('No hay hechos registrados en este historial.')).toBeVisible(); expect(screen.getByText(/Las comunicaciones son registros manuales/)).toBeVisible(); });
   it('loading', () => { mode = 'pending'; panel(); expect(screen.getByRole('status')).toHaveTextContent('Cargando historial'); });
   it('error permite reintentar', async () => { mode = 'error'; panel(); await screen.findByText('No se pudo cargar el historial.'); mode = 'ok'; await userEvent.click(screen.getByRole('button', { name: 'Reintentar historial' })); expect(await screen.findByText('No hay hechos registrados en este historial.')).toBeVisible(); });
   it('muestra eventos de reunión con el snapshot histórico parcial sin inventar datos ausentes', async () => {
@@ -99,9 +152,9 @@ describe('Conversación institucional y notas internas', () => {
   });
   it.each(['SENT_COMMUNICATION', 'RECEIVED_COMMUNICATION'] as const)('%s conserva snapshots, fecha real, registrador y enlace sin cuerpo', async kind => {
     items = [mail(kind)]; panel(); const entry = await screen.findByRole('listitem');
-    expect(within(entry).getByRole('heading', { name: kind === 'SENT_COMMUNICATION' ? 'ENVIADA' : 'RECIBIDA' })).toBeVisible();
+    expect(within(entry).getByRole('heading', { name: kind === 'SENT_COMMUNICATION' ? 'Comunicación enviada' : 'Comunicación recibida' })).toBeVisible();
     expect(entry).toHaveTextContent('Remitente: Old@Example.test'); expect(entry).toHaveTextContent('CCO: Privada@Example.test'); expect(entry).toHaveTextContent('Registrador: Ana QA');
-    expect(within(entry).getByText(/Fecha del hecho:/)).toHaveTextContent(new Date(items[0]!.occurredAt).toLocaleString('es-BO'));
+    expect(within(entry).getByText(/Fecha efectiva/)).toHaveTextContent(new Date(items[0]!.occurredAt).toLocaleString('es-BO'));
     expect(within(entry).getByRole('link', { name: 'Ver detalle de comunicación' })).toHaveAttribute('href', '/communications/' + id); expect(entry).not.toHaveTextContent('Cuerpo original completo');
   });
   it.each(['PROCESS_CREATED', 'PROCESS_STATE_CHANGED', 'PROCESS_CLOSED', 'PROCESS_REOPENED'] as const)('%s muestra cambios funcionales y conserva cierre', async kind => {
@@ -110,36 +163,48 @@ describe('Conversación institucional y notas internas', () => {
     if (kind === 'PROCESS_REOPENED') expect(entry).toHaveTextContent('Proceso reabierto');
     if (kind !== 'PROCESS_CREATED') expect(entry).toHaveTextContent('Motivo histórico');
   });
-  it('orden cronológico unificado recibido/enviado/nota/evento', async () => {
-    items = [event(), mail('SENT_COMMUNICATION'), event('PROCESS_CLOSED'), mail('RECEIVED_COMMUNICATION', ownerId), note(), event('PROCESS_REOPENED')]; panel();
-    await screen.findByText('NOTA INTERNA'); expect(screen.getAllByRole('listitem').map(item => within(item).getByRole('heading').textContent)).toEqual(['Proceso iniciado', 'ENVIADA', 'Proceso cerrado', 'RECIBIDA', 'NOTA INTERNA', 'Proceso reabierto']);
+  it('solicita orden descendente global y conserva el orden del servidor entre fuentes', async () => {
+    items = [{ ...event('PROCESS_REOPENED'), occurredAt: '2000-10-06T12:00:00.000Z', registeredAt: '2000-10-06T12:00:00.000Z' }, note(),
+      { ...event('PROCESS_CLOSED'), occurredAt: '2000-10-04T12:00:00.000Z', registeredAt: '2000-10-04T12:00:00.000Z' }, mail('RECEIVED_COMMUNICATION', ownerId), mail('SENT_COMMUNICATION'), event()]; panel();
+    await screen.findByText('Nota interna'); expect(screen.getAllByRole('listitem').map(item => within(item).getByRole('heading').textContent)).toEqual(['Proceso reabierto', 'Nota interna', 'Proceso cerrado', 'Comunicación recibida', 'Comunicación enviada', 'Proceso iniciado']);
+    expect(reads()[0]?.[0]).toContain('order=desc');
   });
   it('nota se presenta como contexto interno y escapa HTML', async () => {
     items = [note('<script>literal</script>\nContexto')]; panel(); const entry = await screen.findByRole('listitem');
-    expect(entry).toHaveTextContent('NOTA INTERNA'); expect(entry).toHaveTextContent('no es una comunicación enviada ni recibida'); expect(entry.querySelector('script')).toBeNull(); expect(entry).not.toHaveTextContent('Destinatarios');
+    expect(entry).toHaveTextContent('Nota interna'); expect(entry).toHaveTextContent('no es una comunicación enviada ni recibida'); expect(entry.querySelector('script')).toBeNull(); expect(entry).not.toHaveTextContent('Destinatarios');
   });
   it('cargar más usa cursor sin sustituir los hechos anteriores', async () => {
-    items = [event()]; next = 'cursor-opaco'; panel(); await screen.findByText('Proceso iniciado'); await userEvent.click(screen.getByRole('button', { name: 'Cargar más historial' }));
-    await screen.findByText('Segunda página'); expect(screen.getAllByRole('listitem')).toHaveLength(2); expect(reads().at(-1)?.[0]).toContain('after=cursor-opaco'); expect(screen.queryByRole('button', { name: 'Cargar más historial' })).not.toBeInTheDocument();
+    items = [event()]; next = 'cursor-opaco'; panel(); await screen.findByText('Proceso iniciado'); await userEvent.click(screen.getByRole('button', { name: 'Cargar acontecimientos anteriores' }));
+    await screen.findByText('Segunda página'); expect(screen.getAllByRole('listitem')).toHaveLength(2); expect(reads().at(-1)?.[0]).toContain('after=cursor-opaco'); expect(screen.queryByRole('button', { name: 'Cargar acontecimientos anteriores' })).not.toBeInTheDocument();
   });
   it('error de página siguiente mantiene historial y reintenta cursor', async () => {
-    items = [event()]; next = 'cursor'; mode = 'next-error'; panel(); await screen.findByText('Proceso iniciado'); await userEvent.click(screen.getByRole('button', { name: 'Cargar más historial' }));
+    items = [event()]; next = 'cursor'; mode = 'next-error'; panel(); await screen.findByText('Proceso iniciado'); await userEvent.click(screen.getByRole('button', { name: 'Cargar acontecimientos anteriores' }));
     await screen.findByText('No se pudo cargar el historial.'); expect(screen.getByText('Proceso iniciado')).toBeVisible(); mode = 'ok'; await userEvent.click(screen.getByRole('button', { name: 'Reintentar historial' })); expect(await screen.findByText('Segunda página')).toBeVisible();
   });
   it.each([false, true])('no participante agrega nota en cerrado=%s, sigue sin permiso contextual de cierre', async isClosed => {
     closed = isClosed; items = [event(isClosed ? 'PROCESS_CLOSED' : 'PROCESS_CREATED')];
     render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/relationship-processes/' + id]}><AppRoutes /></MemoryRouter></QueryClientProvider>);
-    await screen.findByRole('textbox', { name: 'Contenido de la nota interna' }); expect(screen.queryByRole('button', { name: 'Cerrar proceso' })).not.toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('button', { name: 'Añadir nota interna' })); await screen.findByRole('textbox', { name: 'Contenido de la nota interna' }); expect(screen.queryByRole('button', { name: 'Cerrar proceso' })).not.toBeInTheDocument();
     await userEvent.type(screen.getByLabelText('Contenido de la nota interna'), 'Contexto sin actuación externa'); await userEvent.click(screen.getByRole('button', { name: 'Guardar nota interna' }));
     expect(await screen.findByText('Contexto sin actuación externa')).toBeVisible(); expect(screen.getByRole('region', { name: 'Participantes' })).not.toHaveTextContent('Ana QA'); expect(screen.queryByRole('button', { name: 'Cerrar proceso' })).not.toBeInTheDocument();
     if (closed) expect(screen.queryByRole('link', { name: 'Registrar comunicación enviada' })).not.toBeInTheDocument();
     expect(screen.getByLabelText('Contenido de la nota interna')).toHaveValue(''); expect(reads().length).toBeGreaterThan(1);
   });
   it('nota vacía no envía y error conserva borrador', async () => {
-    panel(); await screen.findByText('No hay hechos registrados en este historial.'); await userEvent.click(screen.getByRole('button', { name: 'Guardar nota interna' })); expect(await screen.findByText('Incluye el contexto interno.')).toBeVisible();
+    panel(); await screen.findByText('No hay hechos registrados en este historial.'); await userEvent.click(screen.getByRole('button', { name: 'Añadir nota interna' })); await userEvent.click(screen.getByRole('button', { name: 'Guardar nota interna' })); expect(await screen.findByText('Incluye el contexto interno.')).toBeVisible();
     expect(fetchMock.mock.calls.some(([, options]) => options?.method === 'POST')).toBe(false); noteFailure = true;
     await userEvent.type(screen.getByLabelText('Contenido de la nota interna'), 'Borrador interno'); await userEvent.click(screen.getByRole('button', { name: 'Guardar nota interna' }));
     await screen.findByRole('alert'); expect(screen.getByLabelText('Contenido de la nota interna')).toHaveValue('Borrador interno');
+  });
+  it('plegar el formulario conserva el borrador de nota sin registrar ni enviar', async () => {
+    panel(); await screen.findByText('No hay hechos registrados en este historial.');
+    await userEvent.click(screen.getByRole('button', { name: 'Añadir nota interna' }));
+    await userEvent.type(screen.getByLabelText('Contenido de la nota interna'), 'Contexto pendiente');
+    await userEvent.click(screen.getByRole('button', { name: 'Cerrar formulario de nota' }));
+    expect(screen.queryByRole('textbox', { name: 'Contenido de la nota interna' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Añadir nota interna' }));
+    expect(screen.getByLabelText('Contenido de la nota interna')).toHaveValue('Contexto pendiente');
+    expect(fetchMock.mock.calls.some(([, options]) => options?.method === 'POST')).toBe(false);
   });
   function Mutate({ kind }: { kind: string }) {
     const sent = useSentCommunication(identity), received = useReceivedCommunication(identity), mutation = useProcessMutation(identity);

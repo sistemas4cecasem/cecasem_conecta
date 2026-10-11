@@ -1,5 +1,6 @@
 import { isUUID } from 'class-validator';
 import type { TimelineItem } from './timeline.dto';
+export type TimelineOrder = 'asc' | 'desc';
 export type TimelineSource = 'AMENDMENT' | 'COMMUNICATION' | 'EVENT' | 'FILE' | 'NOTE' | 'REFERRAL' | 'MEETING';
 export type TimelinePosition = { occurredAt: Date; registeredAt: Date; source: TimelineSource; id: string };
 export class TimelineError extends Error {
@@ -16,15 +17,16 @@ export function compareTimeline(a: TimelineItem, b: TimelineItem): number {
   return a.occurredAt.localeCompare(b.occurredAt) || a.registeredAt.localeCompare(b.registeredAt)
     || timelineSource(a.kind).localeCompare(timelineSource(b.kind)) || a.id.localeCompare(b.id);
 }
-export function encodeTimelineCursor(processId: string, item: TimelineItem): string {
-  return Buffer.from(JSON.stringify({ processId, occurredAt: item.occurredAt, registeredAt: item.registeredAt, source: timelineSource(item.kind), id: item.id })).toString('base64url');
+export function encodeTimelineCursor(processId: string, item: TimelineItem, order: TimelineOrder = 'asc'): string {
+  return Buffer.from(JSON.stringify({ processId, order, occurredAt: item.occurredAt, registeredAt: item.registeredAt, source: timelineSource(item.kind), id: item.id })).toString('base64url');
 }
-export function decodeTimelineCursor(processId: string, value?: string): TimelinePosition | undefined {
+export function decodeTimelineCursor(processId: string, value?: string, order: TimelineOrder = 'asc'): TimelinePosition | undefined {
   if (value === undefined) return undefined;
   try {
     if (!/^[A-Za-z0-9_-]+$/.test(value) || value.length > 1024) throw new Error();
     const parsed: unknown = JSON.parse(Buffer.from(value, 'base64url').toString());
     if (!parsed || typeof parsed !== 'object' || !('processId' in parsed) || parsed.processId !== processId
+      || ('order' in parsed ? parsed.order : 'asc') !== order
       || !('id' in parsed) || typeof parsed.id !== 'string' || !isUUID(parsed.id)
       || !('source' in parsed) || typeof parsed.source !== 'string' || !['AMENDMENT', 'COMMUNICATION', 'EVENT', 'FILE', 'NOTE', 'REFERRAL', 'MEETING'].includes(parsed.source)
       || !('occurredAt' in parsed) || typeof parsed.occurredAt !== 'string' || new Date(parsed.occurredAt).toISOString() !== parsed.occurredAt
@@ -33,18 +35,21 @@ export function decodeTimelineCursor(processId: string, value?: string): Timelin
   } catch { throw new TimelineError('INVALID_TIMELINE_CURSOR'); }
 }
 /** Keyset por fecha real, registro, fuente e ID; cada propietario consulta solo su fuente. */
-export function timelineSeek(after: TimelinePosition | undefined, source: TimelineSource, occurredField: 'occurredAt' | 'createdAt') {
+export function timelineSeek(after: TimelinePosition | undefined, source: TimelineSource, occurredField: 'occurredAt' | 'createdAt', order: TimelineOrder = 'asc') {
   if (!after) return {};
+  const comparison = order === 'asc' ? 'gt' : 'lt';
+  const followsSource = (value: TimelineSource) => order === 'asc' ? value > after.source : value < after.source;
+
   if (occurredField === 'createdAt') {
     const sameDate = { createdAt: after.occurredAt };
-    const samePosition = source > after.source ? [sameDate] : source === after.source ? [{ ...sameDate, id: { gt: after.id } }] : [];
-    return { OR: [{ createdAt: { gt: after.occurredAt } }, ...(+after.occurredAt > +after.registeredAt ? [sameDate] : +after.occurredAt === +after.registeredAt ? samePosition : [])] };
+    const samePosition = followsSource(source) ? [sameDate] : source === after.source ? [{ ...sameDate, id: { [comparison]: after.id } }] : [];
+    return { OR: [{ createdAt: { [comparison]: after.occurredAt } }, ...((order === 'asc' ? +after.occurredAt > +after.registeredAt : +after.occurredAt < +after.registeredAt) ? [sameDate] : +after.occurredAt === +after.registeredAt ? samePosition : [])] };
   }
   const sameDates = { [occurredField]: after.occurredAt, createdAt: after.registeredAt };
   return { OR: [
-    { [occurredField]: { gt: after.occurredAt } },
-    { [occurredField]: after.occurredAt, createdAt: { gt: after.registeredAt } },
-    ...(source > after.source ? [sameDates] : source === after.source ? [{ ...sameDates, id: { gt: after.id } }] : []),
+    { [occurredField]: { [comparison]: after.occurredAt } },
+    { [occurredField]: after.occurredAt, createdAt: { [comparison]: after.registeredAt } },
+    ...(followsSource(source) ? [sameDates] : source === after.source ? [{ ...sameDates, id: { [comparison]: after.id } }] : []),
   ] };
 }
 export function internalNoteBody(value: unknown): string {

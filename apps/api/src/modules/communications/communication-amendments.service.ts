@@ -9,7 +9,7 @@ import { AmendmentError, amendmentContent, amendmentFingerprint, assertAmendment
 import type { AmendmentDto } from './communication-amendment.dto';
 import type { UserIdentity } from '../users/user-projections';
 import type { TimelineItem } from '../relationships/timeline.dto';
-import { timelineSeek, type TimelinePosition } from '../relationships/timeline.rules';
+import { timelineSeek, type TimelineOrder, type TimelinePosition } from '../relationships/timeline.rules';
 export const amendmentSelect = { id: true, communicationId: true, type: true, content: true, createdAt: true,
   author: { select: { id: true, givenNames: true, familyNames: true, isActive: true } } } satisfies Prisma.CommunicationAmendmentSelect;
 export function amendmentContract(row: Prisma.CommunicationAmendmentGetPayload<{ select: typeof amendmentSelect }>): AmendmentDto {
@@ -51,9 +51,9 @@ export class CommunicationAmendmentsService {
         total: await tx.communicationAmendment.count({ where }), page, pageSize: 25 };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
-  async timelineItems(processId: string, after: TimelinePosition | undefined, limit: number, tx: Prisma.TransactionClient): Promise<TimelineItem[]> {
-    return (await tx.communicationAmendment.findMany({ where: { communication: { processId }, ...timelineSeek(after, 'AMENDMENT', 'createdAt') }, select: amendmentSelect,
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: limit })).map(row => {
+  async timelineItems(processId: string, after: TimelinePosition | undefined, limit: number, tx: Prisma.TransactionClient, order: TimelineOrder = 'asc'): Promise<TimelineItem[]> {
+    return (await tx.communicationAmendment.findMany({ where: { communication: { processId }, ...timelineSeek(after, 'AMENDMENT', 'createdAt', order) }, select: amendmentSelect,
+      orderBy: [{ createdAt: order }, { id: order }], take: limit })).map(row => {
       const item = amendmentContract(row);
       return { id: item.id, kind: item.type === 'CORRECTION' ? 'COMMUNICATION_CORRECTED' : item.type === 'ANNOTATION' ? 'COMMUNICATION_ANNOTATED' : 'COMMUNICATION_INVALIDATED',
         occurredAt: item.createdAt, registeredAt: item.createdAt, actor: item.author, summary: item.type,

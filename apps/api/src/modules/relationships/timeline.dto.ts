@@ -1,7 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsString, Length, Max, MaxLength, Min, ValidateIf } from 'class-validator';
-import type { ProcessResult, ProcessState } from '../../generated/prisma/client';
+import { IsIn, IsInt, IsString, Length, Max, MaxLength, Min, ValidateIf } from 'class-validator';
+import type { ProcessAuthority, ProcessResult, ProcessState } from '../../generated/prisma/client';
+import type { TimelineOrder } from './timeline.rules';
 import { ProcessUserDto } from './relationship-process.dto';
 import type { AmendmentDto } from '../communications/communication-amendment.dto';
 import type { ReferralDto } from '../referrals/referral.dto';
@@ -15,11 +16,12 @@ export type TimelineItem = BaseItem & (
   |
   { kind: 'SENT_COMMUNICATION' | 'RECEIVED_COMMUNICATION'; payload: { communicationId: string; sender: string; subject: string; recipients: { type: 'TO' | 'CC' | 'BCC'; addressOriginal: string; position: number }[]; recipientTotal: number; validity?: 'VALID' | 'INVALIDATED'; invalidation?: AmendmentDto | null } }
   | { kind: 'COMMUNICATION_CORRECTED' | 'COMMUNICATION_ANNOTATED' | 'COMMUNICATION_INVALIDATED'; payload: { amendmentId: string; communicationId: string; content: string } }
-  | { kind: 'PROCESS_CREATED' | 'PROCESS_STATE_CHANGED' | 'PROCESS_CLOSED' | 'PROCESS_REOPENED'; payload: { eventId: string; previousState: ProcessState | null; newState: ProcessState; result: ProcessResult | null; observation: string | null } }
+  | { kind: 'PROCESS_CREATED' | 'PROCESS_STATE_CHANGED' | 'PROCESS_CLOSED' | 'PROCESS_REOPENED'; payload: { eventId: string; authority: ProcessAuthority; previousState: ProcessState | null; newState: ProcessState; result: ProcessResult | null; observation: string | null } }
   | { kind: 'FILES_ATTACHED'; payload: { uploadId: string; meetingId?: string | null; communicationId: string | null; names: string[] } }
   | { kind: 'INTERNAL_NOTE'; payload: { noteId: string; body: string } }
 );
 export class TimelineQueryDto {
+  @ApiPropertyOptional({ enum: ['asc', 'desc'], default: 'asc', description: 'asc: desde el inicio; desc: actividad reciente y luego anterior.' }) @IsIn(['asc', 'desc']) order?: TimelineOrder = 'asc';
   @ApiPropertyOptional({ default: 25, maximum: 100 }) @Type(() => Number) @IsInt() @Min(1) @Max(100) pageSize = 25;
   @ApiPropertyOptional({ description: 'Cursor opaco devuelto por la página anterior.' }) @ValidateIf((_o, v) => v !== undefined) @IsString() @Length(1, 1024) after?: string;
 }

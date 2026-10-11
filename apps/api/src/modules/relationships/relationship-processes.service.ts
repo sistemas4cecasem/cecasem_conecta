@@ -13,7 +13,7 @@ import { PROCESS_TRANSITIONS, ProcessError, processAuthority, processClosure, pr
 import type { ChangeProcessStateDto, CloseProcessDto, CreateRelationshipProcessDto, ProcessDetailDto, ProcessEventDto, ProcessQueryDto, ProcessUserDto, RelationshipProcessDto, ReopenProcessDto } from './relationship-process.dto';
 import { ProcessParticipationService } from './process-participation.service';
 import { ContactRestrictionsService } from './contact-restrictions.service';
-import { timelineSeek, type TimelinePosition } from './timeline.rules';
+import { timelineSeek, type TimelineOrder, type TimelinePosition } from './timeline.rules';
 import type { TimelineItem } from './timeline.dto';
 
 const userSelect = { id: true, givenNames: true, familyNames: true, isActive: true } as const;
@@ -162,13 +162,13 @@ export class RelationshipProcessesService {
   }
   changeState(id: string, input: ChangeProcessStateDto, actorId: string) { return this.mutate(id, { kind: 'state', input }, actorId); }
   /** Lectura pública acotada de eventos funcionales para el timeline autorizado. */
-  async timelineItems(processId: string, after: TimelinePosition | undefined, limit: number, tx: Prisma.TransactionClient): Promise<TimelineItem[]> {
+  async timelineItems(processId: string, after: TimelinePosition | undefined, limit: number, tx: Prisma.TransactionClient, order: TimelineOrder = 'asc'): Promise<TimelineItem[]> {
     const kinds = { CREATED: 'PROCESS_CREATED', STATE_CHANGED: 'PROCESS_STATE_CHANGED', CLOSED: 'PROCESS_CLOSED', REOPENED: 'PROCESS_REOPENED' } as const;
     const summaries = { CREATED: 'Proceso iniciado', STATE_CHANGED: 'Cambio de estado', CLOSED: 'Proceso cerrado', REOPENED: 'Proceso reabierto' };
-    const rows = await tx.relationshipProcessEvent.findMany({ where: { processId, ...timelineSeek(after, 'EVENT', 'createdAt') }, select: eventSelect,
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: limit });
+    const rows = await tx.relationshipProcessEvent.findMany({ where: { processId, ...timelineSeek(after, 'EVENT', 'createdAt', order) }, select: eventSelect,
+      orderBy: [{ createdAt: order }, { id: order }], take: limit });
     return rows.map(row => ({ id: row.id, kind: kinds[row.type], occurredAt: row.createdAt.toISOString(), registeredAt: row.createdAt.toISOString(),
-      actor: publicUser(row.actor), summary: summaries[row.type], payload: { eventId: row.id, previousState: row.previousState, newState: row.newState, result: row.result, observation: row.observation } }));
+      actor: publicUser(row.actor), summary: summaries[row.type], payload: { eventId: row.id, authority: row.authority, previousState: row.previousState, newState: row.newState, result: row.result, observation: row.observation } }));
   }
   /** Productores formales externos a relationships: el propietario del proceso controla el lock. */
   async requireOpportunityOrigin(id: string, tx: Prisma.TransactionClient) {

@@ -21,7 +21,7 @@ import { FileError } from './file-errors';
 import { FILE_MAX_COUNT } from './file-config';
 import { safeOriginalName, validateFile } from './file-validation';
 import type { FileMetadataDto, FilePaginationDto } from './files.dto';
-import { timelineSeek, type TimelinePosition } from '../relationships/timeline.rules';
+import { timelineSeek, type TimelineOrder, type TimelinePosition } from '../relationships/timeline.rules';
 import type { TimelineItem } from '../relationships/timeline.dto';
 
 export type FileTarget = { meetingId: string; opportunityId?: never; processId?: never; communicationId?: never } | ({ opportunityId: string; processId?: never; communicationId?: never } | { processId: string; communicationId?: never; opportunityId?: never } | { communicationId: string; processId?: never; opportunityId?: never }) & { meetingId?: never };
@@ -151,9 +151,9 @@ export class FilesService {
     const row = await this.authorizedFile(id, actorId);
     return { file: metadata(row), stream: await this.storage.open(row.storageKey, row.sizeBytes, row.sha256) };
   }
-  async timelineItems(processId: string, after: TimelinePosition | undefined, limit: number, tx: Prisma.TransactionClient, meetingVisibility: { read: boolean; opportunities: boolean }): Promise<TimelineItem[]> {
-    const rows = await tx.fileUpload.findMany({ where: { AND: [{ OR: [{ processId }, { communication: { processId } }, ...(meetingVisibility.read ? [{ meeting: { processId, ...(!meetingVisibility.opportunities ? { opportunityId: null } : {}) } }] : [])] }, timelineSeek(after, 'FILE', 'createdAt')] },
-      select: { id: true, ...uploadSelect, files: { select: { originalName: true }, orderBy: { position: 'asc' } } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: limit });
+  async timelineItems(processId: string, after: TimelinePosition | undefined, limit: number, tx: Prisma.TransactionClient, meetingVisibility: { read: boolean; opportunities: boolean }, order: TimelineOrder = 'asc'): Promise<TimelineItem[]> {
+    const rows = await tx.fileUpload.findMany({ where: { AND: [{ OR: [{ processId }, { communication: { processId } }, ...(meetingVisibility.read ? [{ meeting: { processId, ...(!meetingVisibility.opportunities ? { opportunityId: null } : {}) } }] : [])] }, timelineSeek(after, 'FILE', 'createdAt', order)] },
+      select: { id: true, ...uploadSelect, files: { select: { originalName: true }, orderBy: { position: 'asc' } } }, orderBy: [{ createdAt: order }, { id: order }], take: limit });
     return rows.map(row => ({ id: row.id, kind: 'FILES_ATTACHED', occurredAt: row.createdAt.toISOString(), registeredAt: row.createdAt.toISOString(), summary: 'Adjuntos incorporados',
       actor: { id: row.uploadedBy.id, displayName: row.uploadedBy.givenNames + ' ' + row.uploadedBy.familyNames, isActive: row.uploadedBy.isActive },
       payload: { uploadId: row.id, meetingId: row.meetingId, communicationId: row.communicationId, names: row.files.map(file => file.originalName) } }));

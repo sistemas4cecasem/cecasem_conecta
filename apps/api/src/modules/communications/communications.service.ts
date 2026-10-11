@@ -14,7 +14,7 @@ import { CommunicationError, requestFingerprint, validateSentOriginal, receivedR
 import type { UserIdentity } from '../users/user-projections';
 import type { InstitutionalTarget } from '../directory/directory-target.service';
 import type { CommunicationHistoryItemDto } from './communication-history.dto';
-import { timelineSeek, type TimelinePosition } from '../relationships/timeline.rules';
+import { timelineSeek, type TimelineOrder, type TimelinePosition } from '../relationships/timeline.rules';
 import type { TimelineItem } from '../relationships/timeline.dto';
 import type { CommunicationDto, CommunicationPaginationDto, CommunicationsPageDto, CommunicationSummaryDto, CreateSentCommunicationDto, CreateReceivedCommunicationDto } from './communication.dto';
 import { amendmentSelect, amendmentContract } from './communication-amendments.service';
@@ -183,11 +183,11 @@ export class CommunicationsService {
     return { exists: total > 0, total, lastOccurredAt: items[0]?.occurredAt ?? null, lastDirection: items[0]?.direction ?? null, items };
   }
   /** Snapshots históricos por lotes, sin cargar ni devolver cuerpos completos. */
-  async timelineItems(processId: string, after: TimelinePosition | undefined, limit: number, tx: Prisma.TransactionClient): Promise<TimelineItem[]> {
-    const rows = await tx.communication.findMany({ where: { processId, ...timelineSeek(after, 'COMMUNICATION', 'occurredAt') },
+  async timelineItems(processId: string, after: TimelinePosition | undefined, limit: number, tx: Prisma.TransactionClient, order: TimelineOrder = 'asc'): Promise<TimelineItem[]> {
+    const rows = await tx.communication.findMany({ where: { processId, ...timelineSeek(after, 'COMMUNICATION', 'occurredAt', order) },
       select: { validity: true, amendments: invalidationSelect, id: true, direction: true, occurredAt: true, createdAt: true, senderSnapshot: true, subject: true, registeredBy: { select: userSelect },
         _count: { select: { recipients: true } }, recipients: { select: { type: true, addressOriginal: true, position: true }, orderBy: [{ type: 'asc' }, { position: 'asc' }], take: 10 } },
-      orderBy: [{ occurredAt: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }], take: limit });
+      orderBy: [{ occurredAt: order }, { createdAt: order }, { id: order }], take: limit });
     return rows.map(row => ({ id: row.id, kind: row.direction === 'SENT' ? 'SENT_COMMUNICATION' : 'RECEIVED_COMMUNICATION', occurredAt: row.occurredAt.toISOString(), registeredAt: row.createdAt.toISOString(),
       actor: { id: row.registeredBy.id, displayName: row.registeredBy.givenNames + ' ' + row.registeredBy.familyNames, isActive: row.registeredBy.isActive }, summary: row.subject,
       payload: { validity: row.validity, invalidation: row.amendments[0] ? amendmentContract(row.amendments[0]) : null, communicationId: row.id, sender: row.senderSnapshot, subject: row.subject, recipients: row.recipients, recipientTotal: row._count.recipients } }));

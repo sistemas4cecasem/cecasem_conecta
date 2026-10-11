@@ -93,7 +93,7 @@ describe('Correcciones, observaciones e invalidaciones en interfaz', () => {
     render(wrap(<><CommunicationAmendments identity={identity} row={row} /><RelationshipTimeline identity={identity} processId={id} /><ContextProbe /></>));
     await screen.findByText('Comunicaciones válidas: 1'); await screen.findByText('Asunto original'); await userEvent.click(screen.getByRole('button', { name: 'Invalidar comunicación' }));
     await userEvent.type(screen.getByLabelText('Motivo obligatorio'), 'Registro erróneo'); await userEvent.click(screen.getByRole('checkbox')); await userEvent.click(screen.getByRole('button', { name: 'Confirmar invalidación' }));
-    await screen.findByText('Comunicaciones válidas: 0'); const timeline = screen.getByRole('region', { name: 'Conversación / Historial' });
+    await screen.findByText('Comunicaciones válidas: 0'); const timeline = screen.getByRole('region', { name: 'Cronología institucional' });
     expect(await within(timeline).findByText('INVALIDADA')).toBeVisible(); expect(within(timeline).getByText('Asunto original')).toBeVisible(); expect(within(timeline).getByText('Comunicación invalidada')).toBeVisible();
     await waitFor(() => expect(within(timeline).getAllByRole('listitem')).toHaveLength(2));
   });

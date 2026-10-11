@@ -35,6 +35,12 @@ describe('Timeline y notas internas PostgreSQL/HTTP', () => {
     await prisma.$transaction([
       prisma.auditEvent.deleteMany({ where: { actorUserId: { in: userIds } } }),
       prisma.internalNote.deleteMany({ where: { process: { createdByUserId: { in: userIds } } } }),
+      prisma.fileAttachment.deleteMany({ where: { upload: { uploadedByUserId: { in: userIds } } } }),
+      prisma.fileUpload.deleteMany({ where: { uploadedByUserId: { in: userIds } } }),
+      prisma.meetingEvent.deleteMany({ where: { actorUserId: { in: userIds } } }),
+      prisma.meeting.deleteMany({ where: { createdByUserId: { in: userIds } } }),
+      prisma.referral.deleteMany({ where: { createdByUserId: { in: userIds } } }),
+      prisma.communicationAmendment.deleteMany({ where: { authorUserId: { in: userIds } } }),
       prisma.communicationRecipient.deleteMany({ where: { communication: { registeredByUserId: { in: userIds } } } }),
       prisma.communication.deleteMany({ where: { registeredByUserId: { in: userIds } } }),
       prisma.relationshipProcessEvent.deleteMany({ where: { process: { createdByUserId: { in: userIds } } } }),
@@ -115,7 +121,7 @@ describe('Timeline y notas internas PostgreSQL/HTTP', () => {
     await expect(notes().create(f.process.id, 'Contexto', f.owner.id)).rejects.toThrow('FORBIDDEN');
     await expect(app.get(RelationshipTimelineService).get(f.process.id, { pageSize: 25 }, f.owner.id)).rejects.toThrow('FORBIDDEN');
   });
-  it.each([{ pageSize: 0 }, { pageSize: 101 }, { pageSize: 'bad' }, { after: 'mal formado' }, { after: '' }, { after: 'e30' }, { unknown: 1 }])('query de timeline inválida %j', async query => {
+  it.each([{ order: 'invalid' }, { order: ['asc', 'desc'] }, { pageSize: 0 }, { pageSize: 101 }, { pageSize: 'bad' }, { after: 'mal formado' }, { after: '' }, { after: 'e30' }, { unknown: 1 }])('query de timeline inválida %j', async query => {
     const f = await fixture(); await request(app.getHttpServer()).get('/api/v1/relationship-processes/' + f.process.id + '/timeline').set('Cookie', f.owner.cookie).query(query).expect(400);
   });
   it('secuencia 01 creación, 02 SENT, 04 cierre, 05 recibida/nota, 06 reapertura; retrospectiva 03 se intercala', async () => {
@@ -134,6 +140,9 @@ describe('Timeline y notas internas PostgreSQL/HTTP', () => {
     await prisma.relationshipProcessEvent.updateMany({ where: { processId, type: 'REOPENED' }, data: { createdAt: new Date('2000-10-06T12:00:00.000Z') } });
     const kinds = ['PROCESS_CREATED', 'SENT_COMMUNICATION', 'PROCESS_CLOSED', 'RECEIVED_COMMUNICATION', 'INTERNAL_NOTE', 'PROCESS_REOPENED'];
     const row = await read(f.owner.cookie, processId); expect(row.items.map(item => item.kind)).toEqual(kinds);
+    const descending = await read(f.owner.cookie, processId, { order: 'desc' });
+    expect(descending.items).toEqual([...row.items].reverse());
+    expect(row.items[0].payload).toMatchObject({ authority: 'PARTICIPANT' });
     expect(row.items[1]).toMatchObject({ id: sent.id, payload: { sender: account.address, recipients: [{ addressOriginal: 'Old@Example.test' }] } });
     expect(row.items[3]).toMatchObject({ id: received.id, payload: { sender: 'Old@Example.test', recipientTotal: 3 } });
     expect(row.items[5].payload).toMatchObject({ newState: 'IN_PROGRESS', observation: 'Respuesta del mismo acercamiento' });
@@ -142,15 +151,17 @@ describe('Timeline y notas internas PostgreSQL/HTTP', () => {
     const refreshed = await read(f.owner.cookie, processId); expect(refreshed.items.map(item => item.kind)).toEqual([...kinds.slice(0, 2), 'RECEIVED_COMMUNICATION', ...kinds.slice(2)]);
     expect(refreshed.items[2].id).toBe(retrospective.id); expect(await snapshot(processId)).toEqual(before);
   });
-  it('empates entre fuentes y IDs: cursor recorre todo sin duplicar ni saltar', async () => {
+  it.each(['asc', 'desc'] as const)('%s: empates entre fuentes y IDs, sin duplicar ni saltar', async order => {
     const f = await fixture(), date = new Date('2000-10-01T12:00:00.000Z'), first = await incoming(f.process.id, f.owner.id, 1), second = await incoming(f.process.id, f.owner.id, 1), note = await notes().create(f.process.id, 'Empate', f.owner.id);
     await prisma.communication.updateMany({ where: { processId: f.process.id }, data: { createdAt: date } });
     await prisma.relationshipProcessEvent.updateMany({ where: { processId: f.process.id }, data: { createdAt: date } });
     await prisma.internalNote.update({ where: { id: note.id }, data: { createdAt: date } });
     const items: TimelineItem[] = []; let after: string | undefined;
-    do { const page = await read(f.owner.cookie, f.process.id, { pageSize: 1, ...(after ? { after } : {}) }); items.push(...page.items); after = page.nextCursor ?? undefined; } while (after);
-    expect(items.map(item => item.id)).toEqual([...[first.id, second.id].sort(), f.process.events[0].id, note.id]);
-    expect(items.map(item => item.kind)).toEqual(['RECEIVED_COMMUNICATION', 'RECEIVED_COMMUNICATION', 'PROCESS_CREATED', 'INTERNAL_NOTE']);
+    do { const page = await read(f.owner.cookie, f.process.id, { pageSize: 1, order, ...(after ? { after } : {}) }); items.push(...page.items); after = page.nextCursor ?? undefined; } while (after);
+    const expected = [...[first.id, second.id].sort(), f.process.events[0].id, note.id];
+    expect(items.map(item => item.id)).toEqual(order === 'asc' ? expected : expected.reverse());
+    const kinds = ['RECEIVED_COMMUNICATION', 'RECEIVED_COMMUNICATION', 'PROCESS_CREATED', 'INTERNAL_NOTE'];
+    expect(items.map(item => item.kind)).toEqual(order === 'asc' ? kinds : kinds.reverse());
   });
   it('cursor estable ante inserciones antes y después: refrescar recupera el retrospectivo anterior', async () => {
     const f = await fixture(); await prisma.relationshipProcessEvent.updateMany({ where: { processId: f.process.id }, data: { createdAt: new Date('2000-10-01T00:00:00.000Z') } });
@@ -162,6 +173,43 @@ describe('Timeline y notas internas PostgreSQL/HTTP', () => {
     expect((await read(f.owner.cookie, f.process.id)).items.map(item => item.id)).toContain(before.id);
     const other = await processes.create({ organizationId: orgIds[0], purpose: 'Otro proceso' }, f.owner.id);
     await request(app.getHttpServer()).get('/api/v1/relationship-processes/' + other.id + '/timeline').set('Cookie', f.owner.cookie).query({ after: firstPage.nextCursor }).expect(400);
+  });
+  it('descendente recorre las siete fuentes en páginas pequeñas y rechaza cambiar dirección del cursor', async () => {
+    const f = await fixture(), processId = f.process.id, actorId = f.owner.id, date = new Date('2000-10-01T12:00:00.000Z');
+    const mail = await incoming(processId, actorId, 1);
+    await prisma.communication.update({ where: { id: mail.id }, data: { createdAt: date } });
+    await prisma.relationshipProcessEvent.updateMany({ where: { processId }, data: { createdAt: date } });
+    await prisma.internalNote.create({ data: { processId, authorUserId: actorId, body: 'Contexto', createdAt: date } });
+    const command = () => ({ requestKey: randomUUID(), requestFingerprint: '0'.repeat(64) });
+    await prisma.communicationAmendment.create({ data: { communicationId: mail.id, authorUserId: actorId, type: 'ANNOTATION', content: 'Observación', createdAt: date, ...command() } });
+    await prisma.referral.create({ data: { sourceCommunicationId: mail.id, createdByUserId: actorId, recommendedName: 'Contacto recomendado', createdAt: date, ...command() } });
+    await prisma.fileUpload.create({ data: { processId, uploadedByUserId: actorId, createdAt: date, ...command(), files: { create: {
+      storageKey: randomUUID(), originalName: 'Documento.pdf', declaredMimeType: 'application/pdf', mimeType: 'application/pdf', sizeBytes: 100, sha256: '0'.repeat(64), position: 0,
+    } } } });
+    const meeting = await prisma.meeting.create({ data: { processId, scheduledAt: new Date('2026-11-01T12:00:00.000Z'), timezone: 'America/La_Paz', modality: 'ONLINE', purpose: 'Coordinación', createdByUserId: actorId, ...command() } });
+    for (let index = 0; index < 2; index++) await prisma.meetingEvent.create({ data: { meetingId: meeting.id, type: index ? 'UPDATED' : 'CREATED', version: index + 1,
+      snapshot: { status: 'SCHEDULED', purpose: 'Coordinación' }, changes: {}, actorUserId: actorId, createdAt: date, ...command() } });
+    const ascending = await read(f.owner.cookie, processId);
+    expect(new Set(ascending.items.map(item => item.kind)).size).toBe(7);
+    const items: TimelineItem[] = []; let after: string | undefined;
+    do {
+      const page = await read(f.owner.cookie, processId, { order: 'desc', pageSize: 1, ...(after ? { after } : {}) });
+      items.push(...page.items);
+      if (!after) await request(app.getHttpServer()).get('/api/v1/relationship-processes/' + processId + '/timeline').set('Cookie', f.owner.cookie).query({ order: 'asc', after: page.nextCursor }).expect(400);
+      after = page.nextCursor ?? undefined;
+    } while (after);
+    expect(items).toEqual([...ascending.items].reverse());
+    expect(new Set(items.map(item => item.kind + ':' + item.id)).size).toBe(items.length);
+  });
+  it('cursor descendente conserva posición ante inserciones y actualización recupera los más recientes', async () => {
+    const f = await fixture();
+    await prisma.relationshipProcessEvent.updateMany({ where: { processId: f.process.id }, data: { createdAt: new Date('2000-10-01T00:00:00.000Z') } });
+    const second = await incoming(f.process.id, f.owner.id, 2), fourth = await incoming(f.process.id, f.owner.id, 4);
+    const first = await read(f.owner.cookie, f.process.id, { order: 'desc', pageSize: 1 }); expect(first.items[0].id).toBe(fourth.id);
+    const newer = await incoming(f.process.id, f.owner.id, 5), between = await incoming(f.process.id, f.owner.id, 3);
+    const next = await read(f.owner.cookie, f.process.id, { order: 'desc', pageSize: 2, after: first.nextCursor });
+    expect(next.items.map(item => item.id)).toEqual([between.id, second.id]);
+    expect((await read(f.owner.cookie, f.process.id, { order: 'desc' })).items[0].id).toBe(newer.id);
   });
   it('1000 notas y 1000 comunicaciones: respuesta y consultas acotadas, sin N+1', async () => {
     const f = await fixture(); await incoming(f.process.id, f.owner.id, 1); await notes().create(f.process.id, 'Semilla', f.owner.id);

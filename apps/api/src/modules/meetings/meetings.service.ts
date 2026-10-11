@@ -15,7 +15,7 @@ import { MeetingClock } from './meeting-clock';
 import { canAttachMeeting, meetingFingerprint, meetingLocal, meetingOrigin, meetingParticipant, meetingPlanning, meetingText, meetingVersion, MeetingError, requireFuture, requireResults } from './meeting.rules';
 import type { AddMeetingParticipantDto, AgreementMeetingDto, AttendanceMeetingDto, CancelMeetingDto, CreateMeetingDto, MeetingCommandDto, MeetingDto, MeetingPageQueryDto, MeetingQueryDto, MeetingUsersQueryDto, UpdateMeetingDto } from './meeting.dto';
 import type { TimelineItem } from '../relationships/timeline.dto';
-import { timelineSeek, type TimelinePosition } from '../relationships/timeline.rules';
+import { timelineSeek, type TimelineOrder, type TimelinePosition } from '../relationships/timeline.rules';
 const userSelect = { id: true, givenNames: true, familyNames: true, isActive: true } as const;
 const meetingSelect = { id:true, processId:true, opportunityId:true, scheduledAt:true, timezone:true, modality:true, meetingUrl:true, location:true, purpose:true,
   status:true, completedAt:true, cancelledAt:true, cancellationReason:true, version:true, createdAt:true, updatedAt:true,
@@ -160,10 +160,10 @@ export class MeetingsService {
     const row=await this.row(id,tx);await this.context(row,actor,tx);
     if(uploading&&!canAttachMeeting(row.status))throw new MeetingError('MEETING_STATE_CONFLICT'); return {id:row.id,status:row.status};
   }
-  async timelineItems(processId:string,after:TimelinePosition|undefined,limit:number,tx:Prisma.TransactionClient,allowOpportunity:boolean):Promise<TimelineItem[]> {
-    const positions=await tx.meetingEvent.findMany({where:{meeting:{processId,...(!allowOpportunity?{opportunityId:null}:{})},...timelineSeek(after,'MEETING','createdAt')},select:{id:true},orderBy:[{createdAt:'asc'},{id:'asc'}],take:limit});
+  async timelineItems(processId:string,after:TimelinePosition|undefined,limit:number,tx:Prisma.TransactionClient,allowOpportunity:boolean,order:TimelineOrder='asc'):Promise<TimelineItem[]> {
+    const positions=await tx.meetingEvent.findMany({where:{meeting:{processId,...(!allowOpportunity?{opportunityId:null}:{})},...timelineSeek(after,'MEETING','createdAt',order)},select:{id:true},orderBy:[{createdAt: order},{id: order}],take:limit});
     if(!positions.length)return [];
-    const rows=await tx.meetingEvent.findMany({where:{id:{in:positions.map(row=>row.id)}},select:eventSelect,orderBy:[{createdAt:'asc'},{id:'asc'}]});
+    const rows=await tx.meetingEvent.findMany({where:{id:{in:positions.map(row=>row.id)}},select:eventSelect,orderBy:[{createdAt: order},{id: order}]});
     return rows.map(row=>({id:row.id,kind:'MEETING_ACTIVITY',occurredAt:row.createdAt.toISOString(),registeredAt:row.createdAt.toISOString(),actor:publicUser(row.actor),summary:'Actuación de reunión',payload:{meetingId:row.meetingId,type:row.type,snapshot:row.snapshot as Record<string,unknown>,changes:row.changes as Record<string,unknown>}}));
   }
   /** Proyección mínima, acotada y sin acuerdos ni identidades externas. */

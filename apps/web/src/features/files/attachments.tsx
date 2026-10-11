@@ -10,13 +10,13 @@ import { EXTENSIONS, fileMetadataSchema, selectionError } from './contracts';
 import { Button } from '../../components/ui/actions';
 import { QueryFeedback, EmptyState } from '../../components/ui/feedback';
 import { Pagination as UiPagination } from '../../components/ui/lists';
-type Props = { identity: AuthIdentity; resource: 'relationship-processes' | 'communications' | 'opportunities' | 'meetings'; resourceId: string; processId?: string; blocked: boolean; modern?: boolean };
+type Props = { identity: AuthIdentity; resource: 'relationship-processes' | 'communications' | 'opportunities' | 'meetings'; resourceId: string; processId?: string; blocked: boolean; modern?: boolean; compact?: boolean };
 export function Attachments(props: Props) {
   if (!canReadFiles(props.identity, props.resource === 'meetings' ? 'meetings' : props.resource === 'opportunities' ? 'opportunities' : props.resource === 'communications')) return null;
   return <AttachmentPanel key={fileIdentityKey(props.identity).join(':') + ':' + props.resourceId} {...props} />;
 }
-function AttachmentPanel({ identity, resource, resourceId, processId, blocked, modern = false }: Props) {
-  const selectionErrorId = useId();
+function AttachmentPanel({ identity, resource, resourceId, processId, blocked, modern = false, compact = false }: Props) {
+  const selectionErrorId = useId(), selectionStatusId = useId();
   const Control = modern ? Button : 'button', Feedback = modern ? QueryFeedback : QueryState, Pages = modern ? UiPagination : Pagination;
   const client = useQueryClient(), path = resource + '/' + resourceId + '/attachments';
   const [page, setPage] = useState(1), [selected, setSelected] = useState<File[]>([]), [validation, setValidation] = useState<string | null>(null), [inputVersion, setInputVersion] = useState(0);
@@ -39,15 +39,15 @@ function AttachmentPanel({ identity, resource, resourceId, processId, blocked, m
     const url = URL.createObjectURL(blob), anchor = document.createElement('a'); anchor.href = url; anchor.download = file.originalName;
     anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   }, retry: false });
-  return <section id="adjuntos" aria-label="Adjuntos privados" className="min-w-0 space-y-3 rounded border p-4 break-words">
-    <h2 className="text-xl font-semibold">Adjuntos privados</h2>
+  return <section id="adjuntos" aria-label="Adjuntos privados" className={compact ? 'min-w-0 space-y-3 break-words' : 'min-w-0 space-y-3 rounded border p-4 break-words'}>
+    {!compact && <h2 className="text-xl font-semibold">Adjuntos privados</h2>}
     {resource === 'communications' && <p>Estos archivos son incorporaciones posteriores con autor y fecha propios; no forman parte del mensaje original registrado.</p>}
     <Feedback pending={query.isPending} error={query.isError} retry={query.refetch} />
     {query.data && !query.data.total && (modern ? <EmptyState title="No hay adjuntos registrados." /> : <p>No hay adjuntos registrados.</p>)}
     <ul className="space-y-3">{query.data?.items.map(file => <li key={file.id} className="space-y-1">
       <p className="font-semibold">{file.originalName} · {file.sizeBytes < 1024 ? file.sizeBytes.toLocaleString('es-BO') + ' bytes' : (file.sizeBytes / 1024).toLocaleString('es-BO', { maximumFractionDigits: 1 }) + ' KiB'}</p>
       <p>{file.uploadedBy.displayName}{!file.uploadedBy.isActive && ' (cuenta inactiva)'} · {new Date(file.createdAt).toLocaleString('es-BO')}</p>
-      <Control className={modern ? undefined : buttonClass} disabled={download.isPending} onClick={() => download.mutate(file)}>Descargar {file.originalName}</Control>
+      <Control className={modern ? undefined : buttonClass} aria-label={compact ? 'Descargar ' + file.originalName : undefined} disabled={download.isPending} onClick={() => download.mutate(file)}>{compact ? 'Descargar archivo' : 'Descargar ' + file.originalName}</Control>
     </li>)}</ul>
     {query.data && <Pages page={page} total={query.data.total} onPage={setPage} />}
     {blocked ? <p>{resource === 'meetings' ? 'La reunión está cancelada: se conservan sus adjuntos anteriores y no se admiten nuevas cargas.' : resource === 'opportunities' ? 'La oportunidad está descartada o finalizada: se conservan los adjuntos anteriores y no se admiten nuevas cargas.' : resource === 'communications' ? 'La comunicación está invalidada: se conservan los adjuntos anteriores y no se admiten nuevas cargas.' : 'El proceso está cerrado: se conservan los adjuntos anteriores y no se admiten nuevas cargas directas.'}</p> : identity.permissions.includes('files.upload') && <form className="space-y-3" onSubmit={event => {
@@ -55,9 +55,10 @@ function AttachmentPanel({ identity, resource, resourceId, processId, blocked, m
     }}>
       <Feedback pending={limits.isPending} error={limits.isError} retry={limits.refetch} />
       {limits.data && <p>Hasta {limits.data.maxFiles} archivos por carga, máximo {(limits.data.maxBytes / 1024 / 1024).toLocaleString('es-BO')} MiB por archivo. PDF, Office, texto, CSV e imágenes admitidas.</p>}
-      <label className="block">Seleccionar archivos<input key={inputVersion} aria-label="Seleccionar archivos" className="block w-full" aria-invalid={modern && !!validation || undefined} aria-describedby={modern && validation ? selectionErrorId : undefined} type="file" multiple accept={EXTENSIONS.map(value => '.' + value).join(',')} disabled={upload.isPending} onChange={event => {
+      <label className="block">Seleccionar archivos<span className={compact ? 'process-file-picker' : undefined}>{compact && <span>Elegir archivos</span>}<input key={inputVersion} aria-label="Seleccionar archivos" className="block w-full" aria-invalid={modern && !!validation || undefined} aria-describedby={[compact ? selectionStatusId : '', modern && validation ? selectionErrorId : ''].filter(Boolean).join(' ') || undefined} type="file" multiple accept={EXTENSIONS.map(value => '.' + value).join(',')} disabled={upload.isPending} onChange={event => {
         const files = Array.from(event.target.files ?? []); setSelected(files); requestKey.current = null; upload.reset(); setValidation(limits.data ? selectionError(files, limits.data) : null);
-      }} /></label>
+      }} /></span></label>
+      {compact && <p id={selectionStatusId} className="process-file-selection" aria-live="polite">{selected.length ? selected.length + (selected.length === 1 ? ' archivo seleccionado.' : ' archivos seleccionados.') : 'Ningún archivo seleccionado.'}</p>}
       <ul>{selected.map((file, index) => <li key={index}>{file.name} · {file.size.toLocaleString('es-BO')} bytes</li>)}</ul>
       {validation && <p id={modern ? selectionErrorId : undefined} role="alert">{validation}</p>}
       <Control type="submit" className={modern ? undefined : buttonClass} disabled={upload.isPending || !limits.data || !selected.length || !!validation}>{upload.isPending ? 'Incorporando adjuntos…' : 'Incorporar adjuntos'}</Control>

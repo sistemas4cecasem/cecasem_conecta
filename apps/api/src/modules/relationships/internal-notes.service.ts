@@ -6,7 +6,7 @@ import { hasPermission } from '../auth/authorization/role-permissions';
 import { RelationshipProcessesService } from './relationship-processes.service';
 import { ProcessError } from './relationship-process.rules';
 import type { TimelineItem } from './timeline.dto';
-import { internalNoteBody, timelineSeek, type TimelinePosition } from './timeline.rules';
+import { internalNoteBody, timelineSeek, type TimelineOrder, type TimelinePosition } from './timeline.rules';
 const noteSelect = { id: true, body: true, createdAt: true, author: { select: { id: true, givenNames: true, familyNames: true, isActive: true } } } satisfies Prisma.InternalNoteSelect;
 function noteItem(row: Prisma.InternalNoteGetPayload<{ select: typeof noteSelect }>): TimelineItem {
   return { id: row.id, kind: 'INTERNAL_NOTE', occurredAt: row.createdAt.toISOString(), registeredAt: row.createdAt.toISOString(), summary: 'Nota interna',
@@ -24,8 +24,8 @@ export class InternalNotesService {
       return noteItem(await tx.internalNote.create({ data: { processId, body: original, authorUserId: actor.id, createdAt: new Date() }, select: noteSelect }));
     });
   }
-  async timelineItems(processId: string, after: TimelinePosition | undefined, limit: number, tx: Prisma.TransactionClient): Promise<TimelineItem[]> {
-    return (await tx.internalNote.findMany({ where: { processId, ...timelineSeek(after, 'NOTE', 'createdAt') }, select: noteSelect,
-      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: limit })).map(noteItem);
+  async timelineItems(processId: string, after: TimelinePosition | undefined, limit: number, tx: Prisma.TransactionClient, order: TimelineOrder = 'asc'): Promise<TimelineItem[]> {
+    return (await tx.internalNote.findMany({ where: { processId, ...timelineSeek(after, 'NOTE', 'createdAt', order) }, select: noteSelect,
+      orderBy: [{ createdAt: order }, { id: order }], take: limit })).map(noteItem);
   }
 }

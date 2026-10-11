@@ -55,6 +55,19 @@ describe('Procesos de relación frontend', () => {
   });
   afterEach(() => { client.clear(); vi.unstubAllGlobals(); });
   function view(path = '/relationship-processes') { return render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[path]}><AppRoutes /></MemoryRouter></QueryClientProvider>); }
+  it('restricción activa advierte y omite enviada, conservando recibida y consulta', async () => {
+    identity = { ...initialIdentity, permissions: [...permissions, 'communications.read', 'communications.sent.create', 'communications.received.create', 'relationships.restriction.read'] };
+    client.setQueryData(AUTH_QUERY_KEY, identity);
+    const previous = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((url, options) => url.includes('/contact-restrictions?') ? Promise.resolve(Response.json({
+      items: [{ id: goal, reason: 'Solicitud expresa de la institución', state: 'ACTIVE', version: 1, target: row.target, registeredBy: user,
+        createdAt: timestamp, updatedAt: timestamp, liftedAt: null, liftedBy: null, liftReason: null, canLift: false }], total: 1, page: 1, pageSize: 25,
+    })) : previous(url, options));
+    view('/relationship-processes/' + id); await screen.findByText('Solicitud expresa de la institución');
+    expect(screen.queryByRole('link', { name: 'Registrar comunicación enviada' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Registrar comunicación recibida' })).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Cronología institucional' })).toBeVisible(); expect(writes()).toHaveLength(0);
+  });
   it('UI 2.6 conserva encabezado, actor, creador, fechas y acceso principal', async () => {
     view(); const results = screen.getByRole('region', { name: 'Resultados de procesos' });
     expect(await within(results).findByRole('link', { name: row.purpose })).toHaveAttribute('href', '/relationship-processes/' + id);
@@ -85,18 +98,23 @@ describe('Procesos de relación frontend', () => {
     expect(screen.getByText('Creación').parentElement?.querySelector('time')).toHaveAttribute('datetime', timestamp);
     expect(screen.getByText('Última actividad formal').parentElement?.querySelector('time')).toHaveAttribute('datetime', timestamp);
   });
-  it('UI 2.7 conserva las tres perspectivas históricas como regiones diferentes', async () => {
+  it('cronología principal e índice bajo demanda evitan historiales duplicados', async () => {
     identity = { ...initialIdentity, permissions: [...permissions, 'communications.read'] }; client.setQueryData(AUTH_QUERY_KEY, identity);
     view('/relationship-processes/' + id); await screen.findByRole('heading', { level: 1, name: row.purpose });
-    expect(screen.getByRole('region', { name: 'Conversación / Historial' })).toBeVisible(); expect(screen.getByRole('region', { name: 'Comunicaciones registradas' })).toBeVisible();
-    expect(screen.getByRole('region', { name: 'Historial del proceso' })).toHaveTextContent('Cambios administrativos'); expect(screen.getByRole('complementary', { name: 'Recursos del proceso' })).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Cronología institucional' })).toBeVisible();
+    expect(screen.queryByRole('region', { name: 'Comunicaciones registradas' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Cronología del proceso' })).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([url]) => url.includes('/communications?page='))).toBe(false);
+    await userEvent.click(screen.getByText('Índice de comunicaciones', { selector: 'summary' }));
+    expect(await screen.findByRole('region', { name: 'Comunicaciones registradas' })).toBeVisible();
+    expect(screen.getByRole('complementary', { name: 'Recursos del proceso' })).toBeVisible();
     expect(fetchMock.mock.calls.some(([url]) => url.includes('/events?page=1'))).toBe(false); expect(writes()).toHaveLength(0);
   });
   it('UI 2.7 cerrado conserva recibidas y contexto histórico sin ofrecer enviada', async () => {
     identity = { ...initialIdentity, permissions: [...permissions, 'communications.received.create', 'communications.sent.create'] }; client.setQueryData(AUTH_QUERY_KEY, identity);
     row = closed(); view('/relationship-processes/' + id); await screen.findByRole('heading', { level: 1, name: row.purpose });
     expect(screen.queryByRole('link', { name: 'Registrar comunicación enviada' })).not.toBeInTheDocument(); expect(screen.getByRole('link', { name: 'Registrar comunicación recibida' })).toHaveAttribute('href', '/relationship-processes/' + id + '/communications/received');
-    expect(screen.getByRole('region', { name: 'Historial del proceso' })).toHaveTextContent('Resultado histórico: Otro'); expect(screen.getByRole('region', { name: 'Participantes' })).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Cronología del proceso' })).toHaveTextContent('Resultado histórico: Otro'); expect(screen.getByRole('region', { name: 'Participantes' })).toBeVisible();
   });
   it('UI 2.7 cierre mantiene error asociado al control y permite cancelar sin escribir', async () => {
     view('/relationship-processes/' + id); await screen.findByRole('heading', { level: 1, name: row.purpose }); await userEvent.click(screen.getByRole('button', { name: 'Cerrar proceso' }));
@@ -151,7 +169,7 @@ describe('Procesos de relación frontend', () => {
   it('detalle muestra participante creador e historial funcional', async () => {
     view('/relationship-processes/' + id); await screen.findByText(row.purpose);
     expect(within(screen.getByRole('region', { name: 'Participantes' })).getByText(/Creador del proceso/)).toBeVisible();
-    expect(within(screen.getByRole('region', { name: 'Historial del proceso' })).getByText(/Creación ·/)).toBeVisible();
+    expect(within(screen.getByRole('region', { name: 'Cronología del proceso' })).getByText(/Creación ·/)).toBeVisible();
     expect(screen.queryByText('Comunicaciones')).not.toBeInTheDocument();
   });
   it('historial pagina sin ocultar cierres anteriores', async () => {
