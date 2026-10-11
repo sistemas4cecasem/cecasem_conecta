@@ -2,32 +2,53 @@
   .process-detail, .communication-detail { min-width: 0; width: 100%; overflow-wrap: anywhere; }
   .process-detail > * + *, .communication-detail > * + * { margin-top: 1.5rem; }
   .process-detail .ui-page-header h1, .communication-detail .ui-page-header h1 { white-space: pre-wrap; }
-  .process-primary-action { background: var(--color-brand-primary); border-color: var(--color-brand-primary); color: white; }
-  .process-detail .process-primary-action:hover { background: #18253d; }
-  .process-summary { padding-block: 1rem; border-block: 1px solid var(--color-app-border); }
-  .process-summary .ui-metadata { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
-  .process-summary > * + * { margin-top: 1rem; }
-  .process-state-actions > * + * { margin-top: 0.75rem; }
+  .process-detail .ui-page-heading > .ui-badge { margin-top: 0.875rem; font-size: 0.8125rem; }
+  .process-primary-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--color-app-border); }
+  .process-summary { border-left: 3px solid var(--color-brand-accent); }
+  .process-summary .ui-metadata { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.875rem 2rem; font-size: 0.875rem; }
+  .process-summary .ui-metadata > div { display: block; }
+  .process-summary .ui-metadata dt { color: var(--color-app-muted); font-size: 0.8125rem; }
+  .process-summary .ui-metadata dt::after { content: ''; }
+  .process-summary .ui-metadata dd { margin-top: 0.25rem; color: var(--color-app-text); font-weight: 550; line-height: 1.55; }
+  .process-summary > * + * { margin-top: 1.125rem; }
+  .process-closure { padding: 0.875rem 1rem; border-left: 2px solid var(--color-brand-accent); background: var(--color-surface-subtle); border-radius: 0 var(--radius-control) var(--radius-control) 0; }
+  .process-closure > * + * { margin-top: 0.375rem; }
+  .process-closure p:first-child { color: var(--color-brand-primary); font-weight: 650; }
+  .process-state-actions { padding: 1rem 1.25rem; border: 1px solid var(--color-app-border); border-radius: var(--radius-panel); background: var(--color-app-surface); }
+  .process-state-actions > h2 { color: var(--color-brand-primary); font-size: 1.0625rem; font-weight: 650; }
+  .process-state-actions > * + * { margin-top: 0.875rem; }
   .process-workspace { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(18rem, 1fr); gap: 1.5rem; align-items: start; }
   .process-workspace > *, .process-resources > *, .communication-detail .ui-metadata > div { min-width: 0; }
   .process-resources > * + * { margin-top: 1.25rem; }
-  .process-resources h2, .process-timeline h2, .process-detail .ui-surface h2 { font-size: 1rem; }
-  .process-resources [aria-label="Reuniones vinculadas"] h2 { font-size: 0.9375rem; }
+  .process-resources h2, .process-timeline h2, .process-detail .ui-surface h2 { font-size: 1.0625rem; }
+  .process-resources [aria-label="Reuniones vinculadas"] h2 { font-size: 1rem; }
   .process-participants li + li { border-top: 1px solid var(--color-app-border); margin-top: 0.75rem; padding-top: 0.75rem; }
-  .process-participants li p + p, .process-timeline-entry > p { font-size: 0.875rem; line-height: 1.6; }
+  .process-participants li p + p { font-size: 0.875rem; line-height: 1.6; }
   .process-timeline > * + * { margin-top: 1rem; }
-  .process-timeline-list { margin-left: 0.5rem; border-left: 2px solid var(--color-app-border); padding-left: 1.25rem; }
-  .process-timeline-entry { position: relative; padding-block: 1rem; border-bottom: 1px solid var(--color-app-border); min-width: 0; overflow-wrap: anywhere; }
-  .process-timeline-entry::before { content: ''; position: absolute; left: -1.65rem; top: 1.4rem; width: 0.65rem; height: 0.65rem; border-radius: 50%; background: var(--color-brand-primary); border: 2px solid var(--color-app-background); }
+  .process-timeline-header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 0.75rem 1rem; }
+  .process-timeline-header h2 { color: var(--color-brand-primary); font-size: 1.125rem; font-weight: 650; }
+  .process-timeline-header p { margin-top: 0.25rem; color: var(--color-app-muted); font-size: 0.875rem; line-height: 1.5; }
+  .process-timeline-list { margin-left: 0.5rem; border-left: 2px solid var(--color-app-border-strong); padding-left: 1.5rem; }
+  .process-timeline-entry { position: relative; min-width: 0; padding: 1.125rem 0 1.25rem; border-bottom: 1px solid var(--color-app-border); overflow-wrap: anywhere; }
+  .process-timeline-entry::before { content: ''; position: absolute; left: -1.95rem; top: 1.35rem; width: 0.875rem; height: 0.875rem; border-radius: 50%; background: var(--color-brand-primary); border: 3px solid var(--color-app-surface); box-shadow: 0 0 0 1px var(--color-app-border-strong); }
   .process-timeline-entry > * + * { margin-top: 0.5rem; }
   .process-timeline-entry > a { display: inline-flex; min-height: 2.75rem; align-items: center; margin-right: 0.75rem; }
-  .process-timeline-entry h3 { font-size: 0.875rem; }
-  .process-timeline-note { background: var(--color-app-background); padding-inline: 0.75rem; border-left: 2px dashed var(--color-app-border); }
+  .process-timeline-entry h3 { color: var(--color-brand-primary); font-size: 0.875rem; font-weight: 700; line-height: 1.4; letter-spacing: 0.02em; }
+  .process-timeline-entry > p { font-size: 0.9375rem; line-height: 1.6; }
+  .process-timeline-entry > .process-timeline-fact { color: var(--color-app-muted); font-size: 0.8125rem; }
+  .process-timeline-entry > .process-timeline-fact time { color: var(--color-app-text); font-weight: 550; }
+  .process-timeline-entry > .process-timeline-subject { color: var(--color-app-text); font-size: 1rem; font-weight: 600; }
+  .process-timeline-note { background: var(--color-surface-subtle); padding-inline: 0.875rem; border-left: 2px dashed var(--color-brand-accent); }
+  .process-timeline-note::before { background: var(--color-brand-accent); }
+  .process-history-event { padding-block: 0.875rem; }
+  .process-history-heading { color: var(--color-brand-primary); font-size: 0.9375rem; font-weight: 650; }
+  .process-history-heading time { color: var(--color-app-muted); font-weight: 500; }
   .process-note-form { padding-top: 1rem; border-top: 1px solid var(--color-app-border); }
   .process-note-form .ui-form-section { background: var(--color-app-background); }
   .process-detail .process-history ol > li { border: 0; border-bottom: 1px solid var(--color-app-border); border-radius: 0; }
   .process-detail [aria-label="Adjuntos privados"], .communication-detail [aria-label="Adjuntos privados"] { background: white; border-color: var(--color-app-border); border-radius: var(--radius-panel); font-size: 0.875rem; }
-  .process-detail [aria-label="Adjuntos privados"] input[type=file], .communication-detail input[type=file] { max-width: 100%; min-height: 2.75rem; }
+  .process-detail [aria-label="Adjuntos privados"] input[type=file], .communication-detail input[type=file] { display: block; width: 100%; max-width: 100%; min-height: 2.75rem; padding: 0.375rem; border: 1px solid var(--color-app-border); border-radius: var(--radius-control); background: var(--color-app-surface); color: var(--color-app-text); font: inherit; }
+  .process-detail [aria-label="Adjuntos privados"] input[type=file]::file-selector-button, .communication-detail input[type=file]::file-selector-button { margin-right: 0.75rem; padding: 0.5rem 0.75rem; border: 1px solid var(--color-app-border-strong); border-radius: var(--radius-control); background: var(--color-brand-soft); color: var(--color-brand-primary); font: inherit; font-weight: 600; cursor: pointer; }
   .communication-detail .ui-metadata { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
   .communication-original > * + * { margin-top: 1rem; }
   .communication-original pre { line-height: 1.7; font-size: 0.9375rem; }
@@ -39,9 +60,11 @@
   }
   @media (max-width: 39.999rem) {
     .process-summary .ui-metadata, .communication-detail .ui-metadata { grid-template-columns: minmax(0, 1fr); }
+    .process-primary-actions > * { flex: 1 1 100%; }
+    .process-state-actions { padding: 1rem; }
     .process-detail .ui-page-header .ui-actions, .communication-detail .ui-page-header .ui-actions { width: 100%; }
     .process-detail .ui-page-header .ui-actions > *, .communication-detail .ui-page-header .ui-actions > * { width: 100%; }
     .process-timeline-list { padding-left: 1rem; }
-    .process-timeline-entry::before { left: -1.4rem; }
+    .process-timeline-entry::before { left: -1.65rem; }
   }
 }

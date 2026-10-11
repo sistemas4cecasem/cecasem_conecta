@@ -12,6 +12,7 @@ import { PageHeader, Surface } from '../../components/ui/layout';
 import { Alert, QueryFeedback, StatusBadge, ConfirmationPanel } from '../../components/ui/feedback';
 import { FormField, Select, Textarea } from '../../components/ui/forms';
 import { Metadata, Pagination } from '../../components/ui/lists';
+import { iconCatalog } from '../../components/ui/icons';
 import './process-detail.css';
 import { PARTICIPANT_ORIGIN_LABELS, OPEN_STATES, PROCESS_RESULT_LABELS, PROCESS_STATE_LABELS, processCloseSchema, processReopenSchema, processStateFormSchema, type ProcessDetail, type ProcessEvent } from './process-contracts';
 import { processIdentityKey, useProcess, useProcessEvents, useProcessMutation } from './process-queries';
@@ -43,7 +44,7 @@ function CloseForm({ pending, blocked, submit }: FormProps) {
 }
 const eventLabels = { CREATED: 'Creación', STATE_CHANGED: 'Cambio de estado', CLOSED: 'Cierre', REOPENED: 'Reapertura' };
 function HistoryEvent({ event }: { event: ProcessEvent }) {
-  return <li className="process-history-event min-w-0 space-y-1 break-words"><p className="font-semibold">{eventLabels[event.type]} · <time dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleString('es-BO')}</time> · {event.actor.displayName}</p>
+  return <li className="process-history-event min-w-0 space-y-1 break-words"><p className="process-history-heading">{eventLabels[event.type]} · <time dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleString('es-BO')}</time> · {event.actor.displayName}</p>
     <p>{event.previousState && PROCESS_STATE_LABELS[event.previousState] + ' → '}{PROCESS_STATE_LABELS[event.newState]}</p>
     {event.result && <p>Resultado histórico: {PROCESS_RESULT_LABELS[event.result]}</p>}{event.observation && <p className="whitespace-pre-wrap">{event.observation}</p>}
     {event.authority === 'ADMINISTRATOR' && <p>Intervención excepcional de Administración</p>}{event.authority === 'BOARD' && <p>Intervención de Directorio</p>}</li>;
@@ -74,25 +75,25 @@ function ProcessDetailView({ identity, id }: { identity: AuthIdentity; id: strin
   return <section className="process-detail">
     <PageHeader eyebrow="Relaciones / Procesos" title={process?.purpose ?? 'Proceso de relación'}
       metadata={process && <StatusBadge tone={process.state === 'CLOSED' ? 'neutral' : process.state === 'WAITING_RESPONSE' ? 'warning' : 'info'}>{PROCESS_STATE_LABELS[process.state]}</StatusBadge>}
-      actions={<ActionLink appearance="context" to="/relationship-processes">Volver al listado</ActionLink>}
-      primaryAction={process && <>
-        {process.state !== 'CLOSED' && identity.permissions.includes('communications.sent.create') && <ActionLink appearance="action" className="process-primary-action" to={'/relationship-processes/' + id + '/communications/sent'}>Registrar comunicación enviada</ActionLink>}
-        {identity.permissions.includes('communications.received.create') && <ActionLink appearance="action" to={'/relationship-processes/' + id + '/communications/received'}>Registrar comunicación recibida</ActionLink>}
-      </>} />
+      actions={<ActionLink appearance="context" to="/relationship-processes">Volver al listado</ActionLink>} />
     <QueryFeedback pending={detail.isPending} error={detail.isError} retry={detail.refetch} />
     {process && <>
-      <div className="process-summary"><Metadata items={[
+      {(process.state !== 'CLOSED' && identity.permissions.includes('communications.sent.create') || identity.permissions.includes('communications.received.create')) && <div className="process-primary-actions">
+        {process.state !== 'CLOSED' && identity.permissions.includes('communications.sent.create') && <ActionLink appearance="action" variant="primary" startIcon={<iconCatalog.action.sent size={18} />} to={'/relationship-processes/' + id + '/communications/sent'}>Registrar comunicación enviada</ActionLink>}
+        {identity.permissions.includes('communications.received.create') && <ActionLink appearance="action" variant="outline" startIcon={<iconCatalog.action.received size={18} />} to={'/relationship-processes/' + id + '/communications/received'}>Registrar comunicación recibida</ActionLink>}
+      </div>}
+      <Surface className="process-summary" heading="Información del proceso"><Metadata items={[
         { label: 'Actor principal', value: <ActionLink to={'/' + (process.target.kind === 'ORGANIZATION' ? 'organizations/' : 'people/') + process.target.id}>{process.target.label}{!process.target.isActive && ' (inactivo)'}</ActionLink> },
         { label: 'Creador', value: process.createdBy.displayName + (!process.createdBy.isActive ? ' (cuenta inactiva)' : '') },
         { label: 'Creación', value: <time dateTime={process.createdAt}>{new Date(process.createdAt).toLocaleString('es-BO')}</time> },
         { label: 'Última actividad formal', value: <time dateTime={process.lastActivityAt}>{new Date(process.lastActivityAt).toLocaleString('es-BO')}</time> },
       ]} />{process.sourceIntentId && <ActionLink appearance="context" to={'/contact-intents/' + process.sourceIntentId}>Consultar intención de origen</ActionLink>}
-      {process.currentResult && <div className="process-closure"><p>Resultado: {PROCESS_RESULT_LABELS[process.currentResult]}</p><p>Cerrado por {process.closedBy?.displayName} · <time dateTime={process.closedAt!}>{new Date(process.closedAt!).toLocaleString('es-BO')}</time></p>{process.closureObservation && <p className="whitespace-pre-wrap">{process.closureObservation}</p>}</div>}</div>
+      {process.currentResult && <div className="process-closure"><p>Resultado: {PROCESS_RESULT_LABELS[process.currentResult]}</p><p>Cerrado por {process.closedBy?.displayName} · <time dateTime={process.closedAt!}>{new Date(process.closedAt!).toLocaleString('es-BO')}</time></p>{process.closureObservation && <p className="whitespace-pre-wrap">{process.closureObservation}</p>}</div>}</Surface>
       {process.exceptionalAdministration && <Alert tone="neutral">El cierre o la reapertura por Administración se registrará como intervención excepcional.</Alert>}
       <section aria-label="Estado y acciones" className="process-state-actions">
-      <div className="ui-actions">{(['state', 'close', 'reopen'] as const).map(value => actions[value] && <Button key={value} disabled={mutation.isPending || !!mutation.error} onClick={() => { mutation.reset(); setAction(value); }}>{value === 'state' ? 'Cambiar estado' : value === 'close' ? 'Cerrar proceso' : 'Reabrir proceso'}</Button>)}</div>
+      <h2>Estado y acciones</h2><div className="ui-actions">{(['state', 'close', 'reopen'] as const).map(value => actions[value] && <Button key={value} variant={value === 'close' ? 'danger' : 'secondary'} disabled={mutation.isPending || !!mutation.error} onClick={() => { mutation.reset(); setAction(value); }}>{value === 'state' ? 'Cambiar estado' : value === 'close' ? 'Cerrar proceso' : 'Reabrir proceso'}</Button>)}</div>
       {!actions.state && !actions.close && !actions.reopen && <p>Consulta disponible. Las acciones requieren los permisos y la participación correspondientes.</p>}
-      {action && actions[action] && <ConfirmationPanel title={action === 'close' ? 'Cerrar proceso' : action === 'reopen' ? 'Reabrir proceso' : 'Cambiar estado'} aria-label={action === 'close' ? 'Cerrar proceso' : action === 'reopen' ? 'Reabrir proceso' : 'Cambiar estado'} className="space-y-3 rounded border p-3">
+      {action && actions[action] && <ConfirmationPanel tone={action === 'close' ? 'danger' : 'warning'} title={action === 'close' ? 'Cerrar proceso' : action === 'reopen' ? 'Reabrir proceso' : 'Cambiar estado'} aria-label={action === 'close' ? 'Cerrar proceso' : action === 'reopen' ? 'Reabrir proceso' : 'Cambiar estado'}>
         {action === 'close' ? <CloseForm pending={mutation.isPending} blocked={!!mutation.error} submit={submit} /> :
           <StateForm key={action} mode={action} states={action === 'reopen' ? [...OPEN_STATES] : process.allowedStates} pending={mutation.isPending} blocked={!!mutation.error} submit={submit} />}
         <Button disabled={mutation.isPending} onClick={() => setAction(null)}>Volver sin guardar</Button></ConfirmationPanel>}

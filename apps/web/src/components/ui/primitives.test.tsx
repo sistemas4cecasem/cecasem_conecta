@@ -2,9 +2,10 @@ import { createRef } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
+import { Plus } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { describe, expect, it, vi } from 'vitest';
-import { ActionLink, Button } from './actions';
+import { ActionLink, Button, IconButton } from './actions';
 import { FormField, FormSection, Input, Select, Textarea } from './forms';
 import { PageHeader, Surface } from './layout';
 import { Alert, ConfirmationPanel, EmptyState, QueryFeedback, StatusBadge } from './feedback';
@@ -34,6 +35,17 @@ describe('Primitivas visuales compartidas', () => {
     render(<MemoryRouter><ActionLink appearance="action" to="/people">Consultar personas</ActionLink></MemoryRouter>);
     expect(screen.getByRole('link', { name: 'Consultar personas' })).toHaveAttribute('href', '/people');
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+  it('mantiene nombres accesibles y roles cuando las acciones incluyen iconos', () => {
+    render(<MemoryRouter>
+      <Button variant="outline" startIcon={<Plus />}>Filtrar</Button>
+      <IconButton label="Añadir" icon={<Plus />} />
+      <ActionLink appearance="action" variant="primary" endIcon={<Plus />} to="/organizations/new">Crear organización</ActionLink>
+    </MemoryRouter>);
+    expect(screen.getByRole('button', { name: 'Filtrar' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Añadir' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Crear organización' })).toHaveAttribute('href', '/organizations/new');
+    expect(document.querySelectorAll('.ui-action-icon[aria-hidden="true"]')).toHaveLength(3);
   });
   it('el encabezado tiene un título y conserva las acciones', async () => {
     const action = vi.fn();

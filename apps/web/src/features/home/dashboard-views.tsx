@@ -5,6 +5,7 @@ import { EmptyState } from '../../components/ui/feedback';
 import { Surface } from '../../components/ui/layout';
 import { DataList, DataListItem, Metadata } from '../../components/ui/lists';
 import { MetricCard } from '../../components/ui/metric-card';
+import { iconCatalog } from '../../components/ui/icons';
 
 type Dashboard = z.infer<typeof dashboardSchema>;
 type InstitutionalPanel = Extract<Dashboard, { view: 'institutional' }>;
@@ -30,19 +31,19 @@ export function InstitutionalDashboard({ panel }: { panel: InstitutionalPanel })
     <section aria-label="Procesos y oportunidades" className="dashboard-section">
       <h2>Procesos y oportunidades</h2>
       <div className="dashboard-metrics">
-        <MetricCard label="Procesos activos" value={panel.activeProcesses} to="/relationship-processes" />
-        <MetricCard label="Esperando respuesta" value={panel.waitingResponseProcesses} to="/relationship-processes?state=WAITING_RESPONSE" />
-        <MetricCard label="Pendientes de revisión" value={panel.opportunities.pendingReview} to="/opportunities?status=PENDING_REVIEW" />
-        <MetricCard label="En preparación" value={panel.opportunities.preparing} to="/opportunities?status=PREPARING" />
-        <MetricCard label="Postulaciones pendientes" value={panel.pendingApplications} to="/opportunities?status=SUBMITTED" description="Postuladas que aún no están finalizadas" />
+        <MetricCard label="Procesos activos" value={panel.activeProcesses} icon={<iconCatalog.metric.process size={20} />} to="/relationship-processes" />
+        <MetricCard label="Esperando respuesta" value={panel.waitingResponseProcesses} icon={<iconCatalog.metric.waiting size={20} />} to="/relationship-processes?state=WAITING_RESPONSE" />
+        <MetricCard label="Pendientes de revisión" value={panel.opportunities.pendingReview} icon={<iconCatalog.metric.review size={20} />} to="/opportunities?status=PENDING_REVIEW" />
+        <MetricCard label="En preparación" value={panel.opportunities.preparing} icon={<iconCatalog.metric.preparation size={20} />} to="/opportunities?status=PREPARING" />
+        <MetricCard label="Postulaciones pendientes" value={panel.pendingApplications} icon={<iconCatalog.metric.application size={20} />} to="/opportunities?status=SUBMITTED" description="Postuladas que aún no están finalizadas" />
       </div>
     </section>
     <div className="dashboard-columns">
       <section aria-label="Directorio" className="dashboard-section">
         <h2>Directorio</h2><p className="ui-description">Actualización de la información institucional.</p>
         <div className="dashboard-metrics">
-          <MetricCard label="Requieren revisión" value={panel.organizationsReviewDue} to="/organizations?status=active&verificationStatus=REVIEW_DUE" />
-          <MetricCard label="Nunca verificadas" value={panel.organizationsNeverVerified} to="/organizations?status=active&verificationStatus=NEVER_VERIFIED" />
+          <MetricCard label="Requieren revisión" value={panel.organizationsReviewDue} icon={<iconCatalog.metric.review size={20} />} to="/organizations?status=active&verificationStatus=REVIEW_DUE" />
+          <MetricCard label="Nunca verificadas" value={panel.organizationsNeverVerified} icon={<iconCatalog.metric.verification size={20} />} to="/organizations?status=active&verificationStatus=NEVER_VERIFIED" />
         </div>
       </section>
       <Surface heading={`Reuniones próximas (${panel.upcomingMeetingCount})`} actions={<ActionLink appearance="context" to="/meetings">Ver reuniones</ActionLink>}>
@@ -55,7 +56,7 @@ export function InstitutionalDashboard({ panel }: { panel: InstitutionalPanel })
 export function ResearchDashboard({ panel }: { panel: ResearchPanel }) {
   return <div className="dashboard-columns dashboard-research">
     <Surface heading="Procesos activos relevantes">
-      <div className="dashboard-process-summary"><MetricCard label="Tus procesos activos" value={panel.activeProcesses} to="/relationship-processes" /></div>
+      <div className="dashboard-process-summary"><MetricCard label="Tus procesos activos" value={panel.activeProcesses} icon={<iconCatalog.metric.process size={20} />} to="/relationship-processes" /></div>
       {panel.relevantProcesses.length ? <DataList>{panel.relevantProcesses.map(row => <DataListItem key={row.id}>
         <ActionLink appearance="list" to={`/relationship-processes/${row.id}`}>{row.purpose}</ActionLink>
         <Metadata items={[
@@ -85,8 +86,8 @@ export function PlanningDashboard({ panel }: { panel: PlanningPanel }) {
   return <div className="dashboard-stack">
     <section aria-label="Oportunidades" className="dashboard-section">
       <h2>Oportunidades</h2><div className="dashboard-metrics">
-        <MetricCard label="Pendientes de revisión" value={panel.opportunities.pendingReview} to="/opportunities?status=PENDING_REVIEW" description="Nuevas oportunidades que esperan revisión" />
-        <MetricCard label="En preparación" value={panel.opportunities.preparing} to="/opportunities?status=PREPARING" />
+        <MetricCard label="Pendientes de revisión" value={panel.opportunities.pendingReview} icon={<iconCatalog.metric.review size={20} />} to="/opportunities?status=PENDING_REVIEW" description="Nuevas oportunidades que esperan revisión" />
+        <MetricCard label="En preparación" value={panel.opportunities.preparing} icon={<iconCatalog.metric.preparation size={20} />} to="/opportunities?status=PREPARING" />
       </div>
     </section>
     <div className="dashboard-columns">

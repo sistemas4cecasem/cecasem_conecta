@@ -35,7 +35,7 @@ function OpportunityList({ identity }: {
   const query = useOpportunities(identity, 'opportunities?' + filters);
   return <section className="opportunities-page">
     <PageHeader eyebrow="Planificación y seguimiento" title="Oportunidades" description="Consulta convocatorias, su origen institucional y el seguimiento de la postulación."
-      primaryAction={identity.permissions.includes('opportunities.create') && <ActionLink appearance="action" to="/opportunities/new">Crear oportunidad</ActionLink>} />
+      primaryAction={identity.permissions.includes('opportunities.create') && <ActionLink appearance="action" variant="primary" to="/opportunities/new">Crear oportunidad</ActionLink>} />
     <FilterBar aria-label="Filtros de oportunidades" summary={query.data && <p>{query.data.total} {query.data.total === 1 ? 'oportunidad encontrada' : 'oportunidades encontradas'}</p>}>
       <FormField label="Filtrar por estado">{control => <Select {...control} value={status} onChange={event => { const next = new URLSearchParams(params); if (event.target.value === 'all') next.delete('status'); else next.set('status', event.target.value); next.delete('page'); setParams(next); setPage(1); }}><option value="all">Todos</option>{Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select>}</FormField>
     </FilterBar>

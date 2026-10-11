@@ -2,14 +2,14 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { ApiError } from '../../lib/api/client';
 import { Button } from '../../components/ui/actions';
-export const inputClass = 'mt-1 min-h-11 w-full rounded border border-slate-400 bg-white px-3 py-2 text-slate-900';
-export const buttonClass = 'min-h-11 rounded border border-slate-500 px-3 py-2 disabled:opacity-50';
+export const inputClass = 'ui-control';
+export const buttonClass = 'ui-button ui-button-secondary ui-action-medium';
 export function Field({ label, children, error }: { label: string; children: ReactNode; error?: string }) {
-  return <label className="block min-w-0">{label}{children}{error && <span role="alert" className="block text-sm text-red-800">{error}</span>}</label>;
+  return <label className="ui-field ui-legacy-field"><span className="ui-field-label">{label}</span>{children}{error && <span role="alert" className="ui-field-error">{error}</span>}</label>;
 }
 export function QueryState({ pending, error, failure, retry }: { pending: boolean; error: boolean; failure?: unknown; retry: () => unknown }) {
-  if (pending) return <p role="status">Cargando…</p>;
-  if (error) return <div><p role="alert">{failure instanceof ApiError ? failure.message : 'No se pudo cargar la información.'}</p><button className={buttonClass} onClick={() => void retry()}>Reintentar</button></div>;
+  if (pending) return <p role="status" className="ui-loading">Cargando…</p>;
+  if (error) return <div className="ui-query-error"><p role="alert">{failure instanceof ApiError ? failure.message : 'No se pudo cargar la información.'}</p><button className={buttonClass} onClick={() => void retry()}>Reintentar</button></div>;
   return null;
 }
 export function Pagination({ page, total, pageSize = 25, onPage }: { page: number; total: number; pageSize?: number; onPage: (page: number) => void }) {
@@ -24,7 +24,7 @@ export function MutationError({ error, reload, preserveDraft = false, modern = f
   const conflict = error instanceof ApiError && error.code === 'VERSION_CONFLICT';
   const duplicateConflict = error instanceof ApiError && ['DUPLICATE_CANDIDATE_STALE', 'CONSOLIDATION_VERSION_CONFLICT'].includes(error.code ?? '');
   const ReloadButton = modern ? Button : 'button';
-  return <div role="alert" className={modern ? 'ui-alert ui-tone-danger space-y-2' : 'space-y-2 rounded border border-red-400 p-3'}>
+  return <div role="alert" className={modern ? 'ui-alert ui-tone-danger ui-mutation-error' : 'ui-query-error ui-mutation-error'}>
     <p>{error instanceof ApiError ? error.message : 'No se pudo guardar. Intenta nuevamente.'}</p>
     {error instanceof ApiError && error.details?.principalPath && <Link className="inline-flex min-h-11 items-center underline" to={'/' + error.details.principalPath}>Abrir registro principal</Link>}
     {duplicateConflict && reload && <ReloadButton type="button" className={modern ? undefined : buttonClass} onClick={() => void reload()}>Recargar y revisar coincidencia</ReloadButton>}

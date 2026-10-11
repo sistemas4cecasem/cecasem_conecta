@@ -7,6 +7,8 @@ import { IntentContext } from './contact-intents-page';
 import { conversionIdentityMatches, intentIdentityKey, useIntent, useIntentConversion, useIntentMutation } from './queries';
 import { useTargetRestriction } from './restriction-queries';
 import { ContactRestrictionNotice } from './contact-restriction-notice';
+import { PageHeader, Surface } from '../../components/ui/layout';
+import { ConfirmationPanel } from '../../components/ui/feedback';
 export function ContactIntentDetailPage() {
   const identity = useSession().data, { id = '' } = useParams();
   if (!identity?.permissions.includes('relationships.intent.read')) return <p role="alert">No tienes permiso para consultar intenciones.</p>;
@@ -21,25 +23,25 @@ function IntentDetail({ identity, id }: { identity: AuthIdentity; id: string }) 
   const allowed = !!intent?.canCancel && identity.permissions.includes('relationships.intent.cancel');
   const canConvert = intent?.state === 'ACTIVE' && intent.canConvert && identity.permissions.includes('relationships.intent.convert') && !restriction.data?.items.length;
   const pending = mutation.isPending || conversion.isPending, error = mutation.error ?? conversion.error;
-  return <section className="space-y-4"><h1 className="text-2xl font-semibold">Intención de contacto</h1><Link className={buttonClass} to="/contact-intents">Volver al listado</Link>
+  return <section className="ui-detail-page"><PageHeader eyebrow="Relaciones / Intenciones" title="Intención de contacto" actions={<Link className={buttonClass} to="/contact-intents">Volver al listado</Link>} />
     <QueryState pending={detail.isPending} error={detail.isError} retry={detail.refetch} />
-    {intent && <><p className="whitespace-pre-wrap break-words">{intent.purpose}</p><IntentContext intent={intent} />
+    {intent && <><Surface heading="Propósito y contexto"><p className="whitespace-pre-wrap break-words">{intent.purpose}</p><IntentContext intent={intent} /></Surface>
       <ContactRestrictionNotice restriction={restriction.data?.items[0]} />
       {intent.processId && identity.permissions.includes('relationships.process.read') && <Link className={buttonClass} to={'/relationship-processes/' + intent.processId}>Ver proceso de relación</Link>}
       {canConvert && !confirm && <button className={buttonClass} disabled={identity.permissions.includes('relationships.restriction.read') && restriction.isPending} onClick={() => setConfirm('convert')}>Convertir en proceso</button>}
-      {canConvert && confirm === 'convert' && <section aria-label="Confirmar conversión" className="space-y-3 rounded border p-3">
+      {canConvert && confirm === 'convert' && <ConfirmationPanel aria-label="Confirmar conversión" title="Confirmar conversión">
         <p>Se creará un proceso en preparación con este propósito y objetivo. Tú serás su creador y participante inicial; se conservará la autoría de la intención.</p>
         <button className={buttonClass} disabled={pending || !!error} onClick={() => {
           void conversion.mutateAsync({ id, expectedVersion: intent.version }).then(result => {
             if (conversionIdentityMatches(client, identity)) navigate('/relationship-processes/' + result.process.id);
           }).catch(() => undefined);
-        }}>Confirmar conversión</button>{' '}<button className={buttonClass} disabled={pending} onClick={() => setConfirm(null)}>Volver sin convertir</button></section>}
+        }}>Confirmar conversión</button>{' '}<button className={buttonClass} disabled={pending} onClick={() => setConfirm(null)}>Volver sin convertir</button></ConfirmationPanel>}
       {allowed && !confirm && <button className={buttonClass} onClick={() => setConfirm('cancel')}>Cancelar intención</button>}
-      {allowed && confirm === 'cancel' && <section aria-label="Confirmar cancelación" className="space-y-3 rounded border p-3"><p>¿Cancelar esta intención? Se conservarán el propósito, el objetivo y su historial.</p>
+      {allowed && confirm === 'cancel' && <ConfirmationPanel aria-label="Confirmar cancelación" title="Confirmar cancelación"><p>¿Cancelar esta intención? Se conservarán el propósito, el objetivo y su historial.</p>
         <button className={buttonClass} disabled={pending || !!error} onClick={() => {
           void mutation.mutateAsync({ path: 'contact-intents/' + id + '/cancel', body: { expectedVersion: intent.version } })
             .then(() => setConfirm(null)).catch(() => undefined);
-        }}>Confirmar cancelación</button>{' '}<button className={buttonClass} disabled={pending} onClick={() => setConfirm(null)}>Volver sin cancelar</button></section>}
+        }}>Confirmar cancelación</button>{' '}<button className={buttonClass} disabled={pending} onClick={() => setConfirm(null)}>Volver sin cancelar</button></ConfirmationPanel>}
       {!allowed && intent.state === 'ACTIVE' && identity.permissions.includes('relationships.intent.cancel') && <p>Solo puedes cancelar intenciones propias, salvo los permisos de Directorio y Administración.</p>}
       <MutationError error={error} />
       {error && <button className={buttonClass} onClick={() => { void detail.refetch().then(result => { if (!result.isError) { mutation.reset(); conversion.reset(); setConfirm(null); } }); }}>Recargar intención y revisar estado</button>}

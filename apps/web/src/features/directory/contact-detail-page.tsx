@@ -10,11 +10,13 @@ import { contactCorrectionSchema,contactMethodSchema,contactLabels,conditionLabe
 import { ContactMethodAssociations } from './contact-associations';
 import { DirectoryHistory } from './directory-history';
 import { Field,inputClass,buttonClass,MutationError,QueryState } from './directory-ui';
+import { PageHeader, Surface } from '../../components/ui/layout';
+import { Alert } from '../../components/ui/feedback';
 function correctionValues(row:ContactMethod):ContactCorrectionValues {return {type:row.type,value:row.value,label:row.label??'',confirmShared:false};}
 function ContactCorrectionForm({identity,initial,saved,cancel,onExisting}:{identity:AuthIdentity;initial:ContactMethod;saved:()=>void;cancel:()=>void;onExisting:(id:string)=>void}) {
   const form=useForm<ContactCorrectionValues>({resolver:zodResolver(contactCorrectionSchema),defaultValues:correctionValues(initial)});
   const [snapshot,setSnapshot]=useState(initial),[reloadFailed,setReloadFailed]=useState(false);const mutation=useDirectoryMutation(identity);
-  return <form className="space-y-3" onSubmit={form.handleSubmit(async({value,label,confirmShared})=>{try{contactMethodSchema.parse(await mutation.mutateAsync({path:'contact-methods/'+initial.id,method:'PUT',body:{value,label,confirmShared,expectedVersion:snapshot.version}}));saved();}catch(error){if(error instanceof ApiError&&error.code==='CONTACT_VALUE_EXISTS'&&error.details?.contactMethodId)onExisting(error.details.contactMethodId);}})}>
+  return <form className="ui-editor-form" onSubmit={form.handleSubmit(async({value,label,confirmShared})=>{try{contactMethodSchema.parse(await mutation.mutateAsync({path:'contact-methods/'+initial.id,method:'PUT',body:{value,label,confirmShared,expectedVersion:snapshot.version}}));saved();}catch(error){if(error instanceof ApiError&&error.code==='CONTACT_VALUE_EXISTS'&&error.details?.contactMethodId)onExisting(error.details.contactMethodId);}})}>
     <p>Corrige un dato erróneo del mismo canal. Un canal distinto se registra por separado y se sustituye solo en la asociación elegida.</p>
     <Field label="Valor corregido del medio" error={form.formState.errors.value?.message}><input className={inputClass} {...form.register('value')}/></Field>
     <Field label="Etiqueta corregida del medio" error={form.formState.errors.label?.message}><input className={inputClass} {...form.register('label')}/></Field>
@@ -30,17 +32,17 @@ export function ContactDetailPage() {
   if(!identity?.permissions.includes('directory.read'))return <p role="alert">No tienes permiso para consultar medios de contacto.</p>;
   if(!query.data)return <QueryState pending={query.isPending} error={query.isError} retry={query.refetch}/>;
   const row=query.data;
-  return <section className="min-w-0 space-y-5 break-words"><Link className="inline-flex min-h-11 underline" to="/organizations">Volver al directorio</Link>
-    <h1 className="text-2xl font-semibold">Medio de contacto: {row.value}</h1><p>{contactLabels[row.type]} · {conditionLabels[row.condition]}</p>{row.label&&<p>Etiqueta: {row.label}</p>}
-    <p>{row.associationCount>1?'Medio compartido':'Medio canónico'} · {row.associationCount} asociaciones. La condición global no representa verificación.</p>
+  return <section className="ui-detail-page"><PageHeader eyebrow="Directorio / Medios de contacto" title={'Medio de contacto: ' + row.value} description={`${contactLabels[row.type]} · ${conditionLabels[row.condition]}`} actions={<Link className={buttonClass} to="/organizations">Volver al directorio</Link>} />
+    <Surface heading="Información del medio">{row.label&&<p>Etiqueta: {row.label}</p>}
+    <p>{row.associationCount>1?'Medio compartido':'Medio canónico'} · {row.associationCount} asociaciones. La condición global no representa verificación.</p></Surface>
     {editing?<ContactCorrectionForm identity={identity} initial={editing} saved={()=>{setEditing(null);setReplacementId(undefined);}} cancel={()=>setEditing(null)} onExisting={setReplacementId}/>:
       identity.permissions.includes('directory.write')&&<button className={buttonClass} onClick={()=>setEditing(row)}>Corregir medio de contacto</button>}
     {identity.permissions.includes('directory.write')&&<button className={buttonClass} disabled={mutation.isPending} onClick={()=>{void mutation.mutateAsync({path:'contact-methods/'+id+'/condition',method:'PATCH',body:{condition:row.condition==='USABLE'?'UNUSABLE':'USABLE',expectedVersion:row.version}}).catch(()=>undefined);}}>{row.condition==='USABLE'?'Marcar medio no utilizable':'Restablecer medio disponible'}</button>}
     <MutationError error={mutation.error} reload={async()=>{const fresh=await query.refetch();if(fresh.isSuccess)mutation.reset();}}/>
-    {replacementId&&<><QueryState pending={replacement.isPending} error={replacement.isError} retry={replacement.refetch}/>{replacement.data&&<section className="space-y-3 rounded border border-amber-500 p-3">
+    {replacementId&&<><QueryState pending={replacement.isPending} error={replacement.isError} retry={replacement.refetch}/>{replacement.data&&<Alert tone="warning">
       <p>El correo ya existe como {replacement.data.value}. Elige explícitamente abajo qué asociación sustituir. Los actores y el otro medio conservan sus identidades.</p>
       <Link className="inline-flex min-h-11 underline" to={'/contact-methods/'+replacementId}>Ver ficha del correo existente</Link><ContactMethodAssociations identity={identity} methodId={replacementId} readOnly/>
-      <button className={buttonClass} onClick={()=>setReplacementId(undefined)}>Cancelar reutilización para corrección</button></section>}</>}
-    <h2 className="text-xl font-semibold">Asociaciones del medio</h2><ContactMethodAssociations key={id} identity={identity} methodId={id} replacement={replacement.data}/>
+      <button className={buttonClass} onClick={()=>setReplacementId(undefined)}>Cancelar reutilización para corrección</button></Alert>}</>}
+    <Surface heading="Asociaciones del medio"><ContactMethodAssociations key={id} identity={identity} methodId={id} replacement={replacement.data}/></Surface>
     {identity.permissions.includes('directory.history.read')&&<DirectoryHistory key={'history-'+id} identity={identity} path={'contact-methods/'+id+'/history'}/>}</section>;
 }

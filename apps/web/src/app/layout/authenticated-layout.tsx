@@ -20,6 +20,7 @@ import { clearForbiddenContext } from '../../features/relationships/context-quer
 import { clearForbiddenCommunications } from '../../features/communications/queries';
 import { clearForbiddenTimeline } from '../../features/relationships/timeline-queries';
 import { clearForbiddenDashboard } from '../../features/home/dashboard-queries';
+import { Button } from '../../components/ui/actions';
 
 const ROLE_LABELS = { ADMINISTRATOR: 'Administrador', BOARD: 'Directorio', RESEARCH: 'Búsqueda', PLANNING: 'Planificación' };
 
@@ -82,8 +83,8 @@ export function AuthenticatedLayout() {
     <div className="shell-account" role="group" aria-label="Cuenta actual">
     <div className="shell-account-identity"><span>{session.data.givenNames} {session.data.familyNames}</span>
     <span className="shell-account-role">{ROLE_LABELS[session.data.role]}</span></div>
-    <button disabled={pending} onClick={() => void logout()} className="shell-account-logout">
-      {pending ? 'Cerrando sesión…' : 'Cerrar sesión'}</button>
+    <Button variant="outline" disabled={pending} pending={pending} onClick={() => void logout()}>
+      {pending ? 'Cerrando sesión…' : 'Cerrar sesión'}</Button>
     </div>
     {error && <p role="alert">{error}</p>}
   </div>}>{notificationReadFailed && <p role="alert">No se pudo confirmar la lectura del aviso. Se actualizará al sincronizar las notificaciones.</p>}<Outlet /></ApplicationFrame>;

@@ -11,6 +11,7 @@ import { hasPermission } from '../auth/permissions';
 import { roleLabels, userSchema, type AdministrativeUser } from './contracts';
 import { UserCreationForm } from './user-creation-form';
 import { UserCard } from './user-card';
+import { iconCatalog } from '../../components/ui/icons';
 
 type UsersScreen = { type: 'list' } | { type: 'create' } | { type: 'user'; userId: string };
 
@@ -83,9 +84,7 @@ function UsersTable({ users, canAdminister, onSelect }: {
         user.credentialStatus === 'NO_PASSWORD' ? 'Sin contraseña asignada' : user.credentialStatus === 'CHANGE_REQUIRED' ? 'Debe cambiar la contraseña' : 'Contraseña establecida'}</StatusBadge></td>
       <td data-label="Administración"><Button className="users-admin-button" variant="ghost" onClick={() => onSelect(user)}
         aria-label={`${canAdminister ? 'Administrar' : 'Ver'} usuario ${user.givenNames} ${user.familyNames}`}>
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">{canAdminister
-          ? <><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></>
-          : <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></>}</svg>
+        {canAdminister ? <iconCatalog.action.edit aria-hidden="true" /> : <iconCatalog.action.inspect aria-hidden="true" />}
         {canAdminister ? 'Administrar' : 'Ver usuario'}
       </Button></td>
     </tr>)}</tbody>

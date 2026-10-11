@@ -1,8 +1,6 @@
 @layer components {
   .directory-page { width: 100%; min-width: 0; overflow-wrap: anywhere; }
   .directory-page > * + *, .directory-search-results > * + * { margin-top: 1.5rem; }
-  .directory-page .directory-primary-action { color: white; background: var(--color-brand-primary); border-color: var(--color-brand-primary); }
-  .directory-page .directory-primary-action:hover { background: #18253d; }
   .directory-row-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem 1rem; }
   .directory-row-heading h2 { font-size: 0.9375rem; font-weight: 600; }
   .directory-person-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; min-width: 0; }

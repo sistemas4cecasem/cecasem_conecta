@@ -39,16 +39,16 @@ function ProcessesList({ identity }: { identity: AuthIdentity }) {
   const requestedState = params.get('state') ?? 'all';
   const state = requestedState === 'all' || validStates.includes(requestedState) ? requestedState : 'all';
   const list = useProcesses(identity, page, state);
-  return <section className="relationships-page">
+  return <section className="relationships-page processes-page">
     <PageHeader eyebrow="Relaciones" title="Procesos de relación" description="Consulta los objetivos institucionales en curso y sus antecedentes."
-      primaryAction={identity.permissions.includes('relationships.process.create') && <ActionLink appearance="action" className="relationships-primary-action" to="/relationship-processes/new">Crear proceso</ActionLink>} />
+      primaryAction={identity.permissions.includes('relationships.process.create') && <ActionLink appearance="action" variant="primary" to="/relationship-processes/new">Crear proceso</ActionLink>} />
     <FilterBar aria-label="Filtros de procesos"><FormField label="Estado de procesos">{control => <Select {...control} value={state} onChange={e => { const next = new URLSearchParams(params); if (e.target.value === 'all') next.delete('state'); else next.set('state', e.target.value); next.delete('page'); setParams(next); setPage(1); }}><option value="all">Todos</option>
       {Object.entries(PROCESS_STATE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select>}</FormField></FilterBar>
     <Surface aria-label="Resultados de procesos">
     <QueryFeedback pending={list.isPending} error={list.isError} retry={list.refetch} />
     {list.data?.total === 0 && <EmptyState title="No hay procesos para estos filtros." />}
-    <DataList>{list.data?.items.map(process => <DataListItem key={process.id}>
-      <div className="relationships-row-heading"><ActionLink appearance="list" to={'/relationship-processes/' + process.id}>{process.purpose}</ActionLink>
+    <DataList>{list.data?.items.map(process => <DataListItem className="process-list-item" key={process.id}>
+      <div className="relationships-row-heading"><h2 className="process-list-title"><ActionLink appearance="list" to={'/relationship-processes/' + process.id}>{process.purpose}</ActionLink></h2>
       <StatusBadge tone={process.state === 'WAITING_RESPONSE' ? 'warning' : process.state === 'CLOSED' ? 'neutral' : 'info'}>{PROCESS_STATE_LABELS[process.state]}</StatusBadge></div><ProcessContext modern process={process} />
     </DataListItem>)}</DataList>{list.data && <Pagination page={page} total={list.data.total} pageSize={list.data.pageSize} onPage={setPage} />}
     </Surface>

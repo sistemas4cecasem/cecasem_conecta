@@ -10,6 +10,8 @@ import { processCreateSchema } from './process-contracts';
 import { processIdentityKey, useProcessMutation } from './process-queries';
 import { canReadRelationshipContext, useRelationshipContext } from './context-queries';
 import { RelationshipContextPanel } from './relationship-context-panel';
+import { PageHeader } from '../../components/ui/layout';
+import { Button } from '../../components/ui/actions';
 export function RelationshipProcessCreatePage() {
   const identity = useSession().data;
   if (!identity?.permissions.includes('relationships.process.create')) return <p role="alert">No tienes permiso para crear procesos.</p>;
@@ -24,8 +26,8 @@ function ProcessForm({ identity }: { identity: AuthIdentity }) {
   function select(value: PickedDirectoryTarget | null) {
     setTarget(value); form.setValue('targetId', value?.id ?? '', { shouldValidate: true }); form.setValue('targetKind', value?.kind ?? 'ORGANIZATION');
   }
-  return <section className="min-w-0 w-full space-y-4"><h1 className="text-2xl font-semibold">Crear proceso de relación</h1><p>Comenzará en preparación. Quedarás registrado como participante creador.</p>
-    <form className="space-y-4" onSubmit={form.handleSubmit(async values => {
+  return <section className="ui-editor-page"><PageHeader eyebrow="Relaciones / Procesos" title="Crear proceso de relación" description="Comenzará en preparación. Quedarás registrado como participante creador." />
+    <form className="ui-editor-form" onSubmit={form.handleSubmit(async values => {
       if (contactBlocked) return;
       try { const row = await mutation.mutateAsync({ path: 'relationship-processes', body: { purpose: values.purpose,
         ...(values.targetKind === 'ORGANIZATION' ? { organizationId: values.targetId } : { personId: values.targetId }) } }); navigate('/relationship-processes/' + row.id); } catch { /* Se conserva el borrador. */ }
@@ -35,6 +37,6 @@ function ProcessForm({ identity }: { identity: AuthIdentity }) {
       {form.formState.errors.targetId && <p role="alert">{form.formState.errors.targetId.message}</p>}
       <Field label="Propósito" error={form.formState.errors.purpose?.message}><textarea className={inputClass} rows={5} maxLength={5000} {...form.register('purpose')} /></Field>
       <MutationError error={mutation.error} />
-      <div className="flex flex-wrap gap-3"><button className={buttonClass} disabled={mutation.isPending || contactBlocked || (!!target && canReadRelationshipContext(identity) && context.isPending)}>{mutation.isPending ? 'Guardando…' : 'Guardar proceso'}</button><Link className={buttonClass} to="/relationship-processes">Volver al listado</Link></div>
+      <div className="flex flex-wrap gap-3"><Button type="submit" variant="primary" disabled={mutation.isPending || contactBlocked || (!!target && canReadRelationshipContext(identity) && context.isPending)}>{mutation.isPending ? 'Guardando…' : 'Guardar proceso'}</Button><Link className={buttonClass} to="/relationship-processes">Volver al listado</Link></div>
     </form></section>;
 }

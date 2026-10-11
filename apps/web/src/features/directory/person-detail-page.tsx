@@ -24,8 +24,8 @@ export function PersonDetailPage() {
   if(!detail.data) return <section className="space-y-4"><Link className="inline-flex min-h-11 items-center underline" to="/people">Volver a personas</Link>
     <QueryState pending={detail.isPending} error={detail.isError} failure={detail.error} retry={detail.refetch}/></section>;
   const row=detail.data;
-  if(editing) return <section className="space-y-4"><h1 className="text-2xl font-semibold">Editar persona</h1><PersonForm identity={identity} initial={editing} saved={()=>setEditing(null)} cancel={()=>setEditing(null)}
-    reload={async()=>{const response=await detail.refetch();if(!response.isSuccess)return;setEditing(response.data);return response.data;}}/></section>;
+  if(editing) return <section className="ui-editor-page"><PageHeader eyebrow="Directorio / Personas externas" title="Editar persona" /><Surface><PersonForm identity={identity} initial={editing} saved={()=>setEditing(null)} cancel={()=>setEditing(null)}
+    reload={async()=>{const response=await detail.refetch();if(!response.isSuccess)return;setEditing(response.data);return response.data;}}/></Surface></section>;
   return <section className="directory-detail"><Link className="inline-flex min-h-11 underline" to="/people">Volver a personas</Link>
     <PageHeader eyebrow="Directorio / Personas externas" title={row.displayName} description={row.currentRelationsCount ? `Vínculos vigentes: ${row.currentRelationsCount}. Consulta los episodios institucionales.` : undefined}
       metadata={<StatusBadge tone={row.isActive?'success':'neutral'}>{row.isActive?'Activa':'Inactiva'}</StatusBadge>}

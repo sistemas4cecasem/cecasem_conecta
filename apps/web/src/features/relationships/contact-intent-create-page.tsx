@@ -10,6 +10,8 @@ import { intentFormSchema } from './contracts';
 import { intentIdentityKey, useIntentMutation } from './queries';
 import { canReadRelationshipContext, useRelationshipContext } from './context-queries';
 import { RelationshipContextPanel } from './relationship-context-panel';
+import { PageHeader } from '../../components/ui/layout';
+import { Button } from '../../components/ui/actions';
 export function ContactIntentCreatePage() {
   const identity = useSession().data;
   if (!identity?.permissions.includes('relationships.intent.create')) return <p role="alert">No tienes permiso para crear intenciones.</p>;
@@ -24,8 +26,8 @@ function IntentForm({ identity }: { identity: AuthIdentity }) {
   function select(value: PickedDirectoryTarget | null) {
     setTarget(value); form.setValue('targetId', value?.id ?? '', { shouldValidate: true }); form.setValue('targetKind', value?.kind ?? 'ORGANIZATION');
   }
-  return <section className="space-y-4"><h1 className="text-2xl font-semibold">Crear intención de contacto</h1>
-    <form className="space-y-4" onSubmit={form.handleSubmit(async values => {
+  return <section className="ui-editor-page"><PageHeader eyebrow="Relaciones / Intenciones" title="Crear intención de contacto" />
+    <form className="ui-editor-form" onSubmit={form.handleSubmit(async values => {
       if (contactBlocked) return;
       try { const row = await mutation.mutateAsync({ path: 'contact-intents', body: { purpose: values.purpose,
         ...(values.targetKind === 'ORGANIZATION' ? { organizationId: values.targetId } : { personId: values.targetId }) } }); navigate('/contact-intents/' + row.id); } catch { /* La mutación conserva el borrador y expone el error. */ }
@@ -35,7 +37,7 @@ function IntentForm({ identity }: { identity: AuthIdentity }) {
       {form.formState.errors.targetId && <p role="alert">{form.formState.errors.targetId.message}</p>}
       <Field label="Propósito" error={form.formState.errors.purpose?.message}><textarea className={inputClass} rows={5} maxLength={5000} {...form.register('purpose')} /></Field>
       <MutationError error={mutation.error} />
-      <div className="flex gap-3"><button className={buttonClass} disabled={mutation.isPending || contactBlocked || (!!target && canReadRelationshipContext(identity) && context.isPending)}>{mutation.isPending ? 'Guardando…' : 'Guardar intención'}</button>
+      <div className="flex flex-wrap gap-3"><Button type="submit" variant="primary" disabled={mutation.isPending || contactBlocked || (!!target && canReadRelationshipContext(identity) && context.isPending)}>{mutation.isPending ? 'Guardando…' : 'Guardar intención'}</Button>
         <Link className={buttonClass} to="/contact-intents">Volver al listado</Link></div>
     </form></section>;
 }

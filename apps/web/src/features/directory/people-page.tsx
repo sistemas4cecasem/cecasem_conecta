@@ -26,7 +26,7 @@ export function PeoplePage() {
   if(!identity?.permissions.includes('directory.read')) return <p role="alert">No tienes permiso para consultar personas.</p>;
   return <section className="directory-page directory-people">
     <PageHeader eyebrow="Directorio" title="Personas externas" description="Personas sin vínculos institucionales vigentes, con o sin episodios históricos. El estado de la ficha se muestra por separado."
-      primaryAction={identity.permissions.includes('directory.write') && <ActionLink appearance="action" className="directory-primary-action" to="/people/new">Crear persona</ActionLink>} />
+      primaryAction={identity.permissions.includes('directory.write') && <ActionLink appearance="action" variant="primary" to="/people/new">Crear persona</ActionLink>} />
     <FilterBar aria-label="Filtros de personas">
       <FormField label="Filtrar personas por nombre">{control => <Input {...control} value={name} onChange={e=>{setName(e.target.value);setPage(1);}}/>}</FormField>
       <FormField label="Estado">{control => <Select {...control} value={status} onChange={e=>{setStatus(e.target.value);setPage(1);}}><option value="active">Activas</option><option value="inactive">Inactivas</option><option value="all">Todas</option></Select>}</FormField>
@@ -51,5 +51,5 @@ export function PeoplePage() {
 export function PersonCreationPage() {
   const identity=useSession().data;const navigate=useNavigate();
   if(!identity?.permissions.includes('directory.write')) return <p role="alert">No tienes permiso para crear personas.</p>;
-  return <section className="space-y-4"><h1 className="text-2xl font-semibold">Crear persona externa</h1><PersonForm identity={identity} saved={row=>navigate('/people/'+row.id)} cancel={()=>navigate('/people')}/></section>;
+  return <section className="ui-editor-page"><PageHeader eyebrow="Directorio / Personas externas" title="Crear persona externa" /><Surface><PersonForm identity={identity} saved={row=>navigate('/people/'+row.id)} cancel={()=>navigate('/people')}/></Surface></section>;
 }

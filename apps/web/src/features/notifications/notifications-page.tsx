@@ -10,6 +10,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { AUTH_QUERY_KEY, useSession, type AuthIdentity } from '../auth/session';
 import { notificationIdentityKey, useNotificationCount, useNotifications, useReadNotification } from './queries';
 import type { Notification } from './contracts';
+import { iconCatalog } from '../../components/ui/icons';
 
 const notificationLabels: Record<Notification['type'], string> = {
   PROCESS_ACHIEVED:'Proceso concretado',
@@ -21,10 +22,10 @@ const notificationLabels: Record<Notification['type'], string> = {
 export function NotificationIndicator({ identity }: { identity: AuthIdentity }) {
   const count = useNotificationCount(identity);
   if (!identity.permissions.includes('notifications.read')) return null;
-  return <Link to="/notifications" className="inline-flex min-h-11 items-center gap-2 underline">
-    Notificaciones
+  return <Link to="/notifications" className="shell-notifications-link">
+    <iconCatalog.notification size={18} aria-hidden="true" /> Notificaciones
     {count.data && count.data.count > 0 && <span aria-label={`${count.data.count} notificaciones no leídas`}
-      className="rounded-full bg-blue-800 px-2 py-1 text-xs font-semibold text-white">{count.data.count}</span>}
+      className="shell-notifications-count">{count.data.count}</span>}
     {count.isError && <span aria-label="No se pudo actualizar el contador">·</span>}
   </Link>;
 }

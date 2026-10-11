@@ -10,8 +10,21 @@
   --color-app-muted: #5D6D83;
   --color-app-border: #DDE3EA;
   --color-brand-soft: #EDF1F6;
-  --radius-control: 0.375rem;
-  --radius-panel: 0.5rem;
+  --color-brand-primary-hover: #182842;
+  --color-brand-primary-active: #132139;
+  --color-app-border-strong: #B8C5D3;
+  --color-app-hover: #F1F5F9;
+  --color-action-danger: #991B1B;
+  --color-action-danger-hover: #7F1D1D;
+  --radius-control: 0.5rem;
+  --radius-panel: 0.75rem;
+  --radius-pill: 999px;
+  --spacing-action-small: 2.5rem;
+  --spacing-action-medium: 2.75rem;
+  --spacing-action-large: 3rem;
+  --spacing-page-section: 1.5rem;
+  --spacing-form-field: 0.875rem;
+  --color-surface-subtle: #F9FAFC;
   --spacing-sidebar: 16.5rem;
 }
 
@@ -54,12 +67,14 @@
   }
   .shell-navigation-group[data-active] .shell-navigation-heading { color: var(--color-brand-primary); }
   .shell-navigation-link {
-    display: flex; align-items: center; min-height: 2.75rem; padding: 0.5rem 0.75rem;
+    display: flex; align-items: center; gap: 0.75rem; min-height: 2.75rem; padding: 0.5rem 0.75rem;
     border-left: 3px solid transparent; border-radius: var(--radius-control);
     font-size: 0.875rem; line-height: 1.4; overflow-wrap: anywhere;
     color: var(--color-app-text); text-decoration: none;
   }
-  .shell-navigation-link:hover { background: var(--color-app-background); }
+  .shell-navigation-icon { flex: none; color: var(--color-app-muted); }
+  .shell-navigation-link:hover { background: var(--color-app-hover); }
+  .shell-navigation-link:hover .shell-navigation-icon, .shell-navigation-link[aria-current="page"] .shell-navigation-icon { color: var(--color-brand-primary); }
   .shell-navigation-link[aria-current="page"] {
     background: var(--color-brand-soft); color: var(--color-brand-primary);
     border-left-color: var(--color-brand-accent); font-weight: 600;
@@ -74,17 +89,14 @@
   .shell-context-label { display: block; color: var(--color-brand-primary); font-size: 0.875rem; font-weight: 600; overflow-wrap: anywhere; }
   .shell-topbar-actions { min-width: 0; max-width: 100%; }
   .shell-account-area { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; font-size: 0.8125rem; }
+  .shell-notifications-link { display: inline-flex; align-items: center; gap: 0.5rem; min-height: var(--spacing-action-medium); color: var(--color-brand-primary); font-weight: 600; text-decoration: none; }
+  .shell-notifications-link:hover { text-decoration: underline; text-underline-offset: 0.2em; }
+  .shell-notifications-count { display: inline-flex; align-items: center; justify-content: center; min-width: 1.5rem; min-height: 1.5rem; padding: 0.125rem 0.375rem; border-radius: var(--radius-pill); background: var(--color-brand-primary); color: white; font-size: 0.75rem; font-weight: 600; font-variant-numeric: tabular-nums; }
   .shell-account {
     min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem;
   }
   .shell-account-identity { min-width: 0; display: flex; flex-direction: column; overflow-wrap: anywhere; font-weight: 500; }
   .shell-account-role { color: var(--color-app-muted); font-size: 0.75rem; font-weight: 400; }
-  .shell-account-logout {
-    min-height: 2.75rem; padding: 0.5rem 0.75rem; border: 1px solid var(--color-app-border);
-    border-radius: var(--radius-control); color: var(--color-brand-primary); background: white;
-  }
-  .shell-account-logout:hover { background: var(--color-brand-soft); }
-  .shell-account-logout:disabled { opacity: 0.6; }
   .shell-mobile-menu { margin-top: 0.5rem; }
   .shell-mobile-brand { flex-basis: 100%; }
   .shell-mobile-brand .shell-brand-logo { width: 10.5rem; }

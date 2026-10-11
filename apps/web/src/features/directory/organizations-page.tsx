@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router';
 import { ActionLink, Button } from '../../components/ui/actions';
 import { EmptyState, QueryFeedback, StatusBadge } from '../../components/ui/feedback';
 import { Input } from '../../components/ui/forms';
+import { iconCatalog } from '../../components/ui/icons';
 import { PageHeader, Surface } from '../../components/ui/layout';
 import { DataList, DataListItem, Pagination } from '../../components/ui/lists';
 import { useSession } from '../auth/session';
@@ -16,6 +17,10 @@ import './organizations.css';
 import './organization-presentation.css';
 
 const statusLabels: Record<string, string> = { active: 'Activas', inactive: 'Inactivas', all: 'Todas' };
+const CreateIcon = iconCatalog.action.create;
+const SearchIcon = iconCatalog.action.search;
+const FilterIcon = iconCatalog.action.filter;
+const DetailIcon = iconCatalog.action.open;
 
 function selectedOrganizationFilters(params: URLSearchParams) {
   const selected: { key: string; label: string }[] = [];
@@ -37,31 +42,6 @@ function selectedOrganizationFilters(params: URLSearchParams) {
 
 function hasNarrowingFilters(params: URLSearchParams) {
   return !!params.get('name')?.trim() || selectedOrganizationFilters(params).length > 0;
-}
-
-function OrganizationIcon() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true" focusable="false">
-    <path d="M3.75 20.25h16.5M5.25 20.25V6.75l6.75-3 6.75 3v13.5M8.25 9h1.5m4.5 0h1.5m-7.5 3.75h1.5m4.5 0h1.5m-6.75 7.5v-4.5h4.5v4.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>;
-}
-
-function SearchIcon() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true" focusable="false">
-    <circle cx="10.8" cy="10.8" r="6.3" /><path d="m15.5 15.5 4.1 4.1" strokeLinecap="round" />
-  </svg>;
-}
-
-function FiltersIcon() {
-  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true" focusable="false">
-    <path d="M4 7h6m4 0h6M4 17h2m4 0h10" strokeLinecap="round" />
-    <circle cx="12" cy="7" r="2" fill="white" /><circle cx="8" cy="17" r="2" fill="white" />
-  </svg>;
-}
-
-function DetailIcon() {
-  return <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true" focusable="false">
-    <path d="m7.5 4.5 5.5 5.5-5.5 5.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>;
 }
 
 export function OrganizationsPage() {
@@ -104,21 +84,22 @@ function OrganizationsList({ identity }: { identity: AuthIdentity }) {
 
   return <section className="organizations-page">
     <PageHeader eyebrow="Directorio" title="Organizaciones" description="Consulta y administra las organizaciones registradas."
-      primaryAction={identity.permissions.includes('directory.write') && <ActionLink appearance="action" className="organizations-create" to="/organizations/new">Crear organización</ActionLink>} />
+      primaryAction={identity.permissions.includes('directory.write') && <ActionLink appearance="action" variant="primary" startIcon={<CreateIcon size={18} />} to="/organizations/new">Crear organización</ActionLink>} />
 
     <div className="organizations-filter-bar">
       <div className="organizations-toolbar">
         <div className="organizations-search" role="search">
-          <div className="organizations-search-input">
-            <SearchIcon />
-            <Input aria-label="Filtrar organizaciones por nombre" type="search" placeholder="Buscar organización por nombre" className="organizations-search-control" value={name}
+          <label className="ui-field-label" htmlFor="organization-search">Buscar organización</label>
+          <div className="ui-search-control">
+            <SearchIcon className="ui-search-icon" size={18} strokeWidth={1.8} aria-hidden="true" />
+            <Input id="organization-search" aria-label="Filtrar organizaciones por nombre" type="search" placeholder="Buscar por nombre" className="ui-search-input" value={name}
               onChange={event => change({ name: event.target.value, page: '1' })} />
           </div>
         </div>
-        <Button className="organizations-filter-toggle" aria-expanded={filtersOpen} aria-controls="organization-filters-panel"
+        <Button variant="outline" className="organizations-filter-toggle" startIcon={<FilterIcon size={18} />} aria-expanded={filtersOpen} aria-controls="organization-filters-panel"
           aria-label={selectedFilters.length ? `Filtros, ${selectedFilters.length} ${selectedFilters.length === 1 ? 'activo' : 'activos'}` : 'Filtros'}
           onClick={() => setFilterPanel({ key: filterParamsKey, open: !filtersOpen })}>
-          <FiltersIcon /><span>Filtros</span>{selectedFilters.length > 0 && <span className="organizations-filter-count" aria-hidden="true">{selectedFilters.length}</span>}
+          <span>Filtros</span>{selectedFilters.length > 0 && <span className="organizations-filter-count" aria-hidden="true">{selectedFilters.length}</span>}
         </Button>
       </div>
       {selectedFilters.length > 0 && <div className="organizations-active-filters" role="group" aria-label="Filtros aplicados">
@@ -141,10 +122,9 @@ function OrganizationsList({ identity }: { identity: AuthIdentity }) {
         description={unfilteredAll ? undefined : 'Revisa la búsqueda y los filtros seleccionados.'} />}
       {!!list.data?.items.length && <DataList className="organizations-list">{list.data.items.map(row => <DataListItem className="organization-list-item" key={row.id}>
         <div className="organization-row">
-          <span className="organization-row-icon"><OrganizationIcon /></span>
           <div className="organization-row-content">
             <div className="organization-row-heading">
-              <ActionLink appearance="list" className="organization-detail-link" to={'/organizations/' + row.id}>{row.name}<DetailIcon /></ActionLink>
+              <h2 className="organization-row-title"><ActionLink appearance="list" className="organization-detail-link" endIcon={<DetailIcon size={17} />} to={'/organizations/' + row.id}>{row.name}</ActionLink></h2>
               <StatusBadge tone={row.isActive ? 'success' : 'neutral'}>{row.isActive ? 'Activa' : 'Inactiva'}</StatusBadge>
             </div>
             <dl className="organization-row-metadata">

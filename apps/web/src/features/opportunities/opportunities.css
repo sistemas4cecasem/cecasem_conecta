@@ -2,7 +2,6 @@
   .opportunities-page { min-width: 0; overflow-wrap: anywhere; }
   .opportunities-page > * + * { margin-top: 1.5rem; }
   .opportunities-page .ui-page-header h1 { white-space: pre-wrap; }
-  .opportunities-page .ui-page-header .ui-link-action { background: var(--color-brand-primary); border-color: var(--color-brand-primary); color: white; }
   .opportunities-page .planning-row-heading { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
   .opportunities-page .ui-metadata { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
   .opportunities-page .ui-data-list-item > * + *, .opportunities-page .ui-surface > * + * { margin-top: 0.75rem; }

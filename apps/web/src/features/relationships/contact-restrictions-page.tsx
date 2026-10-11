@@ -34,7 +34,7 @@ function RestrictionsList({ identity }: { identity: AuthIdentity }) {
   const list = useRestrictions(identity, { page, state, ...(organizationId ? { organizationId } : {}), ...(personId ? { personId } : {}) });
   return <section className="relationships-page">
     <PageHeader eyebrow="Relaciones" title="Restricciones de no contacto" description="Consulta las solicitudes explícitas de no contacto y sus antecedentes institucionales."
-      primaryAction={identity.permissions.includes('relationships.restriction.create') && <ActionLink appearance="action" className="relationships-primary-action" to="/contact-restrictions/new">Registrar restricción</ActionLink>} />
+      primaryAction={identity.permissions.includes('relationships.restriction.create') && <ActionLink appearance="action" variant="primary" to="/contact-restrictions/new">Registrar restricción</ActionLink>} />
     <FilterBar aria-label="Filtros de restricciones" actions={(organizationId || personId) && <Button onClick={() => { setOrganizationId(''); setPersonId(''); setPage(1); }}>Quitar filtro de objetivo</Button>}>
       <FormField label="Estado de restricciones">{control => <Select {...control} value={state} onChange={event => { setState(event.target.value); setPage(1); }}><option value="all">Todas</option><option value="ACTIVE">Activas</option><option value="LIFTED">Levantadas</option></Select>}</FormField>
     </FilterBar>
