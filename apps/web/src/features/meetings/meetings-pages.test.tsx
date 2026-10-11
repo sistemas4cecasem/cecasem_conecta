@@ -6,7 +6,7 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { createQueryClient } from '../../lib/query/query-client';
 import { AUTH_QUERY_KEY, type AuthIdentity } from '../auth/session';
 import { MeetingCreatePage, MeetingDetailPage, MeetingsPage } from './meetings-pages';
-import { meetingDate, planningFormSchema, type Meeting, type MeetingParticipant } from './contracts';
+import { meetingDate, meetingSchema, planningFormSchema, type Meeting, type MeetingParticipant } from './contracts';
 import { clearForbiddenMeetings, meetingIdentityKey } from './queries';
 import { clearForbiddenTimeline, timelineIdentityKey } from '../relationships/timeline-queries';
 const id='11111111-1111-4111-8111-111111111111',processId='33333333-3333-4333-8333-333333333333',other='44444444-4444-4444-8444-444444444444';
@@ -14,10 +14,10 @@ const identity:AuthIdentity={id:'22222222-2222-4222-8222-222222222222',givenName
 const user={id:identity.id,displayName:'Ana QA',isActive:true};
 const fixture:Meeting={id,processId,opportunityId:null,scheduledAt:'2099-10-15T14:00:00.000Z',scheduledLocal:'2099-10-15T10:00',timezone:'America/La_Paz',modality:'ONLINE',meetingUrl:null,location:null,purpose:'Cooperación regional',status:'SCHEDULED',completedAt:null,cancelledAt:null,cancellationReason:null,version:1,createdAt:'2026-10-04T00:00:00.000Z',updatedAt:'2026-10-04T00:00:00.000Z',createdBy:user,process:{id:processId,purpose:'Proceso institucional'},opportunity:null,participantCount:0,agreementCount:0,canEdit:true,canComplete:false};
 describe('Reuniones: formularios, resultados, conflictos y privacidad',()=>{
- let client=createQueryClient(),row:Meeting,participants:MeetingParticipant[],agreements:{id:string;meetingId:string;text:string;createdAt:string;createdBy:typeof user}[],failure=0,total=1;
+ let client=createQueryClient(),row:Meeting,participants:MeetingParticipant[],agreements:{id:string;meetingId:string;text:string;createdAt:string;createdBy:typeof user}[],events:unknown[],failure=0,total=1;
  const fetchMock=vi.fn<(url:string,options?:RequestInit)=>Promise<Response>>();
  const page=(items:unknown[],count=items.length)=>({items,total:count,page:1,pageSize:25});
- beforeEach(()=>{client=createQueryClient();client.setQueryData(AUTH_QUERY_KEY,identity);row=structuredClone(fixture);participants=[];agreements=[];failure=0;total=1;fetchMock.mockReset();fetchMock.mockImplementation(async(url,options)=>{
+ beforeEach(()=>{client=createQueryClient();client.setQueryData(AUTH_QUERY_KEY,identity);row=structuredClone(fixture);participants=[];agreements=[];events=[];failure=0;total=1;fetchMock.mockReset();fetchMock.mockImplementation(async(url,options)=>{
   if(url.endsWith('/auth/me'))return Response.json(client.getQueryData(AUTH_QUERY_KEY));
   if(options?.method==='POST'||options?.method==='PATCH'){
    if(failure)return Response.json({code:'VERSION_CONFLICT'},{status:failure});
@@ -33,7 +33,8 @@ describe('Reuniones: formularios, resultados, conflictos y privacidad',()=>{
   if(url.includes('/internal-users?'))return Response.json(page([user]));
   if(url.includes('/participants?'))return Response.json(page(participants));
   if(url.includes('/agreements?'))return Response.json(page(agreements));
-  if(url.includes('/events?')||url.includes('/attachments?')||url.includes('/opportunities?')||url.includes('/relationship-processes?'))return Response.json(page([]));
+  if(url.includes('/events?'))return Response.json(page(events));
+  if(url.includes('/attachments?')||url.includes('/opportunities?')||url.includes('/relationship-processes?'))return Response.json(page([]));
   if(url.endsWith('/files/config'))return Response.json({maxBytes:20971520,maxFiles:10});
   if(url.includes('/meetings?'))return Response.json(page(total?[row]:[],total));
   if(url.endsWith('/meetings/'+id))return Response.json(row);
@@ -50,6 +51,22 @@ describe('Reuniones: formularios, resultados, conflictos y privacidad',()=>{
   row={...row,opportunityId:other,opportunity:{id:other,name:'Convocatoria regional'}};view();await screen.findByRole('heading',{level:1,name:row.purpose});expect(screen.getAllByRole('heading',{level:1})).toHaveLength(1);
   const region=screen.getByRole('region',{name:'Planificación y contexto'});expect(region.querySelector('time')).toHaveAttribute('datetime',row.scheduledAt);expect(within(region).getByText('Fecha de registro').parentElement?.querySelector('time')).toHaveAttribute('datetime',row.createdAt);
   expect(screen.getByRole('link',{name:'Proceso: Proceso institucional'})).toHaveAttribute('href','/relationship-processes/'+processId);expect(screen.getByRole('link',{name:'Oportunidad: Convocatoria regional'})).toHaveAttribute('href','/opportunities/'+other);expect(commands()).toHaveLength(0);
+ });
+ it('lee snapshots históricos parciales sin debilitar la ficha actual',async()=>{
+  events=[{id:other,meetingId:id,type:'CREATED',version:1,snapshot:{status:'SCHEDULED',purpose:'Propósito histórico',scheduledAt:row.scheduledAt},changes:{},createdAt:row.createdAt,actor:user}];
+  expect(meetingSchema.safeParse({...row,timezone:undefined}).success).toBe(false);
+  view();const history=await screen.findByRole('region',{name:'Historial de reunión'});
+  expect(await within(history).findByText('Propósito histórico')).toBeVisible();
+  expect(history).toHaveTextContent('Fecha programada registrada:');
+  expect(history).toHaveTextContent('UTC');
+  expect(history).not.toHaveTextContent('No se pudo cargar la información.');
+ });
+ it('mantiene la lectura detallada de snapshots históricos completos',async()=>{
+  events=[{id:other,meetingId:id,type:'CREATED',version:1,snapshot:{purpose:'Propósito completo',scheduledAt:row.scheduledAt,timezone:row.timezone,modality:row.modality,meetingUrl:null,location:null,participantCount:2,opportunity:null},changes:{},createdAt:row.createdAt,actor:user}];
+  view();const history=await screen.findByRole('region',{name:'Historial de reunión'});
+  expect(await within(history).findByText('Propósito completo')).toBeVisible();
+  expect(history).toHaveTextContent('En línea · 2 participantes');
+  expect(history).not.toHaveTextContent('Fecha programada registrada:');
  });
  it.each(['ADMINISTRATOR','RESEARCH','BOARD','PLANNING']as const)('UI 2.8 %s conserva lectura sin acciones al faltar capabilities',async role=>{
   client.setQueryData(AUTH_QUERY_KEY,{...identity,role,permissions:['meetings.read']});row={...row,canEdit:false,canComplete:false};view();await screen.findByRole('heading',{level:1,name:fixture.purpose});

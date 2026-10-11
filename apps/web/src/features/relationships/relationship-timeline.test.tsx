@@ -76,6 +76,27 @@ describe('Conversación institucional y notas internas', () => {
   it('vacío, sin insinuar contacto ni mensajería', async () => { panel(); expect(await screen.findByText('No hay hechos registrados en este historial.')).toBeVisible(); expect(screen.getByText(/no se envía al contacto/)).toBeVisible(); });
   it('loading', () => { mode = 'pending'; panel(); expect(screen.getByRole('status')).toHaveTextContent('Cargando historial'); });
   it('error permite reintentar', async () => { mode = 'error'; panel(); await screen.findByText('No se pudo cargar el historial.'); mode = 'ok'; await userEvent.click(screen.getByRole('button', { name: 'Reintentar historial' })); expect(await screen.findByText('No hay hechos registrados en este historial.')).toBeVisible(); });
+  it('muestra eventos de reunión con el snapshot histórico parcial sin inventar datos ausentes', async () => {
+    items = [{ id: orgId, kind: 'MEETING_ACTIVITY', occurredAt: at, registeredAt: at, actor: user, summary: 'Actuación de reunión',
+      payload: { meetingId: id, type: 'CREATED', snapshot: { status: 'SCHEDULED', purpose: 'Reunión histórica', scheduledAt: at }, changes: { type: 'CREATED' } } }];
+    panel();
+    const entry = await screen.findByRole('listitem');
+    expect(entry).toHaveTextContent('Reunión histórica');
+    expect(entry).toHaveTextContent('Fecha programada registrada:');
+    expect(entry).toHaveTextContent('UTC');
+    expect(within(entry).getByRole('link', { name: 'Ver reunión' })).toHaveAttribute('href', '/meetings/' + id);
+    expect(screen.queryByText('No se pudo cargar el historial.')).not.toBeInTheDocument();
+    expect(entry).not.toHaveTextContent('participantes');
+  });
+  it('conserva el detalle de los eventos de reunión con snapshot completo', async () => {
+    items = [{ id: orgId, kind: 'MEETING_ACTIVITY', occurredAt: at, registeredAt: at, actor: user, summary: 'Actuación de reunión',
+      payload: { meetingId: id, type: 'CREATED', snapshot: { purpose: 'Reunión completa', scheduledAt: at, timezone: 'America/La_Paz', modality: 'ONLINE', meetingUrl: null, location: null, participantCount: 2, opportunity: null }, changes: {} } }];
+    panel();
+    const entry = await screen.findByRole('listitem');
+    expect(entry).toHaveTextContent('Reunión completa');
+    expect(entry).toHaveTextContent('En línea · 2 participantes');
+    expect(entry).not.toHaveTextContent('Fecha programada registrada:');
+  });
   it.each(['SENT_COMMUNICATION', 'RECEIVED_COMMUNICATION'] as const)('%s conserva snapshots, fecha real, registrador y enlace sin cuerpo', async kind => {
     items = [mail(kind)]; panel(); const entry = await screen.findByRole('listitem');
     expect(within(entry).getByRole('heading', { name: kind === 'SENT_COMMUNICATION' ? 'ENVIADA' : 'RECIBIDA' })).toBeVisible();

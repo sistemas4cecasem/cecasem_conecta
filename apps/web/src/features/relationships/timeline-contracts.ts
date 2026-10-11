@@ -1,4 +1,4 @@
-import { meetingSnapshotSchema } from '../meetings/contracts';
+import { meetingEventSnapshotSchema } from '../meetings/contracts';
 import { z } from 'zod';
 import { referralSchema } from '../referrals/contracts';
 import { amendmentSchema } from '../communications/amendment-contracts';
@@ -6,7 +6,7 @@ import { processStateSchema, processResultSchema } from './process-contracts';
 const base = { id: z.uuid(), occurredAt: z.iso.datetime(), registeredAt: z.iso.datetime(), summary: z.string(),
   actor: z.object({ id: z.uuid(), displayName: z.string(), isActive: z.boolean() }) };
 export const timelineItemSchema = z.discriminatedUnion('kind', [
-  z.object({ ...base, kind: z.literal('MEETING_ACTIVITY'), payload: z.object({ meetingId: z.uuid(), type: z.enum(['CREATED','UPDATED','COMPLETED','CANCELLED','PARTICIPANT_ADDED','ATTENDANCE_RECORDED','AGREEMENT_ADDED']), snapshot: meetingSnapshotSchema, changes: z.record(z.string(), z.unknown()) }) }),
+  z.object({ ...base, kind: z.literal('MEETING_ACTIVITY'), payload: z.object({ meetingId: z.uuid(), type: z.enum(['CREATED','UPDATED','COMPLETED','CANCELLED','PARTICIPANT_ADDED','ATTENDANCE_RECORDED','AGREEMENT_ADDED']), snapshot: meetingEventSnapshotSchema, changes: z.record(z.string(), z.unknown()) }) }),
   z.object({ ...base, kind: z.literal('REFERRAL_CREATED'), payload: z.object({ referralId: z.uuid(), communicationId: z.uuid(), referral: referralSchema }) }),
   z.object({ ...base, kind: z.enum(['SENT_COMMUNICATION', 'RECEIVED_COMMUNICATION']), payload: z.object({ validity: z.enum(['VALID', 'INVALIDATED']).default('VALID'), invalidation: amendmentSchema.nullable().default(null), communicationId: z.uuid(), sender: z.string(), subject: z.string(),
     recipients: z.array(z.object({ type: z.enum(['TO', 'CC', 'BCC']), addressOriginal: z.string(), position: z.number().int().nonnegative() })).max(10), recipientTotal: z.number().int().nonnegative() }) }),
