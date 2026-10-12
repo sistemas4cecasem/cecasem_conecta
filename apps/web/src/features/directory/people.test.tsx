@@ -1,7 +1,7 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { render,screen,waitFor,within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { BrowserRouter, MemoryRouter, useLocation } from 'react-router';
 import { afterEach,beforeEach,describe,expect,it,vi } from 'vitest';
 import { AppRoutes } from '../../app/router/app-routes';
 import { createQueryClient } from '../../lib/query/query-client';
@@ -54,12 +54,13 @@ describe('Personas y episodios institucionales en UI',()=>{
         if(contextualDeferred)return new Promise<Response>(resolve=>{contextualResolve=resolve;});
         return Promise.resolve(Response.json(result,{status:201}));
       }
-      if(path.startsWith('organizations/org-a/people?'))return Promise.resolve(Response.json(page(relations.filter(relation=>relation.organizationId===org.id))));
+      if(path.startsWith('organizations/')&&path.includes('/people?')){const organizationId=path.split('/')[1];return Promise.resolve(Response.json(page(relations.filter(relation=>relation.organizationId===organizationId))));}
       if(path.includes('/relations?')){
         const personId=path.split('/')[1];return Promise.resolve(Response.json(page(relations.filter(relation=>relation.personId===personId&&(!path.includes('status=current')||relation.isCurrent)))));
       }
       if(path.includes('/people?'))return Promise.resolve(Response.json(page(relations)));
       if(path==='organizations/org-a')return Promise.resolve(Response.json(org));
+      if(path==='organizations/org-b')return Promise.resolve(Response.json({...org,id:'org-b',name:'Organización B'}));
       if(path==='people'&&method==='POST'){row={...base,...JSON.parse(String(options?.body)) as object};return Promise.resolve(Response.json(row,{status:201}));}
       if(path==='people/person'&&method==='PUT'){
         if(conflicting)return Promise.resolve(Response.json({code:'VERSION_CONFLICT'},{status:409}));
@@ -93,6 +94,8 @@ describe('Personas y episodios institucionales en UI',()=>{
     const sectionPath=path==='/organizations/org-a'?`${path}/people`:path;
     return render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[sectionPath]}><AppRoutes/></MemoryRouter></QueryClientProvider>);
   }
+  function BrowserLocation(){const location=useLocation();return <output aria-label="URL actual">{location.pathname}</output>;}
+  function appWithBrowserHistory(path:string){window.history.replaceState(null,'',path);return render(<QueryClientProvider client={client}><BrowserRouter><AppRoutes/><BrowserLocation/></BrowserRouter></QueryClientProvider>);}
   it('UI 2.4 conserva título y creación sin duplicar navegación',async()=>{
     const user=userEvent.setup();app();await screen.findByRole('link',{name:row.displayName});
     expect(screen.getByRole('heading',{level:1,name:'Personas externas'})).toBeVisible();
@@ -101,6 +104,9 @@ describe('Personas y episodios institucionales en UI',()=>{
     expect(within(screen.getByRole('main')).queryByRole('link',{name:'Organizaciones del directorio'})).not.toBeInTheDocument();
     expect(screen.getAllByRole('link',{name:'Organizaciones'}).every(link=>link.getAttribute('href')==='/organizations')).toBe(true);
     await user.click(screen.getByRole('link',{name:row.displayName}));expect(await screen.findByRole('heading',{name:row.displayName})).toBeVisible();
+    expect(screen.getByText('Directorio / Personas externas')).toBeVisible();
+    await user.click(screen.getByRole('link',{name:'Volver a personas'}));
+    expect(await screen.findByRole('heading',{name:'Personas externas'})).toBeVisible();
   });
   it('UI 2.4 lectura sin escritura no ofrece creación',async()=>{
     actor={...identity,permissions:['directory.read']};app();await screen.findByRole('link',{name:row.displayName});
@@ -155,6 +161,32 @@ describe('Personas y episodios institucionales en UI',()=>{
   it('mantiene Directorio activo al abrir una ficha de persona',async()=>{
     app('/people/person');await screen.findByRole('heading',{name:'Ana QA'});
     expect(screen.getAllByRole('link',{name:'Personas externas'}).every(link=>link.getAttribute('aria-current')==='page')).toBe(true);
+    expect(screen.getByRole('link',{name:'Volver a personas'})).toHaveAttribute('href','/people');
+    expect(screen.getByText('Directorio / Personas externas')).toBeVisible();
+  });
+  it('conserva el contexto de organización al abrir, recargar, volver y navegar con Atrás y Adelante',async()=>{
+    relations=[episode];const user=userEvent.setup();appWithBrowserHistory('/organizations/org-a/people');
+    const personLink=await screen.findByRole('link',{name:'Ana QA'});expect(personLink).toHaveAttribute('href','/organizations/org-a/people/person');
+    await user.click(personLink);expect(await screen.findByRole('heading',{name:'Ana QA'})).toBeVisible();
+    expect(screen.getByText('Directorio / Organizaciones / Organización A / Personas')).toBeVisible();
+    expect(screen.getByRole('link',{name:'Volver a Organización A · Personas'})).toHaveAttribute('href','/organizations/org-a/people');
+    expect(screen.getAllByRole('link',{name:/^Organizaciones$/}).every(link=>link.getAttribute('aria-current')==='page')).toBe(true);
+    expect(screen.getAllByRole('link',{name:'Personas externas'}).every(link=>link.getAttribute('aria-current')!=='page')).toBe(true);
+    expect(screen.getByLabelText('URL actual')).toHaveTextContent('/organizations/org-a/people/person');
+    window.history.back();expect(await screen.findByRole('heading',{name:'Organización A'})).toBeVisible();
+    expect(screen.getByLabelText('URL actual')).toHaveTextContent('/organizations/org-a/people');
+    window.history.forward();expect(await screen.findByRole('heading',{name:'Ana QA'})).toBeVisible();
+    expect(screen.getByText('Directorio / Organizaciones / Organización A / Personas')).toBeVisible();
+    await user.click(screen.getByRole('link',{name:'Volver a Organización A · Personas'}));
+    expect(await screen.findByRole('heading',{name:'Organización A'})).toBeVisible();
+    expect(screen.getByLabelText('URL actual')).toHaveTextContent('/organizations/org-a/people');
+  });
+  it('restaura el contexto del enlace profundo tras recarga y usa la organización abierta como origen',async()=>{
+    relations=[episode,{...episode,id:'episode-b',organizationId:'org-b',organization:{id:'org-b',name:'Organización B',isActive:true}}];
+    app('/organizations/org-b/people/person');expect(await screen.findByRole('heading',{name:'Ana QA'})).toBeVisible();
+    expect(screen.getByText('Directorio / Organizaciones / Organización B / Personas')).toBeVisible();
+    expect(screen.getByRole('link',{name:'Volver a Organización B · Personas'})).toHaveAttribute('href','/organizations/org-b/people');
+    expect(screen.getAllByRole('link',{name:/^Organizaciones$/}).every(link=>link.getAttribute('aria-current')==='page')).toBe(true);
   });
   it.each(['pending','empty','error'])('listado representa %s',async mode=>{
     state=mode;app();if(mode==='pending')expect(await screen.findByText('Cargando…')).toBeVisible();
@@ -229,7 +261,7 @@ describe('Personas y episodios institucionales en UI',()=>{
     await user.type(screen.getByLabelText('Apellidos (opcional)'),'Paz');await user.type(screen.getByLabelText('Cargo institucional (opcional)'),'Directora');
     await user.click(screen.getByRole('button',{name:'Registrar persona y vincular'}));
     expect(await screen.findByText('Persona vinculada correctamente.')).toBeVisible();
-    expect(screen.getByRole('link',{name:'Abrir ficha de Lucía Contextual'})).toHaveAttribute('href','/people/context-person');
+    expect(screen.getByRole('link',{name:'Abrir ficha de Lucía Contextual'})).toHaveAttribute('href','/organizations/org-a/people/context-person');
     expect(await screen.findByText('Vínculo vigente · Cargo: Directora')).toBeVisible();
     const calls=fetchMock.mock.calls.filter(([url,options])=>url.endsWith('/organizations/org-a/people')&&options?.method==='POST');
     expect(calls).toHaveLength(1);const body=JSON.parse(String(calls[0]?.[1]?.body));

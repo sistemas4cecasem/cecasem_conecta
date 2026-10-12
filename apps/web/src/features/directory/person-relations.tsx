@@ -58,8 +58,11 @@ function RelationCard({identity,row,fromOrganization,readOnly=false,organization
     <ConsolidationProvenance origins={row.consolidationOrigins}/>
     {history&&<DirectoryHistory modern headingLevel={3} hideEmptyPagination={organizationPresentation} identity={identity} path={'person-organization-relations/'+row.id+'/history'}/>}
   </>;
+  const personLinkTo=fromOrganization
+    ? organizationPresentation?`/organizations/${row.organizationId}/people/${row.personId}`:`/people/${row.personId}`
+    : `/organizations/${row.organizationId}`;
   return <DataListItem className={organizationPresentation?'organization-episode-row':''}><div className="directory-episode-context space-y-3">
-    <Link className="inline-flex min-h-11 underline" to={fromOrganization?'/people/'+row.personId:'/organizations/'+row.organizationId}>{fromOrganization?row.person.displayName:row.organization.name}</Link>
+    <Link className="inline-flex min-h-11 underline" to={personLinkTo}>{fromOrganization?row.person.displayName:row.organization.name}</Link>
     <div className="organization-episode-primary">
       <p>{organizationPresentation?(row.isCurrent?'Vínculo vigente':'Vínculo histórico / finalizado'):(row.isCurrent?'Vigente':'Histórico / finalizado')} · Cargo: {row.positionTitle??'Desconocido'}</p>
       <p>Período: {row.startDate??'Inicio desconocido'} → {row.endDate??(row.isCurrent?'Actualidad':'Fin desconocido')}</p>
@@ -89,7 +92,7 @@ export function PersonRelations({identity,personId,organizationId,readOnly=false
       {relations.data&&<p>{relations.data.total.toLocaleString('es-BO')} {relations.data.total===1?'vínculo registrado':'vínculos registrados'}</p>}</div>
       {canAddOrganizationPerson&&!creating&&<Button onClick={()=>{setCreatedPerson(null);setCreating(true);}}>Añadir persona</Button>}
     </div>
-    {createdPerson&&<p className="organization-person-success" role="status">Persona vinculada correctamente. <Link to={'/people/'+createdPerson.id}>Abrir ficha de {createdPerson.displayName}</Link></p>}
+    {createdPerson&&organizationId&&<p className="organization-person-success" role="status">Persona vinculada correctamente. <Link to={`/organizations/${organizationId}/people/${createdPerson.id}`}>Abrir ficha de {createdPerson.displayName}</Link></p>}
     {creating&&organizationId&&<OrganizationPersonForm identity={identity} organizationId={organizationId} cancel={()=>setCreating(false)} saved={person=>{setCreating(false);setCreatedPerson(person);}}/>}
     {!readOnly&&personId&&identity.permissions.includes('directory.write')&&<Button onClick={()=>setCreating(true)}>Registrar nuevo episodio</Button>}
     {creating&&personId&&<RelationForm identity={identity} personId={personId} saved={()=>setCreating(false)} cancel={()=>setCreating(false)}/>}

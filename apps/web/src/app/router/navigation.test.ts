@@ -42,7 +42,7 @@ describe('Filtrado de navegación por capabilities recibidas', () => {
     expect([...routes].sort()).toEqual(AUTHENTICATED_NAVIGATION.map(item => item.to).sort());
   });
   it.each([
-    ['/organizations/fixture', '/organizations'], ['/people/fixture', '/people'],
+    ['/organizations/fixture', '/organizations'], ['/organizations/fixture/people/person', '/organizations'], ['/people/fixture', '/people'],
     ['/directory/search', undefined], ['/organizations/categories', '/organizations'],
     ['/contact-methods/fixture', '/organizations'], ['/communications/fixture', '/relationship-processes'],
     ['/relationship-processes/fixture/communications/sent', '/relationship-processes'],

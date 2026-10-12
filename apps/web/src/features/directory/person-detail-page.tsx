@@ -1,6 +1,6 @@
 import { DuplicatePanel } from './duplicate-panel';
 import { useState } from 'react';
-import { useParams } from 'react-router';
+import { useOutletContext, useParams } from 'react-router';
 import { useSession } from '../auth/session';
 import { type Person } from './contracts';
 import { usePerson,useDirectoryMutation } from './queries';
@@ -16,17 +16,22 @@ import { PersonRelations } from './person-relations';
 import { DirectoryHistory } from './directory-history';
 import { ContactSection } from './contact-section';
 import { RelationshipContextPanel } from '../relationships/relationship-context-panel';
+import type { OrganizationWorkspaceContext } from './organization-workspace-context';
 export function PersonDetailPage() {
-  const {id=''}=useParams();const identity=useSession().data;const detail=usePerson(identity,id);const mutation=useDirectoryMutation(identity);
+  const {id='',personId}=useParams();const organizationContext=useOutletContext<OrganizationWorkspaceContext|null>();
+  const personKey=personId??id;const organization=organizationContext?.organization;const identity=useSession().data??organizationContext?.identity;const detail=usePerson(identity,personKey);const mutation=useDirectoryMutation(identity);
+  const backTo=organization?`/organizations/${organization.id}/people`:'/people';
+  const backLabel=organization?`Volver a ${organization.name} · Personas`:'Volver a personas';
+  const eyebrow=organization?`Directorio / Organizaciones / ${organization.name} / Personas`:'Directorio / Personas externas';
   const [editing,setEditing]=useState<Person|null>(null);const [confirmStatusChange,setConfirmStatusChange]=useState(false);
   if(!identity?.permissions.includes('directory.read')) return <p role="alert">No tienes permiso para consultar personas.</p>;
-  if(!detail.data) return <section className="space-y-4"><Link className="inline-flex min-h-11 items-center underline" to="/people">Volver a personas</Link>
+  if(!detail.data) return <section className="space-y-4"><Link className="inline-flex min-h-11 items-center underline" to={backTo}>{backLabel}</Link>
     <QueryState pending={detail.isPending} error={detail.isError} failure={detail.error} retry={detail.refetch}/></section>;
   const row=detail.data;
-  if(editing) return <section className="ui-editor-page"><PageHeader eyebrow="Directorio / Personas externas" title="Editar persona" /><Surface><PersonForm identity={identity} initial={editing} saved={()=>setEditing(null)} cancel={()=>setEditing(null)}
+  if(editing) return <section className="ui-editor-page"><PageHeader eyebrow={eyebrow} title="Editar persona" /><Surface><PersonForm identity={identity} initial={editing} saved={()=>setEditing(null)} cancel={()=>setEditing(null)}
     reload={async()=>{const response=await detail.refetch();if(!response.isSuccess)return;setEditing(response.data);return response.data;}}/></Surface></section>;
-  return <section className="directory-detail"><Link className="inline-flex min-h-11 underline" to="/people">Volver a personas</Link>
-    <PageHeader eyebrow="Directorio / Personas externas" title={row.displayName} description={row.currentRelationsCount ? `Vínculos vigentes: ${row.currentRelationsCount}. Consulta los episodios institucionales.` : undefined}
+  return <section className="directory-detail"><Link className="inline-flex min-h-11 underline" to={backTo}>{backLabel}</Link>
+    <PageHeader eyebrow={eyebrow} title={row.displayName} description={row.currentRelationsCount ? `Vínculos vigentes: ${row.currentRelationsCount}. Consulta los episodios institucionales.` : undefined}
       metadata={<StatusBadge tone={row.isActive?'success':'neutral'}>{row.isActive?'Activa':'Inactiva'}</StatusBadge>}
       actions={<>{!row.duplicateOfId&&identity.permissions.includes('directory.write')&&<Button onClick={()=>setEditing(row)}>Editar persona</Button>}
       {!row.duplicateOfId&&identity.permissions.includes('directory.status.update')&&<Button variant="ghost" disabled={mutation.isPending} onClick={()=>{mutation.reset();setConfirmStatusChange(true);}}>{row.isActive?'Desactivar persona':'Reactivar persona'}</Button>}</>} />

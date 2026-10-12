@@ -66,6 +66,7 @@ export function AppRoutes() {
         <Route path="organizations/:id" element={<OrganizationDetailPage />}>
           <Route index element={<OrganizationSummary />} />
           <Route path="people" element={<OrganizationPeoplePage />} />
+          <Route path="people/:personId" element={<PersonDetailPage />} />
           <Route path="contacts" element={<OrganizationContactsPage />} />
           <Route path="locations" element={<OrganizationLocationsPage />} />
           <Route path="control" element={<OrganizationControlPage />} />
