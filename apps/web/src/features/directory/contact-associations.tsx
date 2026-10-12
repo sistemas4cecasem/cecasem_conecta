@@ -1,5 +1,4 @@
 import { ConsolidationProvenance } from './consolidation-provenance';
-import { VerificationPanel } from './verification-panel';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { useForm } from 'react-hook-form';
@@ -48,7 +47,6 @@ export function ContactAssociationCard({identity,row,readOnly=false,replacement,
   const errors=<><MutationError error={mutation.error} reload={async()=>{try{const fresh=contactAssociationSchema.parse(await apiRequest(associationPath(row)));if(ending){setEnding(fresh);setConfirmed(false);}mutation.reset();setReloadFailed(false);}catch{setReloadFailed(true);}}}/>
     {reloadFailed&&<p role="alert">No se pudo recargar la asociación. Los datos se conservan.</p>}
     {replacing&&replacement&&<ContactReplacementForm identity={identity} row={row} target={replacement} done={()=>setReplacing(false)} cancel={()=>setReplacing(false)}/>}<ConsolidationProvenance origins={row.consolidationOrigins}/></>;
-  const verification=<VerificationPanel modern={modern} headingLevel={modern?3:2} compactActionLabels={organizationPresentation} hideEmptyHistoryPagination={hideEmptyHistoryPagination} identity={identity} path={associationPath(row)} label={'contacto de '+actorName+': '+row.contactMethod.value} contact readOnly={readOnly}/>;
   const modificationHistory=history&&<DirectoryHistory modern={modern} headingLevel={modern?3:2} hideEmptyPagination={hideEmptyHistoryPagination} identity={identity} path={associationPath(row)+'/history'}/>;
   const primary=<div className="organization-contact-primary"><p>{contactLabels[row.contactMethod.type]}: <Link className="underline" to={'/contact-methods/'+row.contactMethodId}>{row.contactMethod.value}</Link></p>
     <p>Asociación {row.isActive?'activa':'inactiva / antecedente'} · Medio: {conditionLabels[row.contactMethod.condition]}</p>
@@ -57,9 +55,9 @@ export function ContactAssociationCard({identity,row,readOnly=false,replacement,
     {organizationPresentation ? <>
       {primary}
       <details className="organization-record-details" open={detailsOpen} onToggle={event=>{setDetailsOpen(event.currentTarget.open);if(event.currentTarget.open)setDetailsVisited(true);}}>
-        <summary>Ver detalles, verificación y acciones</summary>
+        <summary>Ver detalles y acciones</summary>
         {detailsVisited&&<div className="organization-record-detail-content space-y-3">{editing?<ContactContextForm identity={identity} initial={editing} saved={()=>setEditing(null)} cancel={()=>setEditing(null)}/> : contextDetails}
-          {associationActions}{endingForm}{errors}{verification}{modificationHistory}</div>}
+          {associationActions}{endingForm}{errors}{modificationHistory}</div>}
       </details>
     </> : <>
       <div className={modern?'directory-contact-context space-y-3':'space-y-3'}><Link className="inline-flex min-h-11 underline" to={'personId' in row?'/people/'+row.personId:'/organizations/'+row.organizationId}>{actorName}</Link>
@@ -70,7 +68,7 @@ export function ContactAssociationCard({identity,row,readOnly=false,replacement,
         {row.sourceDescription&&<p>Fuente: {row.sourceDescription}</p>}{row.sourceUrl&&<p>URL de fuente: {row.sourceUrl}</p>}{row.notes&&<p>Observaciones: {row.notes}</p>}
         {editing?<ContactContextForm identity={identity} initial={editing} saved={()=>setEditing(null)} cancel={()=>setEditing(null)}/>:associationActions}
         {endingForm}{errors}
-      </div>{verification}{modificationHistory}
+      </div>{modificationHistory}
     </>}
   </li>;
 }

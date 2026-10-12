@@ -18,7 +18,6 @@ function ComparisonActor({ actor, kind }: { actor: DuplicateActor; kind: Duplica
     <p>{actor.isActive ? 'Ficha activa' : 'Ficha inactiva'} · Versión {actor.version}</p>
     {kind === 'organization' ? <><p>País: {actor.country ?? 'Sin dato'}</p><p>Sigla: {actor.alias ?? 'Sin dato'}</p>{actor.branchOf&&<p>Sede de: {actor.branchOf.name}</p>}</>
       : <><p>Nombres: {actor.givenNames ?? 'Sin dato'}</p><p>Apellidos: {actor.familyNames ?? 'Sin dato'}</p></>}
-    <p>Última verificación: {dateLabel(actor.lastVerifiedAt)}. No es una prueba de identidad.</p>
   </div>;
 }
 function CandidateReview({ candidate, identity, reevaluate }: { candidate: DuplicateCandidate; identity: AuthIdentity; reevaluate: () => Promise<unknown> }) {

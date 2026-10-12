@@ -51,8 +51,6 @@ export class DashboardResponseDto {
   @ApiPropertyOptional() upcomingMeetingCount?: number;
   @ApiPropertyOptional({ type: [DashboardMeetingItemDto] }) upcomingMeetings?: DashboardMeetingItemDto[];
   @ApiPropertyOptional() pendingApplications?: number;
-  @ApiPropertyOptional() organizationsReviewDue?: number;
-  @ApiPropertyOptional() organizationsNeverVerified?: number;
   @ApiPropertyOptional() activeIntents?: number;
   @ApiPropertyOptional({ type: [DashboardProcessItemDto] }) relevantProcesses?: DashboardProcessItemDto[];
   @ApiPropertyOptional({ type: [DashboardProcessItemDto] }) relevantIntents?: DashboardProcessItemDto[];

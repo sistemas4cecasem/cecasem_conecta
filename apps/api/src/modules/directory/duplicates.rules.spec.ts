@@ -44,7 +44,7 @@ describe('Similitud calibrada como advertencia, no identidad', () => {
     expect(canonicalPair(a, b)[0].id < canonicalPair(a, b)[1].id).toBe(true);
   });
   it('rechaza el mismo actor', () => { const a = actor({}); expect(() => canonicalPair(a, a)).toThrow('INVALID_CONSOLIDATION_TARGET'); });
-  it('la huella no cambia por estado, verificación o versión técnica', () => {
+  it('la huella no cambia por versión técnica', () => {
     const a = actor({ name: 'Fundación Esperanza' });
     expect(identityFingerprint('organization', a)).toBe(identityFingerprint('organization', { ...a, version: 8 }));
   });

@@ -12,8 +12,6 @@ import { searchPermissionKey, searchResponseSchema, validSearchQuery, type Direc
 import { OrganizationFilters } from './organization-filters';
 import { organizationFilterKeys } from './organization-filter.contracts';
 import { PROCESS_STATE_LABELS } from '../relationships/process-contracts';
-import { VerificationPanel } from './verification-panel';
-import type { AuthIdentity } from '../auth/session';
 import './directory-pages.css';
 
 function ProcessResult({ process }: { process: NonNullable<DirectorySearchResponse['processes']>['items'][number] }) {
@@ -38,7 +36,7 @@ function ActorState({ isActive, duplicateOf, kind }: { isActive: boolean; duplic
   return <><p><StatusBadge tone={isActive ? 'success' : 'neutral'}>{isActive ? 'Activa' : 'Inactiva'}</StatusBadge>{duplicateOf ? ' · Ficha histórica consolidada' : ''}</p>
     {duplicateOf && <p>Consolidada en: <Link className="inline-flex min-h-11 items-center underline" to={'/' + kind + '/' + duplicateOf.id}>{duplicateOf.name ?? duplicateOf.displayName}</Link></p>}</>;
 }
-function SearchResults({ data, identity }: { data: DirectorySearchResponse; identity: AuthIdentity }) {
+function SearchResults({ data }: { data: DirectorySearchResponse }) {
   return <div className="directory-search-results">
     <Surface aria-label="Organizaciones encontradas"><h2 className="directory-result-title">Organizaciones · {data.organizations.total}</h2>
       {data.organizations.total > 0 && data.organizations.items.length === 0 && <p>No hay organizaciones en esta página.</p>}
@@ -90,8 +88,7 @@ function SearchResults({ data, identity }: { data: DirectorySearchResponse; iden
           {item.person && <p>Persona: <Link className="underline" to={'/people/' + item.person.id}>{item.person.displayName}</Link></p>}
           <p>Asunto: {item.subject ?? 'Sin dato en el archivo'}</p><p className="whitespace-pre-wrap">Cuerpo: {item.body ?? 'Sin cuerpo conservado en el archivo'}</p>
           {item.originalObservation && <p className="whitespace-pre-wrap">Observación original: {item.originalObservation}</p>}
-          <p>Origen: {item.batch.originalFilename} · lote {item.batch.id} · {item.lastVerifiedAt ? 'verificado' : 'pendiente de verificación'}</p>
-          <VerificationPanel identity={identity} path={'imported-history/' + item.id} label="antecedente histórico importado" />
+          <p>Origen: {item.batch.originalFilename} · lote {item.batch.id}</p>
         </DataListItem>)}</DataList></>}
     </Surface>}
   </div>;
@@ -137,7 +134,7 @@ export default function DirectorySearchPage() {
     {!!q && !valid && <EmptyState title="Escribe al menos dos caracteres de un nombre o un correo completo válido." />}
     {valid && !ready && <p role="status">Esperando consulta…</p>}
     {ready && <QueryFeedback pending={results.isPending} error={results.isError} retry={results.refetch} />}
-    {data && <>{!total && !data.email ? <EmptyState title="No se encontraron resultados." description={data.emailHistory ? 'No hay antecedentes registrados para esta dirección.' : undefined} /> : <SearchResults data={data} identity={identity} />}
+      {data && <>{!total && !data.email ? <EmptyState title="No se encontraron resultados." description={data.emailHistory ? 'No hay antecedentes registrados para esta dirección.' : undefined} /> : <SearchResults data={data} />}
       {total > 0 && <Surface aria-label="Paginación de búsqueda"><p className="ui-description">Página común para organizaciones, personas, procesos y antecedentes de correo; cada grupo indica su total. El último contacto válido es independiente de la página.</p>
         <Pagination page={page} total={total} onPage={value => update({ page: String(value) })} /></Surface>}
     </>}

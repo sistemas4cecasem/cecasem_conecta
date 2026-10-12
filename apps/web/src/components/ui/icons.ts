@@ -2,7 +2,7 @@ import {
   ArrowLeft, ArrowRight, ArrowUpRight, Bell, Building2, CalendarDays, CircleAlert,
   CircleCheck, CircleHelp, ClipboardCheck, ClipboardList, Clock3, Download, Eye, FileDown, FileUp,
   History, Inbox, LayoutDashboard, Lightbulb, ListFilter, LoaderCircle,
-  Mail, MailOpen, Paperclip, Pencil, Plus, Save, Search, Send, Settings2, ShieldAlert, ShieldCheck,
+  Mail, MailOpen, Paperclip, Pencil, Plus, Save, Search, Send, ShieldAlert,
   UsersRound, Workflow,
 } from 'lucide-react';
 
@@ -19,12 +19,11 @@ export const iconCatalog = {
     '/relationship-processes': Workflow,
     '/contact-restrictions': ShieldAlert,
     '/settings/reminders': Bell,
-    '/settings/verification': Settings2,
     '/admin/imports': FileUp,
     '/admin/exports': FileDown,
     '/users': UsersRound,
   },
   action: { create: Plus, edit: Pencil, view: ArrowUpRight, open: ArrowRight, inspect: Eye, search: Search, filter: ListFilter, export: Download, back: ArrowLeft, history: History, save: Save, attach: Paperclip, sent: Mail, received: MailOpen },
-  metric: { process: Workflow, waiting: Clock3, review: ClipboardCheck, preparation: Lightbulb, application: Send, verification: ShieldCheck, meeting: CalendarDays },
+  metric: { process: Workflow, waiting: Clock3, review: ClipboardCheck, preparation: Lightbulb, application: Send, meeting: CalendarDays },
   feedback: { neutral: CircleHelp, info: CircleAlert, success: CircleCheck, warning: ShieldAlert, danger: CircleAlert, empty: Inbox, loading: LoaderCircle },
 } as const;

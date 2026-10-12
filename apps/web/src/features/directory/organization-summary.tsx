@@ -1,7 +1,6 @@
 import { Link } from 'react-router';
 import { Surface } from '../../components/ui/layout';
 import { Metadata } from '../../components/ui/lists';
-import { VerificationPanel } from './verification-panel';
 import { dateLabel } from './date-label';
 import { QueryState } from './directory-ui';
 import { useContactAssociations } from './contacts.queries';
@@ -33,11 +32,6 @@ export function OrganizationSummary() {
         { label: 'Creación', value: <time dateTime={organization.createdAt}>{dateLabel(organization.createdAt)}</time> },
         { label: 'Última modificación', value: <time dateTime={organization.updatedAt}>{dateLabel(organization.updatedAt)}</time> },
       ]} />
-    </Surface>
-
-    <Surface className="directory-detail-verification organization-summary-verification">
-      <VerificationPanel modern compactActionLabels identity={identity} readOnly={!!organization.duplicateOfId}
-        lastVerifiedAtFallback={organization.lastVerifiedAt} path={'organizations/' + organization.id} label={'organización ' + organization.name} />
     </Surface>
 
     <section className="organization-summary-metrics" aria-label="Registros relacionados">

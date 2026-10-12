@@ -1,5 +1,5 @@
 export type ExportType = 'organizations' | 'contacts' | 'processes' | 'opportunities';
-export type ExportFilters = Partial<Record<'name' | 'country' | 'categoryId' | 'organizationStatus' | 'verificationStatus' | 'withCommunications' |
+export type ExportFilters = Partial<Record<'name' | 'country' | 'categoryId' | 'organizationStatus' | 'withCommunications' |
   'personStatus' | 'contactType' | 'relationStatus' | 'processState' | 'createdByUserId' | 'processOrganizationId' | 'processPersonId' |
   'opportunityStatus' | 'opportunityOrganizationId' | 'opportunityProcessId', string>>;
 export interface ExportPreview { type: ExportType; count: number; unit: 'registros' | 'personas' }
@@ -19,7 +19,6 @@ export function exportFileName(type: ExportType, now = new Date()): string {
 const labels: Partial<Record<keyof ExportFilters, Record<string, string>>> = {
   organizationStatus: { active: 'Activas', inactive: 'Inactivas', all: 'Todas' },
   personStatus: { active: 'Activas', inactive: 'Inactivas', all: 'Todas' },
-  verificationStatus: { CURRENT: 'Verificación vigente', REVIEW_DUE: 'Revisión pendiente', NEVER_VERIFIED: 'Sin verificar' },
   withCommunications: { true: 'Con comunicaciones', false: 'Sin comunicaciones' },
   contactType: { EMAIL: 'Correo electrónico', PHONE: 'Teléfono', LINKEDIN: 'LinkedIn', WEBSITE: 'Sitio web', WEB_FORM: 'Formulario web', OTHER: 'Otro' },
   relationStatus: { current: 'Vínculos vigentes', historical: 'Vínculos históricos', all: 'Todos los vínculos' },
@@ -28,13 +27,13 @@ const labels: Partial<Record<keyof ExportFilters, Record<string, string>>> = {
 };
 const fieldLabels: Partial<Record<keyof ExportFilters, string>> = {
   name: 'Nombre contiene', country: 'País', categoryId: 'Identificador de categoría', organizationStatus: 'Estado de organización',
-  verificationStatus: 'Verificación', withCommunications: 'Comunicaciones', personStatus: 'Estado de persona', contactType: 'Tipo de medio',
+  withCommunications: 'Comunicaciones', personStatus: 'Estado de persona', contactType: 'Tipo de medio',
   relationStatus: 'Vínculos institucionales', processState: 'Estado de proceso', createdByUserId: 'Creador', processOrganizationId: 'Organización',
   processPersonId: 'Persona', opportunityStatus: 'Estado de oportunidad', opportunityOrganizationId: 'Organización', opportunityProcessId: 'Proceso',
 };
 
 export function filterSummary(type: ExportType, filters: ExportFilters): string {
-  const allowed = type === 'organizations' ? ['name', 'country', 'categoryId', 'organizationStatus', 'verificationStatus', 'withCommunications'] :
+  const allowed = type === 'organizations' ? ['name', 'country', 'categoryId', 'organizationStatus', 'withCommunications'] :
     type === 'contacts' ? ['name', 'personStatus', 'contactType', 'relationStatus'] : type === 'processes' ? ['processState', 'processOrganizationId', 'processPersonId', 'createdByUserId'] :
       ['opportunityStatus', 'opportunityOrganizationId', 'opportunityProcessId'];
   const entries = allowed.flatMap(key => {

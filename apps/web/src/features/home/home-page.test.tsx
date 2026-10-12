@@ -14,7 +14,7 @@ const deadline = { id: '22222222-2222-4222-8222-222222222222', name: 'Fondo de c
 const stamp = '2026-10-05T12:00:00.000Z';
 const globalPanel = { view: 'institutional', asOf: stamp, activeProcesses: 4, waitingResponseProcesses: 1,
   opportunities: { pendingReview: 2, preparing: 1, submitted: 3, discarded: 0, finished: 2 }, upcomingMeetingCount: 1, upcomingMeetings: [meeting],
-  pendingApplications: 3, organizationsReviewDue: 2, organizationsNeverVerified: 1 };
+  pendingApplications: 3 };
 const researchPanel = { view: 'research', asOf: stamp, activeProcesses: 1, relevantProcesses: [{ id: meeting.id, purpose: 'Continuar diálogo', state: 'IN_PROGRESS', lastActivityAt: stamp, target: 'Red local' }],
   activeIntents: 1, relevantIntents: [{ id: meeting.id, purpose: 'Contactar organización', state: 'ACTIVE', lastActivityAt: stamp, target: 'Red local' }], unreadReminders: 1,
   reminderItems: [{ id: meeting.id, type: 'PROCESS_INACTIVITY_REMINDER', createdAt: stamp, subject: 'Continuar diálogo', processId: meeting.id, intentId: null }] };
@@ -49,7 +49,7 @@ describe('Home dashboard', () => {
 
   it('muestra estado de carga', async () => { mode = 'pending'; view(); expect(await screen.findByRole('status')).toHaveTextContent('Cargando indicadores'); });
 
-  it('conserva las siete métricas institucionales y sus filtros exactos', async () => {
+  it('conserva las cinco métricas institucionales y sus filtros exactos', async () => {
     view(); await screen.findByText('Procesos activos');
     const expected = [
       ['Procesos activos', '4', '/relationship-processes'],
@@ -57,8 +57,6 @@ describe('Home dashboard', () => {
       ['Pendientes de revisión', '2', '/opportunities?status=PENDING_REVIEW'],
       ['En preparación', '1', '/opportunities?status=PREPARING'],
       ['Postulaciones pendientes', '3', '/opportunities?status=SUBMITTED'],
-      ['Requieren revisión', '2', '/organizations?status=active&verificationStatus=REVIEW_DUE'],
-      ['Nunca verificadas', '1', '/organizations?status=active&verificationStatus=NEVER_VERIFIED'],
     ];
     for (const [label, value, href] of expected) {
       const metric = screen.getByRole('link', { name: new RegExp(label!) });
@@ -70,7 +68,7 @@ describe('Home dashboard', () => {
   it('elige la experiencia por view del contrato y no por el nombre del rol', async () => {
     current = actor('RESEARCH'); client.setQueryData(AUTH_QUERY_KEY, current); payload = globalPanel;
     view(); await screen.findByText('Procesos activos');
-    expect(screen.getByRole('heading', { name: 'Directorio' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Panel institucional' })).toBeVisible();
     expect(screen.queryByRole('heading', { name: 'Procesos activos relevantes' })).not.toBeInTheDocument();
   });
 
@@ -128,7 +126,7 @@ describe('Home dashboard', () => {
   it('muestra error reintentable y estados vacíos sin fabricar resultados', async () => {
     mode = 'error'; view(); await waitFor(() => expect(screen.getByRole('alert')).toBeVisible());
     payload = { ...globalPanel, activeProcesses: 0, waitingResponseProcesses: 0, upcomingMeetingCount: 0, upcomingMeetings: [], pendingApplications: 0,
-      organizationsReviewDue: 0, organizationsNeverVerified: 0, opportunities: { pendingReview: 0, preparing: 0, submitted: 0, discarded: 0, finished: 0 } };
+      opportunities: { pendingReview: 0, preparing: 0, submitted: 0, discarded: 0, finished: 0 } };
     mode = 'ok';
     fireEvent.click(screen.getByRole('button', { name: 'Reintentar' }));
     expect(await screen.findByText('No hay reuniones próximas.')).toBeVisible(); expect(screen.getAllByText('0').length).toBeGreaterThan(0);

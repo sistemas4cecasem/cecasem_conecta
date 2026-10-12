@@ -11,5 +11,5 @@ export function ConsolidationProvenance({ origins }: { origins: z.infer<typeof c
       {' '}{origin.outcome === 'CREATED' ? 'Representación operativa añadida.' : 'Registro existente reutilizado.'}
       {origin.outcome === 'KEPT_PRINCIPAL' && ' Se conservó el contexto del principal.'}
       <Link className="inline-flex min-h-11 items-center px-2 underline" to={'/' + origin.source.path}>Consultar evidencia original: {origin.source.label}</Link>
-    </li>)}</ul><p>El historial y las verificaciones originales permanecen en su contexto.</p></div>;
+    </li>)}</ul></div>;
 }

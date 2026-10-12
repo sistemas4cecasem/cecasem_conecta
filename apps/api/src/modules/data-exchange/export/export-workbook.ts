@@ -6,16 +6,16 @@ export type CellValue = string | number | boolean | null;
 export interface ExportRows {
   organizations?: { id: string; name: string; alias: string | null; country: string | null; isActive: boolean;
     branchOf: { id: string; name: string } | null; categories: { category: { id: string; name: string } }[];
-    contacts: { id: string; isActive: boolean; lastVerifiedAt: Date | null; dataImportBatchId: string | null;
+    contacts: { id: string; isActive: boolean; dataImportBatchId: string | null;
       contactMethod: { id: string; type: string; value: string; label: string | null; condition: string } }[];
-    createdAt: Date; updatedAt: Date; lastVerifiedAt: Date | null; verificationStatus: string;
+    createdAt: Date; updatedAt: Date;
     dataImportBatchId: string | null; dataImportBatch: { originalFilename: string } | null }[];
   contacts?: { id: string; displayName: string; givenNames: string | null; familyNames: string | null; isActive: boolean;
-    createdAt: Date; updatedAt: Date; lastVerifiedAt: Date | null; dataImportBatchId: string | null; dataImportBatch: { originalFilename: string } | null;
-    verificationStatus: string; contacts: { id: string; isActive: boolean; lastVerifiedAt: Date | null; dataImportBatchId: string | null;
+    createdAt: Date; updatedAt: Date; dataImportBatchId: string | null; dataImportBatch: { originalFilename: string } | null;
+    contacts: { id: string; isActive: boolean; dataImportBatchId: string | null;
       contactMethod: { id: string; type: string; value: string; label: string | null; condition: string } }[];
     relations: { id: string; organizationId: string; positionTitle: string | null; area: string | null; isCurrent: boolean;
-      startDate: Date | null; endDate: Date | null; lastVerifiedAt: Date | null; dataImportBatchId: string | null;
+      startDate: Date | null; endDate: Date | null; dataImportBatchId: string | null;
       organization: { id: string; name: string } }[] }[];
   processes?: { id: string; purpose: string; state: string; createdAt: Date; lastActivityAt: Date; currentResult: string | null;
     closedAt: Date | null; organization: { id: string; name: string } | null; person: { id: string; displayName: string } | null;
@@ -60,28 +60,28 @@ export function buildExportWorkbook(type: ExportType, data: ExportRows): ExcelJS
 
   if (type === 'organizations') {
     const rows = data.organizations ?? [];
-    addSheet(workbook, 'Organizaciones', ['Identificador', 'Nombre', 'Alias', 'País', 'Estado', 'Sede de organización', 'Creada', 'Última modificación', 'Última verificación', 'Condición de verificación', 'Lote de importación', 'Archivo de origen'],
+    addSheet(workbook, 'Organizaciones', ['Identificador', 'Nombre', 'Alias', 'País', 'Estado', 'Sede de organización', 'Creada', 'Última modificación', 'Lote de importación', 'Archivo de origen'],
       rows.map(row => [row.id, row.name, row.alias, row.country, row.isActive ? 'Activa' : 'Inactiva', row.branchOf?.name ?? null,
-        timestamp(row.createdAt), timestamp(row.updatedAt), timestamp(row.lastVerifiedAt), row.verificationStatus, row.dataImportBatchId, row.dataImportBatch?.originalFilename ?? null]));
+        timestamp(row.createdAt), timestamp(row.updatedAt), row.dataImportBatchId, row.dataImportBatch?.originalFilename ?? null]));
     const categories = rows.flatMap(row => row.categories.map(link => [row.id, row.name, link.category.id, link.category.name]));
     addSheet(workbook, 'Categorías', ['Identificador de organización', 'Organización', 'Identificador de categoría', 'Categoría'], categories);
     const contacts = rows.flatMap(row => row.contacts.map(contact => [contact.id, row.id, row.name, contact.contactMethod.id,
       contact.contactMethod.type, contact.contactMethod.value, contact.contactMethod.label, contact.contactMethod.condition,
-      contact.isActive ? 'Vigente' : 'Inactivo', timestamp(contact.lastVerifiedAt), contact.dataImportBatchId]));
-    addSheet(workbook, 'Medios de contacto', ['Identificador de asociación', 'Identificador de organización', 'Organización', 'Identificador de medio', 'Tipo', 'Valor', 'Etiqueta', 'Condición del medio', 'Estado de asociación', 'Última verificación', 'Lote de importación'], contacts);
+      contact.isActive ? 'Vigente' : 'Inactivo', contact.dataImportBatchId]));
+    addSheet(workbook, 'Medios de contacto', ['Identificador de asociación', 'Identificador de organización', 'Organización', 'Identificador de medio', 'Tipo', 'Valor', 'Etiqueta', 'Condición del medio', 'Estado de asociación', 'Lote de importación'], contacts);
   } else if (type === 'contacts') {
     const people = data.contacts ?? [];
-    addSheet(workbook, 'Personas', ['Identificador', 'Nombre', 'Nombres', 'Apellidos', 'Estado', 'Creada', 'Última modificación', 'Última verificación', 'Condición de verificación', 'Lote de importación', 'Archivo de origen'],
+    addSheet(workbook, 'Personas', ['Identificador', 'Nombre', 'Nombres', 'Apellidos', 'Estado', 'Creada', 'Última modificación', 'Lote de importación', 'Archivo de origen'],
       people.map(row => [row.id, row.displayName, row.givenNames, row.familyNames, row.isActive ? 'Activa' : 'Inactiva', timestamp(row.createdAt), timestamp(row.updatedAt),
-        timestamp(row.lastVerifiedAt), row.verificationStatus, row.dataImportBatchId, row.dataImportBatch?.originalFilename ?? null]));
+        row.dataImportBatchId, row.dataImportBatch?.originalFilename ?? null]));
     const methods = people.flatMap(person => person.contacts.map(contact => [contact.id, person.id, person.displayName, contact.contactMethod.id,
       contact.contactMethod.type, contact.contactMethod.value, contact.contactMethod.label, contact.contactMethod.condition,
-      contact.isActive ? 'Vigente' : 'Inactivo', timestamp(contact.lastVerifiedAt), contact.dataImportBatchId]));
-    addSheet(workbook, 'Medios de contacto', ['Identificador de asociación', 'Identificador de persona', 'Persona', 'Identificador de medio', 'Tipo', 'Valor', 'Etiqueta', 'Condición del medio', 'Estado de asociación', 'Última verificación', 'Lote de importación'], methods);
+      contact.isActive ? 'Vigente' : 'Inactivo', contact.dataImportBatchId]));
+    addSheet(workbook, 'Medios de contacto', ['Identificador de asociación', 'Identificador de persona', 'Persona', 'Identificador de medio', 'Tipo', 'Valor', 'Etiqueta', 'Condición del medio', 'Estado de asociación', 'Lote de importación'], methods);
     const relations = people.flatMap(person => person.relations.map(relation => [relation.id, person.id, person.displayName, relation.organizationId,
       relation.organization.name, relation.positionTitle, relation.area, relation.isCurrent ? 'Vigente' : 'Histórico', civilDate(relation.startDate), civilDate(relation.endDate),
-      timestamp(relation.lastVerifiedAt), relation.dataImportBatchId]));
-    addSheet(workbook, 'Vínculos institucionales', ['Identificador de vínculo', 'Identificador de persona', 'Persona', 'Identificador de organización', 'Organización', 'Cargo', 'Área', 'Estado', 'Fecha de inicio', 'Fecha de fin', 'Última verificación', 'Lote de importación'], relations);
+      relation.dataImportBatchId]));
+    addSheet(workbook, 'Vínculos institucionales', ['Identificador de vínculo', 'Identificador de persona', 'Persona', 'Identificador de organización', 'Organización', 'Cargo', 'Área', 'Estado', 'Fecha de inicio', 'Fecha de fin', 'Lote de importación'], relations);
   } else if (type === 'processes') {
     const processes = data.processes ?? [];
     addSheet(workbook, 'Procesos', ['Identificador', 'Objetivo', 'Tipo de actor', 'Identificador de actor', 'Actor principal', 'Estado', 'Identificador de creador', 'Creador', 'Creado', 'Última actividad', 'Resultado de cierre', 'Fecha de cierre'],

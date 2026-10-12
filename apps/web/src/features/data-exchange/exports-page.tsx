@@ -91,7 +91,6 @@ export function ExportsPage() {
           {input('Nombre contiene', 'name')}{input('País', 'country')}
           <FormField label="Categoría">{control => <Select {...control} value={filters.categoryId ?? ''} onChange={event => update('categoryId', event.target.value)}><option value="">Todas</option>{(categories.data ?? []).map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</Select>}</FormField>
           {select('Estado', 'organizationStatus', [['active', 'Activas'], ['inactive', 'Inactivas'], ['all', 'Todas']])}
-          {select('Verificación', 'verificationStatus', [['CURRENT', 'Vigente'], ['REVIEW_DUE', 'Revisión pendiente'], ['NEVER_VERIFIED', 'Sin verificar']])}
           {select('Comunicaciones registradas', 'withCommunications', [['true', 'Con comunicaciones'], ['false', 'Sin comunicaciones']])}
         </FormSection>}
         {type === 'contacts' && <FormSection heading="Filtros de exportación" className="exchange-fields">

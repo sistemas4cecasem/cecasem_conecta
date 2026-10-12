@@ -8,9 +8,6 @@ import { DirectoryTargetService } from './directory-target.service';
 import { ConsolidationService } from './consolidation.service';
 import { DuplicateCandidatesController, OrganizationDuplicatesController, PersonDuplicatesController } from './duplicates.controller';
 import { DirectoryActorPolicy } from './directory-actor.policy';
-import { SettingsModule } from '../settings/settings.module';
-import { VerificationClock, VerificationService } from './verification.service';
-import { OrganizationVerificationController, PersonVerificationController, RelationVerificationController, PersonContactVerificationController, OrganizationContactVerificationController, ImportedHistoryVerificationController } from './verification.controller';
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../../database/database.module';
 import { AuthModule } from '../auth/auth.module';
@@ -23,9 +20,9 @@ import { PeopleService } from './people.service';
 import { PeopleController, PersonRelationsController, OrganizationPeopleController } from './people.controller';
 import { ContactsService } from './contacts.service';
 import { ContactMethodsController, PersonContactsController, OrganizationContactsController, PersonContactsActionsController, OrganizationContactsActionsController } from './contacts.controller';
-@Module({ imports: [DatabaseModule, AuthModule, UsersModule, AuditModule, SettingsModule],
-  controllers: [DuplicateCandidatesController, OrganizationDuplicatesController, PersonDuplicatesController, OrganizationVerificationController, PersonVerificationController, RelationVerificationController, PersonContactVerificationController, OrganizationContactVerificationController, ImportedHistoryVerificationController, OrganizationsController, CategoriesController, PeopleController, PersonRelationsController, OrganizationPeopleController,
+@Module({ imports: [DatabaseModule, AuthModule, UsersModule, AuditModule],
+  controllers: [DuplicateCandidatesController, OrganizationDuplicatesController, PersonDuplicatesController, OrganizationsController, CategoriesController, PeopleController, PersonRelationsController, OrganizationPeopleController,
     ContactMethodsController, PersonContactsController, OrganizationContactsController, PersonContactsActionsController, OrganizationContactsActionsController],
-  providers: [OrganizationFilterService, DirectoryExportService, DirectoryImportService, DirectoryReferralsService, DirectoryTargetService, DirectorySearchService, DuplicateDetectionService, ConsolidationService, DirectoryActorPolicy, VerificationClock, VerificationService, DirectoryService, DirectoryHistoryService, PeopleService, ContactsService],
-  exports: [DirectoryExportService, DirectoryImportService, DirectoryReferralsService, DirectorySearchService, DirectoryTargetService, VerificationClock] })
+  providers: [OrganizationFilterService, DirectoryExportService, DirectoryImportService, DirectoryReferralsService, DirectoryTargetService, DirectorySearchService, DuplicateDetectionService, ConsolidationService, DirectoryActorPolicy, DirectoryService, DirectoryHistoryService, PeopleService, ContactsService],
+  exports: [DirectoryExportService, DirectoryImportService, DirectoryReferralsService, DirectorySearchService, DirectoryTargetService] })
 export class DirectoryModule {}

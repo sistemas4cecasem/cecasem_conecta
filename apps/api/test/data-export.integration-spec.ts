@@ -44,7 +44,7 @@ describe('5.5 exportación PostgreSQL/HTTP', () => {
       .useValue(new ConfigService(validateEnvironment({ NODE_ENV: 'test', DATABASE_URL: databaseUrl }))).compile();
     app = module.createNestApplication<INestApplication<Server>>(); configureApplication(app); await app.init();
     prisma = app.get(PrismaService); users = app.get(UsersService);
-    const password = randomBytes(24).toString('base64url'), hash = await app.get(PasswordService).hashNew(password);
+    const password = `Exp!a${randomBytes(24).toString('base64url')}`, hash = await app.get(PasswordService).hashNew(password);
     for (const role of Object.values(UserRole)) {
       const user = await users.createIdentity({ givenNames: 'QA Export', familyNames: role, role, email: `qa-export-${role.toLowerCase()}-${randomUUID()}@example.test` });
       userIds.push(user.id); await prisma.user.update({ where: { id: user.id }, data: { passwordHash: hash } });
@@ -122,9 +122,10 @@ describe('5.5 exportación PostgreSQL/HTTP', () => {
     expect(result.headers['content-disposition']).toMatch(/^attachment; filename="cecasem-organizations-\d{4}-\d{2}-\d{2}\.xlsx"$/);
     const workbook = await openWorkbook(result.body as Buffer), sheet = workbook.getWorksheet('Organizaciones')!;
     expect(sheet.rowCount).toBe(2);
+    expect(sheet.getRow(1).values).not.toEqual(expect.arrayContaining([expect.stringMatching(/verificaci[oó]n/i)]));
     expect(sheet.getRow(2).getCell(2).value).toBe('=HYPERLINK("https://example.test")');
     expect(sheet.getRow(2).getCell(2).type).toBe(ExcelJS.ValueType.String);
-    expect(sheet.getRow(2).getCell(10).value).toBe('NEVER_VERIFIED');
+    expect(sheet.getRow(2).getCell(10).value).toBeNull();
     expect(workbook.getWorksheet('Categorías')?.rowCount).toBe(2);
     expect(sheet.getRow(2).getCell(9).value).toBeNull();
   });

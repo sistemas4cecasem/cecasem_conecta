@@ -214,7 +214,7 @@ async function seed(): Promise<void> {
       for (const [index, organization] of organizations.entries()) {
         const id = seedId('organization', index + 1);
         const data = { name: organization.name, alias: organization.alias, country: 'Bolivia', description: organization.summary,
-          officialWebsite: `https://org-${index + 1}.example.test`, isActive: true, lastVerifiedAt: null };
+          officialWebsite: `https://org-${index + 1}.example.test`, isActive: true };
         await tx.organization.upsert({ where: { id }, create: { id, ...data, createdAt: daysAgo(now, 200 - index), updatedAt: daysAgo(now, 200 - index) }, update: {} });
         await tx.organizationCategory.upsert({
           where: { organizationId_categoryId: { organizationId: id, categoryId: seedId('category', organization.category + 1) } },
@@ -226,14 +226,14 @@ async function seed(): Promise<void> {
         const id = seedId('person', index + 1);
         const organizationIndex = Math.floor(index / 2);
         const data = { givenNames: person.givenNames, familyNames: person.familyNames, displayName: `${person.givenNames} ${person.familyNames}`,
-          isActive: true, lastVerifiedAt: null };
+          isActive: true };
         await tx.person.upsert({ where: { id }, create: { id, ...data, createdAt: daysAgo(now, 195 - organizationIndex), updatedAt: daysAgo(now, 195 - organizationIndex) }, update: {} });
         const relationId = seedId('relation', index + 1);
         await tx.personOrganizationRelation.upsert({
           where: { id: relationId },
           create: { id: relationId, personId: id, organizationId: seedId('organization', organizationIndex + 1), positionTitle: person.title,
             area: organizations[organizationIndex].area, isCurrent: true, startDate: new Date(Date.UTC(2022, organizationIndex % 12, 1)),
-            sourceDescription: 'Relación sintética de demostración; pendiente de verificación.', sourceUrl: `https://org-${organizationIndex + 1}.example.test`, lastVerifiedAt: null,
+            sourceDescription: 'Relación sintética de demostración.', sourceUrl: `https://org-${organizationIndex + 1}.example.test`,
             createdAt: daysAgo(now, 195 - organizationIndex), updatedAt: daysAgo(now, 195 - organizationIndex) },
           update: {},
         });
@@ -248,7 +248,7 @@ async function seed(): Promise<void> {
         const associationId = seedId('association', index + 1);
         await tx.organizationContact.upsert({ where: { id: associationId },
           create: { id: associationId, organizationId: seedId('organization', index + 1), contactMethodId,
-            sourceDescription: 'Dato ficticio de seed; pendiente de verificación.', sourceUrl: `https://org-${index + 1}.example.test`, lastVerifiedAt: null },
+            sourceDescription: 'Dato ficticio de seed.', sourceUrl: `https://org-${index + 1}.example.test` },
           update: {} });
       }
 
@@ -262,7 +262,7 @@ async function seed(): Promise<void> {
         const associationId = seedId('association', contactNumber);
         await tx.personContact.upsert({ where: { id: associationId },
           create: { id: associationId, personId: seedId('person', index + 1), contactMethodId,
-            sourceDescription: 'Dato ficticio de seed; pendiente de verificación.', sourceUrl: `https://org-${Math.floor(index / 2) + 1}.example.test`, lastVerifiedAt: null },
+            sourceDescription: 'Dato ficticio de seed.', sourceUrl: `https://org-${Math.floor(index / 2) + 1}.example.test` },
           update: {} });
       }
 

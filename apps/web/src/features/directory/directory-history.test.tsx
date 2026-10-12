@@ -19,7 +19,7 @@ const change = (field = 'country', before: string | null = null, after = 'Bolivi
 const operation = (id = 'operation', changes = [change()]): HistoryOperation => ({ operationId: id, createdAt: stamp, objectType: 'ORGANIZATION',
   actor: { id: 'author', givenNames: 'Autora', familyNames: 'QA', isActive: true }, contextRecorded: true, relatedReferences: [], replacement: null, changes });
 const organization: Organization = { id: 'organization', name: 'Organización QA', country: null, description: null, alias: null, officialWebsite: null,
-  branchOfId: null, branchOf: null, categories: [], isActive: false, version: 1, createdAt: stamp, updatedAt: stamp, lastVerifiedAt: null };
+  branchOfId: null, branchOf: null, categories: [], isActive: false, version: 1, createdAt: stamp, updatedAt: stamp, };
 describe('Historial agrupado de fichas', () => {
   let client = createQueryClient(), operations: HistoryOperation[] = [], mode = 'ok', loggedOut = false;
   const fetchMock = vi.fn<(url: string, options?: RequestInit) => Promise<Response>>();
@@ -28,7 +28,6 @@ describe('Historial agrupado de fichas', () => {
     fetchMock.mockReset(); fetchMock.mockImplementation((url, options) => {
       const path = url.replace('/api/v1/', '');
       if (url.includes('/duplicate-candidates?')) return Promise.resolve(Response.json({items:[],total:0,page:1,pageSize:25}));
-      if (path.endsWith('/verification')) return Promise.resolve(Response.json({objectType:'person',classification:'personal',intervalMonths:6,verificationStatus:'NEVER_VERIFIED',lastVerifiedAt:null,lastVerifiedBy:null,nextReviewAt:null,changedSinceVerification:false,timeReviewDue:false,version:1,contactValueVersion:null}));
       if (path === 'auth/me') return Promise.resolve(Response.json(loggedOut ? {} : identity, { status: loggedOut ? 401 : 200 }));
       if (path === 'auth/logout') { loggedOut = true; return Promise.resolve(new Response(null, { status: 204 })); }
       if (path.includes('/history?')) {

@@ -33,7 +33,7 @@ describe('Reglas del directorio', () => {
     expect(() => assertVersion(2, 0)).toThrow('INVALID_DIRECTORY');
     expect(() => assertVersion(2, 2)).not.toThrow();
   });
-  it('DTO permite solo nombre, rechaza categorías duplicadas y verificación impuesta', async () => {
+  it('DTO permite solo nombre, rechaza categorías duplicadas y campos ajenos', async () => {
     expect(await validate(plainToInstance(OrganizationInputDto, { name: '  Fundación  ' }))).toHaveLength(0);
     expect(await validate(plainToInstance(OrganizationInputDto, { name: 'Fundación', categoryIds: [null] }))).not.toHaveLength(0);
     expect(await validate(plainToInstance(OrganizationInputDto, { name: 'Fundación', lastVerifiedAt: new Date() }), { whitelist: true, forbidNonWhitelisted: true })).not.toHaveLength(0);

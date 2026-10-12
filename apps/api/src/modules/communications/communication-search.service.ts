@@ -13,7 +13,7 @@ export interface EmailCommunication {
 }
 export interface ImportedEmailHistory {
   type: 'IMPORTED_HISTORICAL_RECORD'; id: string; kind: 'SENT' | 'RECEIVED' | 'OTHER' | 'UNKNOWN'; occurredOn: string | null;
-  subject: string | null; body: string | null; originalObservation: string | null; lastVerifiedAt: string | null;
+  subject: string | null; body: string | null; originalObservation: string | null;
   batch: { id: string; originalFilename: string; createdAt: string };
   organization: { id: string; name: string } | null; person: { id: string; displayName: string } | null;
 }
@@ -44,7 +44,7 @@ export class CommunicationSearchService {
       const [importedRows, importedTotal] = await Promise.all([
         tx.importedHistoricalRecord.findMany({ where: importedWhere, orderBy: [{ occurredOn: { sort: 'desc', nulls: 'last' } }, { id: 'desc' }],
           skip: (query.page - 1) * query.pageSize, take: query.pageSize,
-          select: { id: true, kind: true, occurredOn: true, subject: true, body: true, originalObservation: true, lastVerifiedAt: true,
+          select: { id: true, kind: true, occurredOn: true, subject: true, body: true, originalObservation: true,
             batch: { select: { id: true, originalFilename: true, createdAt: true } },
             organization: { select: { id: true, name: true } }, person: { select: { id: true, displayName: true } } } }),
         tx.importedHistoricalRecord.count({ where: importedWhere }),
@@ -58,7 +58,7 @@ export class CommunicationSearchService {
         process: processes.get(row.processId)! });
       return { address, items: rows.map(project), total, page: query.page, pageSize: query.pageSize, lastValidContact: latest ? project(latest) : null,
         importedRecords: { items: importedRows.map(row => ({ type: 'IMPORTED_HISTORICAL_RECORD' as const, ...row,
-          occurredOn: row.occurredOn?.toISOString().slice(0, 10) ?? null, lastVerifiedAt: row.lastVerifiedAt?.toISOString() ?? null,
+          occurredOn: row.occurredOn?.toISOString().slice(0, 10) ?? null,
           batch: { ...row.batch, createdAt: row.batch.createdAt.toISOString() } })), total: importedTotal, page: query.page, pageSize: query.pageSize } };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }

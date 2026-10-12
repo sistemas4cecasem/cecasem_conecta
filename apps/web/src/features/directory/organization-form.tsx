@@ -78,7 +78,6 @@ export function OrganizationForm({ identity, initial, branchOfId, saved, cancel,
     </fieldset>
 
     <MutationError error={mutation.error} reload={reload ? reloadForm : undefined} />
-    <p className="organization-form-note">Guardar no verifica {branchOfId || initial?.branchOfId ? 'la sede' : 'la organización'}.</p>
     <div className="organization-form-actions"><button className={buttonClass} disabled={mutation.isPending}>{mutation.isPending ? 'Guardando…' : branchOfId || initial?.branchOfId ? 'Guardar sede' : 'Guardar organización'}</button>
       <button type="button" className={buttonClass} disabled={mutation.isPending} onClick={cancel}>Cancelar</button></div>
   </form>;

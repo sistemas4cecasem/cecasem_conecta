@@ -7,7 +7,7 @@ describe('Reglas mínimas de personas y episodios',()=>{
   it('persona independiente requiere solo presentación y no inventa apellidos',()=>{
     expect(personFields({displayName:'  Nombre   conocido '})).toEqual({displayName:'Nombre conocido',givenNames:null,familyNames:null});
   });
-  it('corrección de nombres no incluye verificación ni organización',()=>{
+  it('corrección de nombres solo incluye campos personales',()=>{
     expect(Object.keys(personFields({displayName:'Ana',givenNames:'Ana',familyNames:'Pérez'}))).toEqual(['displayName','givenNames','familyNames']);
   });
   it.each([undefined,null,''])('fecha ausente %s permanece desconocida',value=>{expect(calendarDate(value)).toBeNull();});

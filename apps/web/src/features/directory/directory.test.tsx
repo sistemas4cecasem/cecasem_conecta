@@ -15,7 +15,7 @@ const stamp = '2026-10-02T00:00:00.000Z';
 const catA = { id: 'cat-a', name: 'Educación QA', isActive: true, version: 1, createdAt: stamp, updatedAt: stamp };
 const catB = { ...catA, id: 'cat-b', name: 'Ambiente QA' };
 const base: Organization = { id: 'org', name: 'Institución QA', country: null, alias: null, description: null, officialWebsite: null,
-  isActive: true, version: 1, branchOfId: null, branchOf: null, categories: [], createdAt: stamp, updatedAt: stamp, lastVerifiedAt: null };
+  isActive: true, version: 1, branchOfId: null, branchOf: null, categories: [], createdAt: stamp, updatedAt: stamp, };
 const branchOwner = { id: 'branch-owner', name: 'Organización regional', isActive: true };
 const page = (items: unknown[], total = items.length, number = 1) => ({ items, total, page: number, pageSize: 25 });
 
@@ -29,7 +29,6 @@ describe('Directorio operativo', () => {
     fetchMock.mockImplementation((url, options) => {
       const path = url.replace('/api/v1/', '');
       if (url.includes('/duplicate-candidates?')) return Promise.resolve(Response.json({items:[],total:0,page:1,pageSize:25})); const method = options?.method ?? 'GET';
-      if (path.endsWith('/verification')) return Promise.resolve(Response.json({objectType:'person',classification:'personal',intervalMonths:6,verificationStatus:'NEVER_VERIFIED',lastVerifiedAt:null,lastVerifiedBy:null,nextReviewAt:null,changedSinceVerification:false,timeReviewDue:false,version:1,contactValueVersion:null}));
       if (path === 'auth/me') return Promise.resolve(Response.json(loggedOut ? {} : current, { status: loggedOut ? 401 : 200 }));
       if (path === 'auth/logout') { loggedOut = true; return Promise.resolve(new Response(null, { status: 204 })); }
       if (path.startsWith('categories?')) return Promise.resolve(Response.json(page(withCategories ? [catA, catB] : [])));
@@ -73,7 +72,6 @@ describe('Directorio operativo', () => {
     expect(screen.getAllByRole('link', { name: 'Organizaciones' }).every(link => link.getAttribute('href') === '/organizations')).toBe(true);
     expect(screen.getByRole('button', { name: 'Editar ficha' })).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Desactivar organización' })).not.toBeInTheDocument();
-    expect(screen.getByText('Sin verificar')).toBeVisible();
   });
   it('Admin recibe cambio de estado por capability', async () => {
     current = { ...identity, role: 'ADMINISTRATOR', permissions: [...capabilities, 'directory.status.update'] };
@@ -134,7 +132,7 @@ describe('Directorio operativo', () => {
     if (state === 'error') expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo cargar');
     if (state === 'empty') expect(await screen.findByText('No hay organizaciones registradas.')).toBeVisible();
   });
-  it('crea ficha con solo nombre; invalida caché y conserva verificación vacía', async () => {
+  it('crea ficha con solo nombre e invalida caché', async () => {
     const user = userEvent.setup(); withCategories = false; const invalidate = vi.spyOn(client, 'invalidateQueries');
     app('/organizations/new'); await user.type(await screen.findByLabelText('Nombre'), 'Nueva institución');
     await user.click(screen.getByRole('button', { name: 'Guardar organización' }));

@@ -23,7 +23,7 @@ if(!new URL(databaseUrl).pathname.endsWith('_test'))throw new Error('Contactos r
 function barrier(){let release!:()=>void;const promise=new Promise<void>(resolve=>{release=resolve;});return {promise,release};}
 describe('Medios de contacto PostgreSQL y HTTP',()=>{
   let app:INestApplication<Server>,prisma:PrismaService,users:UsersService,people:PeopleService,directory:DirectoryService,contacts:ContactsService,history:DirectoryHistoryService,audit:AuditService,passwordHash:string;
-  const password=randomBytes(24).toString('base64url');const userIds:string[]=[],personIds:string[]=[],organizationIds:string[]=[],methodIds:string[]=[];
+  const password=`Cts!a${randomBytes(24).toString('base64url')}`;const userIds:string[]=[],personIds:string[]=[],organizationIds:string[]=[],methodIds:string[]=[];
   beforeAll(async()=>{const moduleRef=await Test.createTestingModule({imports:[AppModule]}).overrideProvider(ConfigService).useValue(new ConfigService(validateEnvironment({NODE_ENV:'test',DATABASE_URL:databaseUrl}))).compile();
     app=moduleRef.createNestApplication<INestApplication<Server>>();configureApplication(app);await app.init();prisma=app.get(PrismaService);users=app.get(UsersService);people=app.get(PeopleService);directory=app.get(DirectoryService);contacts=app.get(ContactsService);history=app.get(DirectoryHistoryService);audit=app.get(AuditService);passwordHash=await app.get(PasswordService).hashNew(password);});
   afterEach(async()=>{jest.restoreAllMocks();await prisma.$transaction([
@@ -65,7 +65,6 @@ describe('Medios de contacto PostgreSQL y HTTP',()=>{
     const unusable=await request(app.getHttpServer()).patch('/api/v1/contact-methods/'+current.id+'/condition').set('Cookie',auth).send({condition:'UNUSABLE',expectedVersion:current.version+1}).expect(200);
     expect(unusable.body).toMatchObject({id:current.id,condition:ContactCondition.UNUSABLE,version:current.version+2});
     expect(await prisma.auditEvent.findFirst({where:{action:AuditAction.CONTACT_METHOD_CONDITION_CHANGED,actorUserId:actor.id,contactMethodId:current.id}})).not.toBeNull();
-    expect((await contacts.getAssociation('person',reusedBody.association.id)).lastVerifiedAt).toBeNull();
   });
   it.each([{type:'NOPE',value:'x'},{type:'EMAIL',value:'bad'},{type:'EMAIL',value:'a@example.test',condition:'UNUSABLE'},{type:'EMAIL',value:'a@example.test',lastVerifiedAt:'2026-01-01'},{type:'PHONE',value:'abc'},{type:'LINKEDIN',value:'https://linkedin.com.evil.test'},{type:'FORM',value:'javascript:x'},{type:'OTHER',value:'Canal'}])('entrada inválida %j →400',async body=>{const auth=await cookie(await fixture());await request(app.getHttpServer()).post('/api/v1/contact-methods').set('Cookie',auth).send(body).expect(400);});
   it('creación duplicada devuelve código útil y medio existente sin asociar automáticamente',async()=>{
@@ -159,7 +158,7 @@ describe('Medios de contacto PostgreSQL y HTTP',()=>{
   it('inactivación conserva contactos; no utilizable es condición global y no verificación',async()=>{
     const actor=await fixture(),p=await person(actor.id),o=await org(actor.id),m=await method(actor.id);await contacts.associate({personId:p.id},m.id,{expectedMethodVersion:1},actor.id);await people.status(p.id,{isActive:false,expectedVersion:1},actor.id);
     await contacts.condition(m.id,{condition:ContactCondition.UNUSABLE,expectedVersion:2},actor.id);await expect(contacts.associate({organizationId:o.id},m.id,{expectedMethodVersion:3},actor.id)).rejects.toMatchObject({code:'CONTACT_UNUSABLE'});
-    expect((await contacts.listActor({personId:p.id},{page:1,pageSize:25})).total).toBe(1);expect((await contacts.exactEmail(m.value)).contact?.id).toBe(m.id);expect((await contacts.listActor({personId:p.id},{page:1,pageSize:25})).items[0].lastVerifiedAt).toBeNull();
+    expect((await contacts.listActor({personId:p.id},{page:1,pageSize:25})).total).toBe(1);expect((await contacts.exactEmail(m.value)).contact?.id).toBe(m.id);
   });
   it('400,404,409, no DELETE y paginación estable; actores ausentes no dejan huérfanos',async()=>{
     const actor=await fixture(),auth=await cookie(actor),p=await person(actor.id),m=await method(actor.id);const association=await contacts.associate({personId:p.id},m.id,{expectedMethodVersion:1},actor.id);

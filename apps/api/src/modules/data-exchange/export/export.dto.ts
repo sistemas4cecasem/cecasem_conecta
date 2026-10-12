@@ -10,7 +10,6 @@ export class ExportFiltersDto {
   @ApiPropertyOptional() @IsOptional() @Transform(trim) @IsString() @MaxLength(150) country?: string;
   @ApiPropertyOptional({ format: 'uuid' }) @IsOptional() @IsUUID() categoryId?: string;
   @ApiPropertyOptional({ enum: ['active', 'inactive', 'all'] }) @IsOptional() @IsIn(['active', 'inactive', 'all']) organizationStatus?: 'active' | 'inactive' | 'all';
-  @ApiPropertyOptional({ enum: ['CURRENT', 'REVIEW_DUE', 'NEVER_VERIFIED'] }) @IsOptional() @IsIn(['CURRENT', 'REVIEW_DUE', 'NEVER_VERIFIED']) verificationStatus?: 'CURRENT' | 'REVIEW_DUE' | 'NEVER_VERIFIED';
   @ApiPropertyOptional() @IsOptional() @Transform(({ value }: { value: unknown }) => value === true || value === 'true' ? true : value === false || value === 'false' ? false : value) @IsBoolean() withCommunications?: boolean;
   @ApiPropertyOptional({ enum: ['active', 'inactive', 'all'] }) @IsOptional() @IsIn(['active', 'inactive', 'all']) personStatus?: 'active' | 'inactive' | 'all';
   @ApiPropertyOptional({ enum: ContactType }) @IsOptional() @IsIn(Object.values(ContactType)) contactType?: ContactType;

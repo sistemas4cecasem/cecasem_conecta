@@ -35,7 +35,7 @@ if (!new URL(databaseUrl).pathname.endsWith('_test')) throw new Error('Búsqueda
 describe('Búsqueda del directorio PostgreSQL/HTTP', () => {
   let app: INestApplication<Server>, prisma: PrismaService, users: UsersService, directory: DirectoryService,
     people: PeopleService, contacts: ContactsService, queries: DirectorySearchService, hash: string;
-  const password = randomBytes(24).toString('base64url');
+  const password = `Src!a${randomBytes(24).toString('base64url')}`;
   const userIds: string[] = [], orgIds: string[] = [], personIds: string[] = [], methodIds: string[] = [], accountIds: string[] = [];
   beforeAll(async () => {
     const module = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(ConfigService)
@@ -50,7 +50,6 @@ describe('Búsqueda del directorio PostgreSQL/HTTP', () => {
     const candidates = await prisma.duplicateCandidate.findMany({ where: pairs, select: { id: true } });
     await prisma.$transaction([
       prisma.duplicateReconciliation.deleteMany({ where: { candidateId: { in: candidates.map(row => row.id) } } }),
-      prisma.verification.deleteMany({ where: { actorUserId: { in: userIds } } }),
       prisma.auditEvent.deleteMany({ where: { actorUserId: { in: userIds } } }),
       prisma.communicationAmendment.deleteMany({ where: { communication: { registeredByUserId: { in: userIds } } } }),
       prisma.communicationRecipient.deleteMany({ where: { communication: { registeredByUserId: { in: userIds } } } }),
@@ -112,7 +111,7 @@ describe('Búsqueda del directorio PostgreSQL/HTTP', () => {
     const body = response.body as SearchResponse;
     expect(response.headers['cache-control']).toBe('no-store'); expect(body.organizations.items[0].id).toBe(row.id);
     if (role !== UserRole.ADMINISTRATOR) {
-      await request(app.getHttpServer()).put('/api/v1/settings/verification').set('Cookie', actor.cookie).send({}).expect(403);
+      await request(app.getHttpServer()).put('/api/v1/settings/verification').set('Cookie', actor.cookie).send({}).expect(404);
       await request(app.getHttpServer()).post('/api/v1/duplicate-candidates/' + randomUUID() + '/consolidate').set('Cookie', actor.cookie).send({}).expect(403);
     }
   });
@@ -191,9 +190,9 @@ describe('Búsqueda del directorio PostgreSQL/HTTP', () => {
     expect((await queries.searchPeople(query('maria'))).items.map(row => row.id)).toEqual([principal.id]);
     expect((await queries.searchPeople(query('maria', { includeInactive: true }))).items.map(row => row.id)).toEqual([principal.id, duplicate.id]);
   });
-  it('no recalcula duplicados ni escribe historial, auditoría o verificaciones al buscar', async () => {
+  it('no recalcula duplicados ni escribe historial o auditoría al buscar', async () => {
     const actor = await user(); await org(actor.id); await person(actor.id);
-    const counts = async () => Promise.all([prisma.duplicateCandidate.count(), prisma.directoryChange.count(), prisma.auditEvent.count(), prisma.verification.count()]);
+    const counts = async () => Promise.all([prisma.duplicateCandidate.count(), prisma.directoryChange.count(), prisma.auditEvent.count()]);
     const before = await counts(); await http(actor.cookie, { q: 'esperanza' }).expect(200); await http(actor.cookie, { q: 'maria' }).expect(200); expect(await counts()).toEqual(before);
   });
   it('expone solamente campos públicos con límites de página', async () => {

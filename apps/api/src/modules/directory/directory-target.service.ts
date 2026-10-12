@@ -6,7 +6,7 @@ export type InstitutionalTarget = { organizationId: string; personId?: never } |
 export type TargetSummary = { kind: 'ORGANIZATION' | 'PERSON'; id: string; label: string; isActive: boolean };
 export class UnavailableDirectoryTarget extends Error {}
 
-/** Interfaz pública de lectura. No modifica fichas ni produce verificaciones. */
+/** Interfaz pública de lectura para las fichas del directorio. */
 @Injectable()
 export class DirectoryTargetService {
   constructor(private readonly actors: DirectoryActorPolicy) {}

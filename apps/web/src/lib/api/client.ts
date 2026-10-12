@@ -130,7 +130,7 @@ export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'cr
     if (response.status === 401 && (!/^\/?auth(?:\/|$)/.test(path))) {
       window.dispatchEvent(new Event('cecasem:unauthorized'));
     }
-    if (response.status === 409 && (path === 'settings/verification' || path === 'settings/reminders')) {
+    if (response.status === 409 && path === 'settings/reminders') {
       throw new ApiError('Los intervalos cambiaron. Recarga y revisa tu propuesta.', 409, 'VERSION_CONFLICT');
     }
     if (response.status === 409 && /^relationship-processes(?:\/|$)/.test(path)) {

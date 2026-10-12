@@ -9,10 +9,10 @@ import type { AuthIdentity } from '../auth/session';
 import { contactMethodSchema,contactCreateFormSchema,type ContactMethod,type ContactAssociation } from './contacts.contracts';
 const stamp='2026-10-02T00:00:00.000Z',methodId='11111111-1111-4111-8111-111111111111',otherId='22222222-2222-4222-8222-222222222222';
 const identity:AuthIdentity={id:'qa',givenNames:'QA',familyNames:'Contactos',username:'qa',email:'qa@example.test',role:'RESEARCH',permissions:['directory.read','directory.write','directory.history.read']};
-const person={id:'person',displayName:'Ana QA',givenNames:null,familyNames:null,isActive:true,version:1,createdAt:stamp,updatedAt:stamp,lastVerifiedAt:null,currentRelationsCount:0};
-const organization={id:'org-a',name:'Organización A',country:null,alias:null,description:null,officialWebsite:null,branchOfId:null,branchOf:null,categories:[],isActive:true,version:1,createdAt:stamp,updatedAt:stamp,lastVerifiedAt:null};
+const person={id:'person',displayName:'Ana QA',givenNames:null,familyNames:null,isActive:true,version:1,createdAt:stamp,updatedAt:stamp,currentRelationsCount:0};
+const organization={id:'org-a',name:'Organización A',country:null,alias:null,description:null,officialWebsite:null,branchOfId:null,branchOf:null,categories:[],isActive:true,version:1,createdAt:stamp,updatedAt:stamp,};
 const base:ContactMethod={id:methodId,type:'EMAIL',value:'contacto@fundacion.org',label:null,condition:'USABLE',version:1,createdAt:stamp,updatedAt:stamp,associationCount:0};
-const context={sourceDescription:'Sitio oficial',sourceUrl:null,notes:'Contexto original',isActive:true,version:1,createdAt:stamp,updatedAt:stamp,lastVerifiedAt:null};
+const context={sourceDescription:'Sitio oficial',sourceUrl:null,notes:'Contexto original',isActive:true,version:1,createdAt:stamp,updatedAt:stamp,};
 const page=(items:unknown[],total=items.length)=>({items,total,page:1,pageSize:25});
 describe('Medios canónicos y asociaciones en interfaz',()=>{
   let client=createQueryClient(),actor=identity,methods:ContactMethod[]=[],associations:ContactAssociation[]=[],listMode='ok',lookupMode='ok',conflicting=false,race=false,loggedOut=false;
@@ -27,7 +27,6 @@ describe('Medios canónicos y asociaciones en interfaz',()=>{
     fetchMock.mockImplementation((url,options)=>{
       const path=url.replace('/api/v1/',''),route=path.split('?')[0]!,query=new URLSearchParams(path.split('?')[1]),method=options?.method??'GET',body=options?.body?JSON.parse(String(options.body)) as Record<string,unknown>:{};
       if (url.includes('/duplicate-candidates?')) return Promise.resolve(Response.json({items:[],total:0,page:1,pageSize:25}));
-      if (route.endsWith('/verification')) return Promise.resolve(Response.json({objectType:'person',classification:'personal',intervalMonths:6,verificationStatus:'NEVER_VERIFIED',lastVerifiedAt:null,lastVerifiedBy:null,nextReviewAt:null,changedSinceVerification:false,timeReviewDue:false,version:1,contactValueVersion:null}));
       if(route==='auth/me')return Promise.resolve(Response.json(loggedOut?{}:actor,{status:loggedOut?401:200}));
       if(route==='auth/logout'){loggedOut=true;return Promise.resolve(new Response(null,{status:204}));}
       if(route==='people/person')return Promise.resolve(Response.json(person));

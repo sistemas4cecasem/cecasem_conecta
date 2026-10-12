@@ -19,7 +19,7 @@ const emailCommunication = z.object({ type: z.literal('COMMUNICATION'), id: z.uu
   direction: z.enum(['SENT', 'RECEIVED']), validity: z.enum(['VALID', 'INVALIDATED']), occurredAt: z.iso.datetime(),
   registeredBy: z.object({ id: z.uuid(), displayName: z.string(), isActive: z.boolean() }), process: processResult });
 const importedHistoryRecord = z.object({ type: z.literal('IMPORTED_HISTORICAL_RECORD'), id: z.uuid(), kind: z.enum(['SENT','RECEIVED','OTHER','UNKNOWN']),
-  occurredOn: z.string().nullable(), subject: z.string().nullable(), body: z.string().nullable(), originalObservation: z.string().nullable(), lastVerifiedAt: z.string().nullable(),
+  occurredOn: z.string().nullable(), subject: z.string().nullable(), body: z.string().nullable(), originalObservation: z.string().nullable(),
   batch: z.object({ id: z.uuid(), originalFilename: z.string(), createdAt: z.string() }),
   organization: z.object({ id: z.uuid(), name: z.string() }).nullable(), person: z.object({ id: z.uuid(), displayName: z.string() }).nullable() });
 export const searchResponseSchema = z.object({ query: z.string(), organizations: pageSchema(organizationResult), people: pageSchema(personResult),

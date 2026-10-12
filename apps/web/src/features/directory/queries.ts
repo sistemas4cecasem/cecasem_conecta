@@ -43,7 +43,7 @@ export function useDirectoryMutation(identity: AuthIdentity | null | undefined) 
 export async function clearForbiddenDirectory(client: QueryClient, identity: AuthIdentity | null): Promise<void> {
   const predicate = (query: { queryKey: readonly unknown[] }) => query.queryKey[0] === 'directory' &&
     (!identity || query.queryKey[1] !== identity.id || (['search', 'organizations'].includes(String(query.queryKey[2])) && (query.queryKey[4] !== identity.role || query.queryKey[5] !== searchPermissionKey(identity))) || !identity.permissions.includes(query.queryKey[2] === 'duplicate-preview' ? 'directory.duplicates.manage'
-      : ['history', 'verifications'].includes(String(query.queryKey[2])) ? 'directory.history.read' : 'directory.read'));
+      : String(query.queryKey[2]) === 'history' ? 'directory.history.read' : 'directory.read'));
   await client.cancelQueries({ predicate });
   client.removeQueries({ predicate });
 }

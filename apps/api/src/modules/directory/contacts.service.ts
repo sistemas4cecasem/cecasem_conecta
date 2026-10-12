@@ -20,7 +20,7 @@ export type ContactActor = { personId:string } | { organizationId:string };
 export type AssociationKind = 'person' | 'organization';
 const methodSelect = { id:true,type:true,value:true,label:true,condition:true,version:true,createdAt:true,updatedAt:true,
   _count:{select:{people:true,organizations:true}} } satisfies Prisma.ContactMethodSelect;
-const associationFields = {id:true,contactMethodId:true,sourceDescription:true,sourceUrl:true,notes:true,isActive:true,version:true,createdAt:true,updatedAt:true,lastVerifiedAt:true,
+const associationFields = {id:true,contactMethodId:true,sourceDescription:true,sourceUrl:true,notes:true,isActive:true,version:true,createdAt:true,updatedAt:true,
   contactMethod:{select:methodSelect}};
 const personSelect = {...associationFields,reconciliationTargets:personContactOrigins,personId:true,person:{select:{id:true,displayName:true,isActive:true,duplicateOfId:true}}} satisfies Prisma.PersonContactSelect;
 const organizationSelect = {...associationFields,reconciliationTargets:organizationContactOrigins,organizationId:true,organization:{select:{id:true,name:true,isActive:true,duplicateOfId:true}}} satisfies Prisma.OrganizationContactSelect;
@@ -129,7 +129,7 @@ export class ContactsService {
         const existing=await tx.contactMethod.findFirst({where:{type:ContactType.EMAIL,normalizedValue:fields.normalizedValue,id:{not:id}},select:{id:true}});
         if(existing)throw new DirectoryError('CONTACT_VALUE_EXISTS',{contactMethodId:existing.id});
       }
-      await tx.contactMethod.update({where:{id},data:{...fields,version:{increment:1},...(current.value!==fields.value?{valueVersion:{increment:1}}:{})}});
+      await tx.contactMethod.update({where:{id},data:{...fields,version:{increment:1}}});
       await this.record({contactMethodId:id},actorId,changes,AuditAction.CONTACT_METHOD_UPDATED,tx);
       return methodContract(await this.method(id,tx));
     });}catch(error) {

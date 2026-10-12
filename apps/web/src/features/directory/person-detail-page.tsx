@@ -1,5 +1,4 @@
 import { DuplicatePanel } from './duplicate-panel';
-import { VerificationPanel } from './verification-panel';
 import { useState } from 'react';
 import { useParams } from 'react-router';
 import { useSession } from '../auth/session';
@@ -31,7 +30,7 @@ export function PersonDetailPage() {
       metadata={<StatusBadge tone={row.isActive?'success':'neutral'}>{row.isActive?'Activa':'Inactiva'}</StatusBadge>}
       actions={<>{!row.duplicateOfId&&identity.permissions.includes('directory.write')&&<Button onClick={()=>setEditing(row)}>Editar persona</Button>}
       {!row.duplicateOfId&&identity.permissions.includes('directory.status.update')&&<Button variant="ghost" disabled={mutation.isPending} onClick={()=>{mutation.reset();setConfirmStatusChange(true);}}>{row.isActive?'Desactivar persona':'Reactivar persona'}</Button>}</>} />
-    {row.dataImportBatch&&<Alert role="status" tone="info">Dato importado desde Excel · pendiente de verificación · lote {row.dataImportBatch.id} · {row.dataImportBatch.originalFilename}</Alert>}
+    {row.dataImportBatch&&<Alert role="status" tone="info">Dato importado desde Excel · lote {row.dataImportBatch.id} · {row.dataImportBatch.originalFilename}</Alert>}
     {row.duplicateOf&&<Alert role="status" tone="warning">Este registro fue consolidado en: <Link className="underline" to={'/people/'+row.duplicateOf.id}>{row.duplicateOf.displayName}</Link>. Su historial permanece disponible.</Alert>}
     {!!row.consolidatedRecords?.length&&<p>Fichas consolidadas: {row.consolidatedRecords.map(item=><Link key={item.id} className="inline-flex min-h-11 items-center px-2 underline" to={'/people/'+item.id}>{item.displayName}</Link>)}</p>}
 
@@ -46,10 +45,8 @@ export function PersonDetailPage() {
       <Surface heading="Información personal" className="directory-detail-summary"><Metadata items={[
         {label:'Nombres',value:row.givenNames??'Sin dato'}, {label:'Apellidos',value:row.familyNames??'Sin dato'},
         {label:'Creación',value:<time dateTime={row.createdAt}>{dateLabel(row.createdAt)}</time>},
-        {label:'Modificación',value:<time dateTime={row.updatedAt}>{dateLabel(row.updatedAt)}</time>},
-        {label:'Última verificación',value:row.lastVerifiedAt?<time dateTime={row.lastVerifiedAt}>{dateLabel(row.lastVerifiedAt)}</time>:dateLabel(null)}
+        {label:'Modificación',value:<time dateTime={row.updatedAt}>{dateLabel(row.updatedAt)}</time>}
       ]}/></Surface>
-      <Surface className="directory-detail-verification"><VerificationPanel modern identity={identity} readOnly={!!row.duplicateOfId} path={'people/'+id} label={'persona '+row.displayName}/></Surface>
       <Surface className="directory-detail-contacts"><ContactSection key={'contacts-'+id} identity={identity} actorPath={'people/'+id} readOnly={!!row.duplicateOfId}/></Surface>
     </div>
     <Surface><PersonRelations key={id} identity={identity} personId={id} readOnly={!!row.duplicateOfId}/></Surface>

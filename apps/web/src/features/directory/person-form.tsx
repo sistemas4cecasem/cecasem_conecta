@@ -16,7 +16,7 @@ export function PersonForm({identity,initial,saved,cancel,reload}:{identity:Auth
     <Field label="Nombre de presentación" error={form.formState.errors.displayName?.message}><input className={inputClass} {...form.register('displayName')} maxLength={250}/></Field>
     <Field label="Nombres (opcional)" error={form.formState.errors.givenNames?.message}><input className={inputClass} {...form.register('givenNames')} maxLength={150}/></Field>
     <Field label="Apellidos (opcional)" error={form.formState.errors.familyNames?.message}><input className={inputClass} {...form.register('familyNames')} maxLength={150}/></Field>
-    <p>No requiere organización. Guardar no verifica la información.</p>
+    <p>No requiere organización.</p>
     <MutationError error={mutation.error} reload={reload?async()=>{const row=await reload();if(row){form.reset(values(row));setVersion(row.version);mutation.reset();}}:undefined}/>
     <div className="flex flex-wrap gap-3"><button className={buttonClass} disabled={mutation.isPending}>{mutation.isPending?'Guardando…':'Guardar persona'}</button>
       <button type="button" className={buttonClass} onClick={cancel} disabled={mutation.isPending}>Cancelar</button></div>

@@ -2,7 +2,6 @@ import { ReminderSettingsPage } from '../../features/settings/reminder-settings-
 import { MeetingsPage, MeetingCreatePage, MeetingDetailPage } from '../../features/meetings/meetings-pages';
 import { OpportunitiesPage, OpportunityCreatePage, OpportunityDetailPage } from '../../features/opportunities/opportunities-pages';
 import { NotificationsPage } from '../../features/notifications/notifications-page';
-import { VerificationSettingsPage } from '../../features/settings/verification-settings-page';
 import { lazy, Suspense } from 'react';
 import { Route, Routes } from 'react-router';
 import { HomePage } from '../../features/home/home-page';
@@ -57,7 +56,6 @@ export function AppRoutes() {
         <Route path="opportunities/:id" element={<OpportunityDetailPage />} />
         <Route index element={<HomePage />} />
         <Route path="settings/reminders" element={<ReminderSettingsPage />} />
-        <Route path="settings/verification" element={<VerificationSettingsPage />} />
         <Route path="admin/imports" element={<ImportsPage />} />
         <Route path="admin/exports" element={<Suspense fallback={<p role="status">Cargando exportación…</p>}><ExportsPage /></Suspense>} />
         <Route path="users" element={<UsersPage />} />

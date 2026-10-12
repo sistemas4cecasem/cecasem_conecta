@@ -15,7 +15,7 @@ import type { CategoryInputDto, CategoryEditDto, DirectoryQueryDto, DirectorySta
 const categorySelect = { id: true, name: true, isActive: true, version: true, createdAt: true, updatedAt: true } satisfies Prisma.CategorySelect;
 const organizationSelect = {
   id: true, name: true, country: true, alias: true, description: true, officialWebsite: true, isActive: true,
-  duplicateOfId: true, duplicateOf: { select: { id: true, name: true } }, consolidatedRecords: { select: { id: true, name: true } }, version: true, branchOfId: true, createdAt: true, updatedAt: true, lastVerifiedAt: true,
+  duplicateOfId: true, duplicateOf: { select: { id: true, name: true } }, consolidatedRecords: { select: { id: true, name: true } }, version: true, branchOfId: true, createdAt: true, updatedAt: true,
   dataImportBatchId: true, dataImportBatch: { select: { id: true, originalFilename: true, createdAt: true } },
   branchOf: { select: { id: true, name: true, isActive: true } },
   categories: { select: { category: { select: categorySelect } }, orderBy: { categoryId: 'asc' } },
@@ -47,7 +47,7 @@ export class DirectoryService {
   async getOrganization(id: string) { return organizationContract(await this.organization(id)); }
 
   async listOrganizations(query: OrganizationQueryDto, actorId?: string) {
-    if (query.country !== undefined || query.verificationStatus !== undefined || query.withCommunications !== undefined) {
+    if (query.country !== undefined || query.withCommunications !== undefined) {
       return this.prisma.$transaction(async tx => {
         const filter = await this.filters.predicate(query, tx, actorId);
         const [result] = await tx.$queryRaw<{ ids: string[]; total: number }[]>(Prisma.sql`

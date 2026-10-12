@@ -40,8 +40,6 @@ export const PERMISSIONS = {
   INTENT_CONVERT: 'relationships.intent.convert',
   DIRECTORY_DUPLICATES_DISMISS: 'directory.duplicates.dismiss',
   DIRECTORY_DUPLICATES_MANAGE: 'directory.duplicates.manage',
-  DIRECTORY_VERIFY: 'directory.verify',
-  SETTINGS_VERIFICATION_UPDATE: 'settings.verification.update',
   DIRECTORY_READ: 'directory.read',
   DIRECTORY_WRITE: 'directory.write',
   DIRECTORY_HISTORY_READ: 'directory.history.read',

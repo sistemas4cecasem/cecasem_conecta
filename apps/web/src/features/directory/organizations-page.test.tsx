@@ -11,7 +11,7 @@ import type { Organization } from './contracts';
 const stamp = '2026-10-07T00:00:00Z';
 const category = { id: '11111111-1111-4111-8111-111111111111', name: 'Educación', isActive: true, version: 1, createdAt: stamp, updatedAt: stamp };
 const organization = { id: 'org-ui23', name: 'Organización institucional', country: 'Bolivia', alias: null, description: null, officialWebsite: null,
-  isActive: true, branchOfId: 'branch-owner', branchOf: { id: 'branch-owner', name: 'Organización regional', isActive: true }, categories: [category], version: 1, createdAt: stamp, updatedAt: stamp, lastVerifiedAt: null };
+  isActive: true, branchOfId: 'branch-owner', branchOf: { id: 'branch-owner', name: 'Organización regional', isActive: true }, categories: [category], version: 1, createdAt: stamp, updatedAt: stamp, };
 const baseIdentity: AuthIdentity = { id: 'ui23', givenNames: 'QA', familyNames: 'Directorio', username: 'ui23', email: 'qa@example.test', role: 'ADMINISTRATOR',
   permissions: ['directory.read', 'directory.write', 'relationships.process.read', 'communications.read'] };
 function Location() { return <output aria-label="URL actual">{useLocation().search}</output>; }

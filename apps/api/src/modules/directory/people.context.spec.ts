@@ -9,21 +9,21 @@ import type { UsersService } from '../users/users.service';
 import type { Prisma } from '../../generated/prisma/client';
 
 type FakePerson = {id:string;displayName:string;givenNames:string|null;familyNames:string|null;isActive:boolean;version:number;duplicateOfId:string|null;
-  createdAt:Date;updatedAt:Date;lastVerifiedAt:Date|null};
+  createdAt:Date;updatedAt:Date};
 type FakeOrganization = {id:string;name:string;isActive:boolean;duplicateOfId:string|null};
 type FakeEpisode = {id:string;personId:string;organizationId:string;positionTitle:string|null;area:string|null;isCurrent:boolean;startDate:Date|null;endDate:Date|null;
-  sourceDescription:string|null;sourceUrl:string|null;notes:string|null;version:number;createdAt:Date;updatedAt:Date;lastVerifiedAt:Date|null;
+  sourceDescription:string|null;sourceUrl:string|null;notes:string|null;version:number;createdAt:Date;updatedAt:Date;
   reconciliationTargets:never[];person:{id:string;displayName:string;isActive:boolean;duplicateOfId:string|null};organization:{id:string;name:string;isActive:boolean;duplicateOfId:string|null}};
 type FakeState = {people:FakePerson[];organizations:FakeOrganization[];episodes:FakeEpisode[]};
 const stamp=new Date('2026-10-09T12:00:00.000Z');
-function newPerson(id:string,displayName:string):FakePerson {return {id,displayName,givenNames:null,familyNames:null,isActive:true,version:1,duplicateOfId:null,createdAt:stamp,updatedAt:stamp,lastVerifiedAt:null};}
+function newPerson(id:string,displayName:string):FakePerson {return {id,displayName,givenNames:null,familyNames:null,isActive:true,version:1,duplicateOfId:null,createdAt:stamp,updatedAt:stamp};}
 function projection(person:FakePerson,state:FakeState) {return {...person,duplicateOf:null,consolidatedRecords:[],dataImportBatchId:null,dataImportBatch:null,
   relations:state.episodes.filter(row=>row.personId===person.id&&!row.isCurrent).slice(0,1).map(row=>({id:row.id})),
   _count:{relations:state.episodes.filter(row=>row.personId===person.id&&row.isCurrent).length}};}
 function episode(data:Record<string,unknown>,state:FakeState):FakeEpisode {
   const person=state.people.find(row=>row.id===data.personId)!;
   const organization=state.organizations.find(row=>row.id===data.organizationId)!;
-  return {...data,id:randomUUID(),version:1,createdAt:stamp,updatedAt:stamp,lastVerifiedAt:null,reconciliationTargets:[],
+  return {...data,id:randomUUID(),version:1,createdAt:stamp,updatedAt:stamp,reconciliationTargets:[],
     person:{id:person.id,displayName:person.displayName,isActive:person.isActive,duplicateOfId:person.duplicateOfId},
     organization:{id:organization.id,name:organization.name,isActive:organization.isActive,duplicateOfId:organization.duplicateOfId}} as FakeEpisode;
 }
@@ -65,14 +65,14 @@ describe('Alta contextual de persona y clasificación institucional',()=>{
       personMode:'new',person:{displayName:'Ana contextual',givenNames:'Ana',familyNames:'Pérez'},positionTitle:'Coordinadora',area:'Cooperación',isCurrent:true,
     },'actor');
     expect(fixture.state.people).toHaveLength(1);expect(fixture.state.episodes).toHaveLength(1);
-    expect(result.person).toMatchObject({id:fixture.state.people[0].id,displayName:'Ana contextual',currentRelationsCount:1,institutionalStatus:'CURRENT',lastVerifiedAt:null});
+    expect(result.person).toMatchObject({id:fixture.state.people[0].id,displayName:'Ana contextual',currentRelationsCount:1,institutionalStatus:'CURRENT'});
     expect(result.relation).toMatchObject({personId:result.person.id,organizationId:'org-a',positionTitle:'Coordinadora',area:'Cooperación',isCurrent:true});
     expect(fixture.history.record.mock.calls).toHaveLength(2);
   });
   it('reutiliza la identidad existente y conserva sus episodios históricos',async()=>{
     const person=newPerson('person-existing','Persona previamente independiente');
     const old:FakeEpisode={id:'episode-old',personId:person.id,organizationId:'org-a',positionTitle:'Asesora',area:null,isCurrent:false,startDate:null,endDate:null,
-      sourceDescription:null,sourceUrl:null,notes:null,version:1,createdAt:stamp,updatedAt:stamp,lastVerifiedAt:null,reconciliationTargets:[],
+      sourceDescription:null,sourceUrl:null,notes:null,version:1,createdAt:stamp,updatedAt:stamp,reconciliationTargets:[],
       person:{id:person.id,displayName:person.displayName,isActive:true,duplicateOfId:null},organization:{id:'org-a',name:'Organización A',isActive:true,duplicateOfId:null}};
     const fixture=contextFixture({people:[person],episodes:[old]});
     const result=await fixture.service.createInOrganization('org-b',{personMode:'existing',personId:person.id,positionTitle:'Directora',isCurrent:true},'actor');
@@ -84,7 +84,7 @@ describe('Alta contextual de persona y clasificación institucional',()=>{
   it('rechaza una persona inactiva bajo bloqueo y conserva ficha, episodios e historial',async()=>{
     const person=newPerson('person-inactive','Persona inactiva');person.isActive=false;
     const old:FakeEpisode={id:'episode-old',personId:person.id,organizationId:'org-a',positionTitle:'Asesora',area:null,isCurrent:false,startDate:null,endDate:null,
-      sourceDescription:null,sourceUrl:null,notes:null,version:1,createdAt:stamp,updatedAt:stamp,lastVerifiedAt:null,reconciliationTargets:[],
+      sourceDescription:null,sourceUrl:null,notes:null,version:1,createdAt:stamp,updatedAt:stamp,reconciliationTargets:[],
       person:{id:person.id,displayName:person.displayName,isActive:false,duplicateOfId:null},organization:{id:'org-a',name:'Organización A',isActive:true,duplicateOfId:null}};
     const fixture=contextFixture({people:[person],episodes:[old]});
     await expect(fixture.service.createInOrganization('org-b',{personMode:'existing',personId:person.id,positionTitle:'Directora',isCurrent:true},'actor'))

@@ -20,7 +20,7 @@ if (!new URL(databaseUrl).pathname.endsWith('_test')) throw new Error('Dashboard
 describe('5.3 dashboard PostgreSQL/HTTP', () => {
   let app: INestApplication<Server>, prisma: PrismaService, users: UsersService, passwordHash: string;
   const userIds: string[] = [], organizationIds: string[] = [], processIds: string[] = [], opportunityIds: string[] = [], meetingIds: string[] = [], reminderIds: string[] = [], intentIds: string[] = [];
-  const password = randomBytes(24).toString('base64url');
+  const password = `Dash!a${randomBytes(24).toString('base64url')}`;
   const actors = new Map<UserRole, { id: string; cookie: string }>();
 
   beforeAll(async () => {
@@ -50,7 +50,6 @@ describe('5.3 dashboard PostgreSQL/HTTP', () => {
         prisma.processParticipant.deleteMany({ where: { processId: { in: processIds } } }),
         prisma.relationshipProcessEvent.deleteMany({ where: { processId: { in: processIds } } }),
         prisma.relationshipProcess.deleteMany({ where: { id: { in: processIds } } }),
-        prisma.verification.deleteMany({ where: { organizationId: { in: organizationIds } } }),
         prisma.organization.deleteMany({ where: { id: { in: organizationIds } } }),
         prisma.userSession.deleteMany({ where: { userId: { in: userIds } } }),
         prisma.userEmailAccount.deleteMany({ where: { userId: { in: userIds } } }),
@@ -68,11 +67,9 @@ describe('5.3 dashboard PostgreSQL/HTTP', () => {
     opportunityIds.push(row.id); return row;
   }
 
-  it('separa vistas por rol y refleja conteos, detalle acotado, cancelación, deadline y verificación sobre PostgreSQL', async () => {
+  it('separa vistas por rol y refleja conteos, detalle acotado, cancelación y plazos sobre PostgreSQL', async () => {
     await request(app.getHttpServer()).get('/api/v1/dashboard').expect(401);
     const board = actors.get(UserRole.BOARD)!, admin = actors.get(UserRole.ADMINISTRATOR)!, research = actors.get(UserRole.RESEARCH)!, planning = actors.get(UserRole.PLANNING)!;
-    const reviewed = await organization('QA53 revisión pendiente'), never = await organization('QA53 nunca verificada');
-    await prisma.verification.create({ data: { organizationId: reviewed.id, actorUserId: board.id, verifiedAt: new Date('2024-01-01T00:00:00Z'), objectVersion: 1 } });
     const target = await organization('QA53 relación institucional');
     const oldActivity = new Date(Date.now() - 10 * 86_400_000);
     const process = await prisma.relationshipProcess.create({ data: { purpose: 'QA53 continuidad institucional', organizationId: target.id, createdByUserId: board.id, state: 'WAITING_RESPONSE', createdAt: oldActivity, updatedAt: oldActivity, lastActivityAt: oldActivity } });
@@ -94,8 +91,9 @@ describe('5.3 dashboard PostgreSQL/HTTP', () => {
     const institutional = await request(app.getHttpServer()).get('/api/v1/dashboard').set('Cookie', board.cookie).expect(200);
     expect(institutional.headers['cache-control']).toBe('no-store');
     expect(institutional.body).toMatchObject({ view: 'institutional', activeProcesses: 2, waitingResponseProcesses: 1,
-      opportunities: { pendingReview: 1, submitted: 1, finished: 1 }, pendingApplications: 1, organizationsReviewDue: 1, organizationsNeverVerified: 2,
+      opportunities: { pendingReview: 1, submitted: 1, finished: 1 }, pendingApplications: 1,
       upcomingMeetingCount: 1, upcomingMeetings: [{ id: future.id, processId: null, opportunityId: pending.id }] });
+    expect(institutional.body).not.toHaveProperty('organizationsReviewDue'); expect(institutional.body).not.toHaveProperty('organizationsNeverVerified');
     expect(JSON.stringify(institutional.body)).not.toContain('QA53 cancelada'); expect(JSON.stringify(institutional.body)).not.toContain('QA53 pasada');
     const adminView = await request(app.getHttpServer()).get('/api/v1/dashboard').set('Cookie', admin.cookie).expect(200);
     const adminBody = adminView.body as DashboardResponseDto;
@@ -104,7 +102,6 @@ describe('5.3 dashboard PostgreSQL/HTTP', () => {
     const operationsBody = operations.body as DashboardResponseDto;
     expect(operationsBody).toMatchObject({ view: 'research', activeProcesses: 1, activeIntents: 1, unreadReminders: 1,
       relevantProcesses: [{ id: process.id }], relevantIntents: [{ id: intent.id }], reminderItems: [{ id: reminderNotification.id, processId: process.id }] });
-    expect(JSON.stringify(operations.body)).not.toContain(reviewed.name);
     const planningView = await request(app.getHttpServer()).get('/api/v1/dashboard').set('Cookie', planning.cookie).expect(200);
     const planningBody = planningView.body as DashboardResponseDto;
     expect(planningBody).toMatchObject({ view: 'planning', opportunities: { pendingReview: 1, submitted: 1, finished: 1 }, deadlinesInNext30Days: 1,
@@ -113,6 +110,5 @@ describe('5.3 dashboard PostgreSQL/HTTP', () => {
     await request(app.getHttpServer()).post(`/api/v1/users/${research.id}/deactivate`).set('Cookie', admin.cookie).expect(204);
     await request(app.getHttpServer()).get('/api/v1/dashboard').set('Cookie', research.cookie).expect(401);
     await request(app.getHttpServer()).post(`/api/v1/users/${research.id}/reactivate`).set('Cookie', admin.cookie).expect(204);
-    expect(never.isActive).toBe(true);
   });
 });

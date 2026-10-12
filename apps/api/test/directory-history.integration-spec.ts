@@ -28,7 +28,7 @@ const prefixes = ['organizations', 'categories', 'people', 'person-organization-
 describe('Historial de fichas PostgreSQL y HTTP', () => {
   let app: INestApplication<Server>, prisma: PrismaService, users: UsersService, directory: DirectoryService, people: PeopleService,
     contacts: ContactsService, history: DirectoryHistoryService, passwordHash: string;
-  const password = randomBytes(24).toString('base64url');
+  const password = `Hist!a${randomBytes(24).toString('base64url')}`;
   const userIds: string[] = [], organizationIds: string[] = [], personIds: string[] = [], categoryIds: string[] = [], methodIds: string[] = [];
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(ConfigService)

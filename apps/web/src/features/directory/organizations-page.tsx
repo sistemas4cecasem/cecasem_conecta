@@ -12,7 +12,6 @@ import { useOrganizations } from './queries';
 import { OrganizationFilters } from './organization-filters';
 import { OrganizationForm } from './organization-form';
 import { organizationFilterKeys } from './organization-filter.contracts';
-import { verificationLabels } from './verification.contracts';
 import './organizations.css';
 import './organization-presentation.css';
 
@@ -29,9 +28,6 @@ function selectedOrganizationFilters(params: URLSearchParams) {
 
   const status = params.get('status')?.trim();
   if (status && status !== 'all') selected.push({ key: 'status', label: `Estado: ${statusLabels[status] ?? status}` });
-
-  const verification = params.get('verificationStatus')?.trim();
-  if (verification) selected.push({ key: 'verificationStatus', label: `Verificación: ${verificationLabels[verification as keyof typeof verificationLabels] ?? verification}` });
 
   const communications = params.get('withCommunications')?.trim();
   if (communications) selected.push({ key: 'withCommunications', label: communications === 'true' ? 'Con comunicaciones históricas' : communications === 'false' ? 'Sin comunicaciones históricas' : `Comunicaciones: ${communications}` });
@@ -57,7 +53,12 @@ function OrganizationsList({ identity }: { identity: AuthIdentity }) {
   const requestedPage = Number(params.get('page') ?? '1');
   const page = Number.isInteger(requestedPage) && requestedPage > 0 && requestedPage <= 1000000 ? requestedPage : 1;
   const name = params.get('name') ?? '';
-  const query = new URLSearchParams(params); query.set('page', String(page));
+  const query = new URLSearchParams();
+  for (const key of ['name', 'status', 'country', 'branchOfId', 'categoryId', 'withCommunications', 'pageSize']) {
+    const value = params.get(key);
+    if (value !== null) query.set(key, value);
+  }
+  query.set('page', String(page));
   if (!query.get('status')) query.set('status', 'all');
   const list = useOrganizations(identity, 'organizations?' + query);
   const selectedFilters = selectedOrganizationFilters(params);
@@ -71,6 +72,7 @@ function OrganizationsList({ identity }: { identity: AuthIdentity }) {
 
   function change(values: Record<string, string>) {
     const next = new URLSearchParams(params);
+    next.delete('verificationStatus');
     for (const [key, value] of Object.entries(values)) { if (value.trim()) next.set(key, value); else next.delete(key); }
     setParams(next);
   }
@@ -78,6 +80,7 @@ function OrganizationsList({ identity }: { identity: AuthIdentity }) {
   function clearFilters() {
     const next = new URLSearchParams(params);
     for (const key of organizationFilterKeys) next.delete(key);
+    next.delete('verificationStatus');
     next.set('page', '1');
     setParams(next);
   }

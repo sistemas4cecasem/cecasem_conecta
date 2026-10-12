@@ -14,10 +14,8 @@ import type { ConsolidateDto } from './duplicates.dto';
 
 const labelSelect = { id: true, name: true, duplicateOfId: true } as const;
 const personLabelSelect = { id: true, displayName: true, duplicateOfId: true } as const;
-const contactInclude = { contactMethod: { select: { id: true, type: true, value: true, condition: true, version: true, valueVersion: true } } } as const;
+const contactInclude = { contactMethod: { select: { id: true, type: true, value: true, condition: true, version: true } } } as const;
 const relationInclude = { person: { select: personLabelSelect }, organization: { select: labelSelect } } as const;
-const actorVerification = { orderBy: [{ verifiedAt: 'desc' as const }, { id: 'desc' as const }], take: 1,
-  select: { id: true, verifiedAt: true, objectVersion: true, actor: { select: { id: true, givenNames: true, familyNames: true } } } };
 type ContactRow = Prisma.PersonContactGetPayload<{ include: typeof contactInclude }> | Prisma.OrganizationContactGetPayload<{ include: typeof contactInclude }>;
 type RelationRow = Prisma.PersonOrganizationRelationGetPayload<{ include: typeof relationInclude }>;
 const contextFields = ['sourceDescription', 'sourceUrl', 'notes'] as const;
@@ -42,14 +40,13 @@ export class ConsolidationService {
         consolidatedRecords: { select: labelSelect, orderBy: { id: 'asc' } },
         categories: { include: { category: { select: { id: true, name: true, isActive: true } } }, orderBy: { categoryId: 'asc' } },
         contacts: { include: contactInclude, orderBy: { id: 'asc' } },
-        personRelations: { include: relationInclude, orderBy: { id: 'asc' } }, verifications: actorVerification,
+        personRelations: { include: relationInclude, orderBy: { id: 'asc' } },
       } });
       return { ...row, kind, label: row.name, relations: row.personRelations };
     }
     const row = await tx.person.findUniqueOrThrow({ where: { id }, include: {
       consolidatedRecords: { select: personLabelSelect, orderBy: { id: 'asc' } },
       contacts: { include: contactInclude, orderBy: { id: 'asc' } }, relations: { include: relationInclude, orderBy: { id: 'asc' } },
-      verifications: actorVerification,
     } });
     return { ...row, kind, label: row.displayName };
   }
@@ -93,17 +90,15 @@ export class ConsolidationService {
     });
     const categories = principal.kind === 'organization' && duplicate.kind === 'organization'
       ? duplicate.categories.filter(item => !principal.categories.some(kept => kept.categoryId === item.categoryId)).map(item => item.category) : [];
-    const verificationSettings = await tx.verificationSettings.findUniqueOrThrow({ where: { id: 1 } });
     const previewToken = createHash('sha256').update(JSON.stringify({ candidateVersion: row.version, principal, duplicate, contacts, relations, categories,
-      verificationSettings })).digest('hex');
+    })).digest('hex');
     return { candidate: candidateContract(row), principal, duplicate, contacts, relations, categories,
-      blockers: [...new Set(blockers)], previewToken, verificationSettings,
-      effects: ['Se conservan ambas fichas, sus referencias, fuentes, historial y verificaciones.',
+      blockers: [...new Set(blockers)], previewToken,
+      effects: ['Se conservan ambas fichas, sus referencias, fuentes e historial.',
         'Se mantienen los campos del principal y se añaden las categorías ausentes.',
         'Los contactos activos se añaden o reutilizan; los existentes inactivos se reactivan con confirmación.',
         'Los conflictos conservan el contexto del principal y la evidencia original en la ficha consolidada.',
         'Los vínculos vigentes se representan explícitamente en el principal; los episodios originales permanecen intactos.',
-        'Las asociaciones y vínculos añadidos no heredan verificaciones. El principal requiere nueva revisión.',
         'La ficha consolidada queda disponible para consulta histórica y bloqueada para escrituras ordinarias.'] };
   }
   preview(id: string, principalId: string, actorId: string) {
@@ -129,7 +124,7 @@ export class ConsolidationService {
         const targetRef: DirectoryTarget = kind === 'person' ? { personContactId: target.id } : { organizationContactId: target.id };
         const operationId = await this.history.record(targetRef, actorId, changed, tx);
         await this.audit.recordDirectory(AuditAction.CONTACT_ASSOCIATION_CREATED, targetRef, actorId, operationId, tx);
-        // La versión técnica protege las correcciones compartidas; el valor y su verificación no cambian.
+        // La versión técnica protege las correcciones compartidas del medio canónico.
         await tx.contactMethod.update({ where: { id: source.contactMethodId }, data: { version: { increment: 1 } } });
       } else if (!target.isActive) {
         target = kind === 'person' ? await tx.personContact.update({ where: { id: target.id }, data: { isActive: true, version: { increment: 1 } }, include: contactInclude })

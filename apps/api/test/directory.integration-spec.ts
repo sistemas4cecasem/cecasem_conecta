@@ -27,7 +27,7 @@ function barrier() {
 describe('Directorio PostgreSQL y HTTP', () => {
   let app: INestApplication<Server>; let prisma: PrismaService; let users: UsersService; let directory: DirectoryService;
   let history: DirectoryHistoryService; let audit: AuditService; let passwordHash: string;
-  const password = randomBytes(24).toString('base64url');
+  const password = `Dir!a${randomBytes(24).toString('base64url')}`;
   const userIds: string[] = []; const organizationIds: string[] = []; const categoryIds: string[] = [];
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(ConfigService)
@@ -166,14 +166,16 @@ describe('Directorio PostgreSQL y HTTP', () => {
     const actor = await fixture(role); const auth = await cookie(actor);
     const created = await request(app.getHttpServer()).post('/api/v1/organizations').set('Cookie', auth).send({ name: '  Fundación   Inicial  ' }).expect(201);
     const org = created.body as { id: string; version: number }; organizationIds.push(org.id);
-    expect(created.body).toMatchObject({ name: 'Fundación Inicial', country: null, lastVerifiedAt: null, categories: [], version: 1 });
+    expect(created.body).toMatchObject({ name: 'Fundación Inicial', country: null, categories: [], version: 1 });
+    expect(created.body).not.toHaveProperty('lastVerifiedAt');
     expect(created.body).not.toHaveProperty('normalizedName');
     const cat = await request(app.getHttpServer()).post('/api/v1/categories').set('Cookie', auth).send({ name: ' Salud  Pública ' }).expect(201);
     const catRow = cat.body as { id: string }; categoryIds.push(catRow.id);
     await request(app.getHttpServer()).put('/api/v1/categories/' + catRow.id).set('Cookie', auth).send({ name: 'Salud Institucional', expectedVersion: 1 }).expect(200);
     const edited = await request(app.getHttpServer()).put('/api/v1/organizations/' + org.id).set('Cookie', auth)
       .send({ name: 'Fundación Inicial', expectedVersion: 1, country: '  Bolivia  ', categoryIds: [catRow.id] }).expect(200);
-    expect(edited.body).toMatchObject({ version: 2, country: 'Bolivia', lastVerifiedAt: null });
+    expect(edited.body).toMatchObject({ version: 2, country: 'Bolivia' });
+    expect(edited.body).not.toHaveProperty('lastVerifiedAt');
     for (const path of ['organizations', 'organizations/' + org.id, 'organizations/' + org.id + '/branches', 'organizations/' + org.id + '/history',
       'categories', 'categories/' + catRow.id + '/history']) await request(app.getHttpServer()).get('/api/v1/' + path).set('Cookie', auth).expect(200);
     for (const [path, version] of [['organizations/' + org.id, 2], ['categories/' + catRow.id, 2]] as const) {
@@ -226,7 +228,7 @@ describe('Directorio PostgreSQL y HTTP', () => {
   it('edición agrupa valores tipados, autor y auditoría; no modifica verificación ni creación', async () => {
     const actor = await fixture(); const row = await organization(actor.id);
     const edited = await directory.editOrganization(row.id, { name: 'Nuevo nombre', country: 'Bolivia', description: 'Descripción', expectedVersion: 1 }, actor.id);
-    expect(edited.lastVerifiedAt).toBeNull(); expect(edited.createdAt).toEqual(row.createdAt); expect(edited.version).toBe(2);
+    expect(edited.createdAt).toEqual(row.createdAt); expect(edited.version).toBe(2); expect(edited).not.toHaveProperty('lastVerifiedAt');
     const entries = await prisma.directoryChange.findMany({ where: { organizationId: row.id } });
     expect(entries).toHaveLength(3); expect(new Set(entries.map(e => e.operationId)).size).toBe(1);
     expect(entries.find(e => e.field === 'description')).toMatchObject({ previousValue: null, newValue: 'Descripción', actorUserId: actor.id });

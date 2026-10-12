@@ -15,13 +15,13 @@ import type { ConsolidationPreview, DuplicateCandidate } from './duplicates.cont
 const aId = '11111111-1111-4111-8111-111111111111', bId = '22222222-2222-4222-8222-222222222222', id = '33333333-3333-4333-8333-333333333333';
 const stamp = '2026-10-02T12:00:00.000Z';
 const reader: AuthIdentity = { id: 'reader', givenNames: 'Autora', familyNames: 'QA', username: 'reader', email: 'reader@example.test', role: 'RESEARCH',
-  permissions: ['directory.read', 'directory.write', 'directory.history.read', 'directory.verify', 'directory.duplicates.dismiss'] };
+  permissions: ['directory.read', 'directory.write', 'directory.history.read', 'directory.duplicates.dismiss'] };
 const actor = { id: aId, name: 'Fundación Esperanza', alias: null, country: 'Bolivia', branchOfId: null, branchOf: null, version: 1, duplicateOfId: null,
-  isActive: true, lastVerifiedAt: null };
+  isActive: true, };
 const candidate: DuplicateCandidate = { id, kind: 'organization', a: actor, b: { ...actor, id: bId, name: 'Fundacion Esperanza' }, score: 1,
   signals: ['SIMILAR_ORGANIZATION_NAMES', 'REVIEW_BRANCH_CONTEXT'], state: 'PENDING', version: 1, examinedVersionA: 1, examinedVersionB: 1,
   detectedAt: stamp, stale: false, resolvedAt: null, resolvedBy: null, principalId: null };
-const previewActor = { ...actor, label: actor.name, officialWebsite: 'https://example.test', branches: [], categories: [], contacts: [], relations: [], verifications: [] };
+const previewActor = { ...actor, label: actor.name, officialWebsite: 'https://example.test', branches: [], categories: [], contacts: [], relations: [] };
 describe('Revisión humana de candidatos y consolidación', () => {
   let client = createQueryClient(), identity = reader, candidates: DuplicateCandidate[] = [], mode = 'ok', principal = '', loggedOut = false;
   let preview: ConsolidationPreview;
@@ -29,7 +29,7 @@ describe('Revisión humana de candidatos y consolidación', () => {
   beforeEach(() => {
     client = createQueryClient(); identity = { ...reader }; candidates = [{ ...candidate }]; mode = 'ok'; principal = ''; loggedOut = false;
     preview = { candidate, principal: previewActor, duplicate: { ...previewActor, id: bId, name: candidate.b.name, label: candidate.b.name! },
-      previewToken: 'a'.repeat(64), blockers: [], effects: ['Se conservan fichas, fuentes, historial y verificaciones.'], contacts: [], relations: [], categories: [] };
+      previewToken: 'a'.repeat(64), blockers: [], effects: ['Se conservan fichas, fuentes e historial.'], contacts: [], relations: [], categories: [] };
     fetchMock.mockReset(); fetchMock.mockImplementation((url) => {
       const path = url.replace('/api/v1/', ''), route = path.split('?')[0];
       if (route === 'auth/me') return Promise.resolve(Response.json(loggedOut ? {} : identity, { status: loggedOut ? 401 : 200 }));
@@ -59,10 +59,7 @@ describe('Revisión humana de candidatos y consolidación', () => {
       }
       if (route === 'organizations/' + bId) return Promise.resolve(Response.json({ ...candidate.b, description: null, officialWebsite: null,
         createdAt: stamp, updatedAt: stamp, categories: [], duplicateOfId: aId, duplicateOf: { id: aId, name: actor.name }, consolidatedRecords: [] }));
-      if (route?.endsWith('/verification')) return Promise.resolve(Response.json({ objectType: 'organization', classification: 'institutional', intervalMonths: 12,
-        verificationStatus: 'NEVER_VERIFIED', lastVerifiedAt: null, lastVerifiedBy: null, nextReviewAt: null, changedSinceVerification: false,
-        timeReviewDue: false, version: 2, contactValueVersion: null }));
-      if (/\/(history|verifications|children|contacts|people)$/.test(route ?? '')) return Promise.resolve(Response.json({ items: [], total: 0, page: 1, pageSize: 25 }));
+      if (/\/(history|children|contacts|people)$/.test(route ?? '')) return Promise.resolve(Response.json({ items: [], total: 0, page: 1, pageSize: 25 }));
       return Promise.resolve(new Response(null, { status: 404 }));
     }); vi.stubGlobal('fetch', fetchMock);
   });
@@ -92,11 +89,10 @@ describe('Revisión humana de candidatos y consolidación', () => {
     expect(screen.getByRole('link',{name:'María Fernanda Pérez'})).toHaveAttribute('href','/people/'+aId);
     expect(screen.getByText(/Iniciales compatibles/)).toBeInTheDocument();
   });
-  it('la procedencia operativa enlaza evidencia original sin copiar su verificación', () => {
+  it('la procedencia operativa enlaza evidencia original', () => {
     render(<MemoryRouter><ConsolidationProvenance origins={[{source:{id:'source',path:'organizations/'+bId,label:'Fundacion Esperanza'},
       outcome:'CREATED',sourceVersion:1,targetVersion:1,resolvedAt:stamp,resolvedBy:{id:'admin',givenNames:'Ana',familyNames:'QA',isActive:true}}]}/></MemoryRouter>);
     expect(screen.getByRole('link',{name:/Consultar evidencia original:/})).toHaveAttribute('href','/organizations/'+bId);
-    expect(screen.getByText(/verificaciones originales permanecen/)).toBeInTheDocument();
   });
   it('historial de consolidación identifica fichas y principal sin confundirlo con sustitución de correo', async () => {
     fetchMock.mockResolvedValue(Response.json({ page: 1, pageSize: 25, total: 1, items: [{ operationId: id, objectType: 'ORGANIZATION',
@@ -183,7 +179,7 @@ describe('Revisión humana de candidatos y consolidación', () => {
   });
   it.each([true, false])('preview conserva fechas civiles y fin desconocido del episodio vigente=%s', async isCurrent => {
     preview.duplicate.relations = [{ id: 'episode', isCurrent, positionTitle: 'Coordinadora', area: null,
-      startDate: '2020-01-01T00:00:00.000Z', endDate: null, lastVerifiedAt: null,
+      startDate: '2020-01-01T00:00:00.000Z', endDate: null,
       sourceDescription: 'Evidencia original', sourceUrl: null, notes: null,
       person: { id: 'person', displayName: 'María' }, organization: { id: bId, name: 'Fundación' } }];
     await adminPreview();
@@ -215,7 +211,6 @@ describe('Revisión humana de candidatos y consolidación', () => {
     expect(within(banner).getByRole('link', { name: actor.name })).toHaveAttribute('href', '/organizations/' + aId);
     expect(screen.queryByRole('button', { name: 'Editar ficha' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Registrar medio de contacto' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Marcar verificado:/ })).not.toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: 'Historial de modificaciones' })).toBeInTheDocument();
   });
   it('cambio de identidad o pérdida de manage elimina preview administrativa de caché', async () => {

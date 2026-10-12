@@ -16,7 +16,7 @@ Its purpose is to centralize institutional knowledge about:
 - opportunities and applications;
 - attachments;
 - notifications;
-- verification history;
+- archived verification records retained for historical traceability, outside active workflows;
 - audit history.
 
 The system must allow one authorized CECASEM user to understand and continue work previously performed by another user without depending on:
@@ -964,8 +964,6 @@ Possible types include:
 Contact methods may preserve:
 
 - source;
-- verification status;
-- last verification date;
 - active/inactive status;
 - notes.
 
@@ -973,24 +971,13 @@ Exact contact information should be reused rather than duplicated unnecessarily.
 
 ---
 
-# 29. Verification
+# 29. Retired verification subsystem
 
-Modification is not verification.
+The active product has no verification workflow. Do not add verification actions, states, permissions, API routes, settings, filters, dashboard metrics or export fields.
 
-Creation is not verification.
+Legacy verification events, settings and former verification timestamp/value-version columns are retained in explicitly archived database structures. They are preserved for historical traceability and must not be read or written by active application workflows.
 
-Import is not verification.
-
-Verification must be an explicit action.
-
-Initial verification intervals:
-
-- personal information: 6 months;
-- institutional information: 12 months.
-
-These values are configurable.
-
-Do not hardcode assumptions that prevent future configuration.
+Creating, editing or importing a record does not create a verification state. Imported data remains identifiable through import provenance and is preserved as incomplete when information is unknown.
 
 ---
 
@@ -1017,13 +1004,13 @@ The historical Excel file is an initial data source, not an authoritative source
 Imported records must remain identifiable as:
 
 - imported;
-- pending verification where applicable.
+- associated with their import batch and source where available.
 
 Never invent missing information during import.
 
 If historical records are incomplete, preserve them as incomplete rather than manufacturing values.
 
-Importing does not mean verifying.
+Importing preserves the provided information and does not imply additional status or review requirements.
 
 ---
 
@@ -1518,7 +1505,7 @@ Important backend areas include:
 - participant rules;
 - historical communication immutability;
 - no-contact restrictions;
-- verification;
+- archived history retention and import provenance;
 - duplicates;
 - import behavior.
 
@@ -1717,7 +1704,6 @@ Important terms include:
 - Opportunity;
 - Meeting;
 - Participant;
-- Verification;
 - No-contact Restriction;
 - Audit Event.
 

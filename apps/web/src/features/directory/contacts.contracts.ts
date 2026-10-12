@@ -6,7 +6,7 @@ export const conditionLabels = {USABLE:'Disponible',UNUSABLE:'No utilizable (rep
 export const contactMethodSchema = z.object({id:z.string(),type:z.enum(contactTypes),value:z.string(),label:z.string().nullable(),condition:z.enum(['USABLE','UNUSABLE']),
   version:z.number().int().positive(),createdAt:z.string(),updatedAt:z.string(),associationCount:z.number().int().nonnegative()});
 const associationFields={consolidationOrigins:z.array(consolidationOriginSchema).optional(),id:z.string(),contactMethodId:z.string(),sourceDescription:z.string().nullable(),sourceUrl:z.string().nullable(),notes:z.string().nullable(),
-  isActive:z.boolean(),version:z.number().int().positive(),createdAt:z.string(),updatedAt:z.string(),lastVerifiedAt:z.string().nullable(),contactMethod:contactMethodSchema};
+  isActive:z.boolean(),version:z.number().int().positive(),createdAt:z.string(),updatedAt:z.string(),contactMethod:contactMethodSchema};
 export const contactAssociationSchema=z.union([
   z.object({...associationFields,personId:z.string(),person:z.object({id:z.string(),displayName:z.string(),isActive:z.boolean(),duplicateOfId:z.string().nullable().optional()})}),
   z.object({...associationFields,organizationId:z.string(),organization:z.object({id:z.string(),name:z.string(),isActive:z.boolean(),duplicateOfId:z.string().nullable().optional()})}),

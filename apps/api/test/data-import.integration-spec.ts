@@ -35,7 +35,7 @@ describe('5.4 importación histórica PostgreSQL/HTTP', () => {
     const module = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(ConfigService)
       .useValue(new ConfigService(validateEnvironment({ NODE_ENV: 'test', DATABASE_URL: databaseUrl }))).compile();
     app = module.createNestApplication<INestApplication<Server>>(); configureApplication(app); await app.init();
-    prisma = app.get(PrismaService); users = app.get(UsersService); password = randomBytes(24).toString('base64url');
+    prisma = app.get(PrismaService); users = app.get(UsersService); password = `Imp!a${randomBytes(24).toString('base64url')}`;
     const hash = await app.get(PasswordService).hashNew(password);
     for (const role of Object.values(UserRole)) {
       const user = await users.createIdentity({ givenNames: 'QA Import', familyNames: role, role, email: `qa-import-${role.toLowerCase()}-${randomUUID()}@example.test` });
@@ -57,7 +57,6 @@ describe('5.4 importación histórica PostgreSQL/HTTP', () => {
     const links = await prisma.userEmailAccount.findMany({ where: { userId: { in: userIds } }, select: { emailAccountId: true } });
     await prisma.$transaction([
       prisma.auditEvent.deleteMany({ where: { OR: [{ dataImportBatchId: { in: ids } }, { actorUserId: { in: userIds } }] } }),
-      prisma.verification.deleteMany({ where: { OR: [{ importedHistoryId: { in: historicalIds } }, { actorUserId: { in: userIds } }] } }),
       prisma.directoryChange.deleteMany({ where: { actorUserId: { in: userIds } } }),
       prisma.dataImportRow.deleteMany({ where: { batchId: { in: ids } } }),
       prisma.importedHistoricalRecord.deleteMany({ where: { id: { in: historicalIds } } }),
@@ -80,7 +79,7 @@ describe('5.4 importación histórica PostgreSQL/HTTP', () => {
       .attach('file', buffer, { filename: 'historial.xlsx', contentType: XLSX });
   }
 
-  it('autoriza únicamente al Administrador, hace preview sin fichas y registra procedencia y verificación pendiente', async () => {
+  it('autoriza únicamente al Administrador, hace preview sin fichas y conserva procedencia de importación', async () => {
     const admin = actors.get(UserRole.ADMINISTRATOR)!;
     const workbook = await xlsx(['Organización', 'País'], [['QA Importación Organización', null]]);
     await request(app.getHttpServer()).post('/api/v1/data-exchange/imports/inspect').set('Cookie', disabledCookie)
@@ -104,8 +103,8 @@ describe('5.4 importación histórica PostgreSQL/HTTP', () => {
     const confirmed = concurrent.find(response => response.status === 201)!;
     const organizationId = (await prisma.organization.findFirstOrThrow({ where: { name: 'QA Importación Organización' } })).id; organizationIds.push(organizationId);
     expect(confirmed.body).toMatchObject({ id: batchId, status: 'IMPORTED', analyzedRows: 1, importedRows: 1 });
-    expect(await prisma.organization.findUniqueOrThrow({ where: { id: organizationId }, select: { dataImportBatchId: true, lastVerifiedAt: true, country: true } }))
-      .toEqual({ dataImportBatchId: batchId, lastVerifiedAt: null, country: null });
+    expect(await prisma.organization.findUniqueOrThrow({ where: { id: organizationId }, select: { dataImportBatchId: true, country: true } }))
+      .toEqual({ dataImportBatchId: batchId, country: null });
     await request(app.getHttpServer()).post(`/api/v1/data-exchange/imports/${batchId}/confirm`).set('Cookie', admin.cookie).send({ decisions: [] }).expect(409);
     const audit = await prisma.auditEvent.findUniqueOrThrow({ where: { dataImportBatchId: batchId } });
     expect(audit).toMatchObject({ action: 'DATA_IMPORT_BATCH_APPLIED', actorUserId: admin.id });
@@ -115,8 +114,8 @@ describe('5.4 importación histórica PostgreSQL/HTTP', () => {
     console.info(`5.4 QA performance: 1 organization row preview+confirm in ${Date.now() - started} ms.`);
   });
 
-  it('registra contacto reutilizable y antecedente histórico incompleto sin crear Communication; queda verificable para otros roles y aparece en RF-68', async () => {
-    const admin = actors.get(UserRole.ADMINISTRATOR)!; const board = actors.get(UserRole.BOARD)!; const organization = await prisma.organization.findFirstOrThrow({ where: { name: 'QA Importación Organización' } });
+  it('registra contacto reutilizable y antecedente histórico incompleto sin crear Communication y aparece en RF-68', async () => {
+    const admin = actors.get(UserRole.ADMINISTRATOR)!; const organization = await prisma.organization.findFirstOrThrow({ where: { name: 'QA Importación Organización' } });
     const email = `qa-historical-${randomUUID()}@example.test`;
     const contactFile = await xlsx(['Tipo', 'Valor', 'Organización'], [['EMAIL', email, organization.name]]);
     const contactPreview = await preview(admin.cookie, contactFile, 'Historial', DataImportRecordKind.CONTACT, { contactType: 1, contactValue: 2, organizationName: 3 }).expect(201);
@@ -125,7 +124,7 @@ describe('5.4 importación histórica PostgreSQL/HTTP', () => {
     await request(app.getHttpServer()).post(`/api/v1/data-exchange/imports/${contactBatchId}/confirm`).set('Cookie', admin.cookie).send({ decisions: [] }).expect(201);
     const method = await prisma.contactMethod.findFirstOrThrow({ where: { normalizedValue: email } }); contactMethodIds.push(method.id);
     const association = await prisma.organizationContact.findFirstOrThrow({ where: { contactMethodId: method.id } });
-    expect(association).toMatchObject({ organizationId: organization.id, dataImportBatchId: contactBatchId, lastVerifiedAt: null });
+    expect(association).toMatchObject({ organizationId: organization.id, dataImportBatchId: contactBatchId });
 
     const historyFile = await xlsx(['Tipo', 'Fecha', 'Correo', 'Asunto', 'Cuerpo', 'Observación', 'Organización'],
       [['ENVIADO', new Date('2024-05-20T00:00:00.000Z'), email, null, null, 'Se indicó que hubo un envío', organization.name]]);
@@ -136,25 +135,20 @@ describe('5.4 importación histórica PostgreSQL/HTTP', () => {
     expect(historyPreview.body).toMatchObject({ reviewRows: 1, rows: [expect.objectContaining({ status: 'NEEDS_REVIEW' })] });
     await request(app.getHttpServer()).post(`/api/v1/data-exchange/imports/${historyBatchId}/confirm`).set('Cookie', admin.cookie).send({ decisions: [] }).expect(201);
     const record = await prisma.importedHistoricalRecord.findFirstOrThrow({ where: { batchId: historyBatchId } }); historicalIds.push(record.id);
-    expect(record).toMatchObject({ kind: 'SENT', email, occurredOn: new Date('2024-05-20T00:00:00.000Z'), subject: null, body: null, personId: null, organizationId: organization.id, lastVerifiedAt: null });
+    expect(record).toMatchObject({ kind: 'SENT', email, occurredOn: new Date('2024-05-20T00:00:00.000Z'), subject: null, body: null, personId: null, organizationId: organization.id });
     expect(await prisma.communication.count({ where: { registeredByUserId: actors.get(UserRole.ADMINISTRATOR)!.id } })).toBe(0);
-    for (const role of Object.values(UserRole)) {
-      const read = await request(app.getHttpServer()).get(`/api/v1/imported-history/${record.id}/verification`).set('Cookie', actors.get(role)!.cookie).expect(200);
-      expect(read.body).toMatchObject({ verificationStatus: 'NEVER_VERIFIED', version: 1 });
-    }
-    const verify = await request(app.getHttpServer()).post(`/api/v1/imported-history/${record.id}/verify`).set('Cookie', board.cookie)
-      .send({ expectedVersion: 1, sourceDescription: 'Contraste QA', sourceUrl: null }).expect(201);
-    expect((verify.body as unknown as { condition: { verificationStatus: string } }).condition.verificationStatus).toBe('CURRENT');
+    await request(app.getHttpServer()).get(`/api/v1/imported-history/${record.id}/verification`).expect(404);
+    await request(app.getHttpServer()).post(`/api/v1/imported-history/${record.id}/verify`).send({}).expect(404);
     const search = await request(app.getHttpServer()).get('/api/v1/search').set('Cookie', actors.get(UserRole.RESEARCH)!.cookie)
       .query({ q: email, page: 1, pageSize: 25, includeInactive: false }).expect(200);
     const searchBody = search.body as unknown as { emailHistory: { items: unknown[]; importedRecords: { items: unknown[] } } };
     expect(searchBody.emailHistory.items).toHaveLength(0);
     expect(searchBody.emailHistory.importedRecords.items).toHaveLength(1);
     const importedResult = searchBody.emailHistory.importedRecords.items[0] as { type: string; id: string; kind: string; body: string | null; subject: string | null;
-      lastVerifiedAt: string | null; batch: { id: string; originalFilename: string } };
+      batch: { id: string; originalFilename: string } };
     expect(importedResult).toMatchObject({ type: 'IMPORTED_HISTORICAL_RECORD', id: record.id, kind: 'SENT', body: null, subject: null,
       batch: { id: historyBatchId, originalFilename: 'historial.xlsx' } });
-    expect(typeof importedResult.lastVerifiedAt).toBe('string');
+    expect(importedResult).not.toHaveProperty('lastVerifiedAt');
   });
 
   it('detecta y reutiliza una coincidencia exacta de organización en vez de duplicarla', async () => {

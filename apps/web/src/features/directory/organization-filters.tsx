@@ -8,7 +8,6 @@ import type { AuthIdentity } from '../auth/session';
 import type { Category } from './contracts';
 import { useCategories } from './queries';
 import { buttonClass, Field, inputClass, Pagination, QueryState } from './directory-ui';
-import { verificationLabels } from './verification.contracts';
 
 type SelectedCategory = Pick<Category, 'id' | 'name' | 'isActive'>;
 // La presentación nueva es optativa: Búsqueda global mantiene su composición actual.
@@ -51,12 +50,11 @@ export function OrganizationFilters({ identity, params, change, prefix = '', pre
   const FilterInput = modern ? Input : 'input';
   const FilterSelect = modern ? Select : 'select';
   const communicationHelp = 'Incluye comunicaciones enviadas y recibidas, también invalidadas. Las notas internas y los medios de contacto no cuentan.';
-  const clear = () => change(Object.fromEntries([...organizationFilterKeys.map(field => [key(field), '']), ['page', '1']]));
+  const clear = () => change(Object.fromEntries([...organizationFilterKeys.map(field => [key(field), '']), [key('verificationStatus'), ''], ['page', '1']]));
   const summary = [
     ...(params.get('name') ? [`Nombre: ${params.get('name')}`] : []),
     ...(value('country') ? [`País: ${value('country')}`] : []),
     `Estado: ${value('status') === 'inactive' ? 'Inactivas' : (value('status') || (prefix || modern ? 'all' : 'active')) === 'all' ? 'Todas' : 'Activas'}`,
-    ...(value('verificationStatus') ? [`Verificación: ${verificationLabels[value('verificationStatus') as keyof typeof verificationLabels] ?? value('verificationStatus')}`] : []),
     ...(canReadCommunications && value('withCommunications') ? [value('withCommunications') === 'true' ? 'Con comunicaciones históricas' : 'Sin comunicaciones históricas'] : []),
     ...(category ? [`Categoría: ${category.name}`] : []),
   ].join(' · ');
@@ -66,8 +64,6 @@ export function OrganizationFilters({ identity, params, change, prefix = '', pre
       <FilterField label="País" modern={modern}>{control => <FilterInput {...control} className={modern ? undefined : inputClass} maxLength={150} value={value('country')} onChange={event => update('country', event.target.value)} />}</FilterField>
       <FilterField label={prefix ? 'Estado de organizaciones' : 'Estado'} modern={modern}>{control => <FilterSelect {...control} className={modern ? undefined : inputClass} value={value('status') || (prefix || modern ? 'all' : 'active')} onChange={event => update('status', event.target.value)}>
         <option value="active">Activas</option><option value="inactive">Inactivas</option><option value="all">Todas</option></FilterSelect>}</FilterField>
-      <FilterField label="Condición de verificación" modern={modern}>{control => <FilterSelect {...control} className={modern ? undefined : inputClass} value={value('verificationStatus')} onChange={event => update('verificationStatus', event.target.value)}>
-        <option value="">Todas las condiciones</option>{Object.entries(verificationLabels).map(([code, label]) => <option key={code} value={code}>{label}</option>)}</FilterSelect>}</FilterField>
       {canReadCommunications && <FilterField label="Comunicaciones externas" modern={modern} describedBy={modern ? communicationHelpId : undefined}>{control => <FilterSelect {...control} className={modern ? undefined : inputClass} value={value('withCommunications')} onChange={event => update('withCommunications', event.target.value)}>
         <option value="">Con y sin comunicaciones</option><option value="true">Con comunicaciones históricas</option><option value="false">Sin comunicaciones históricas</option></FilterSelect>}</FilterField>}
       {modern && <CategoryFilter identity={identity} selected={category} modern onChange={next => { setSelected(next); update('categoryId', next?.id ?? ''); }} />}

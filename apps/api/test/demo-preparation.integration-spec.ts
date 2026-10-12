@@ -99,15 +99,11 @@ describe('preparación del dataset de demostración 6.2 PostgreSQL/HTTP', () => 
 
     const importedOrganizations = await db.organization.findMany({ where: { dataImportBatchId: { in: batchIds } } });
     expect(importedOrganizations.length).toBe(2);
-    expect(importedOrganizations.every((organization) => organization.lastVerifiedAt === null)).toBe(true);
     const importedPeople = await db.person.findMany({ where: { dataImportBatchId: { in: batchIds } } });
     expect(importedPeople.length).toBe(2);
-    expect(importedPeople.every((person) => person.lastVerifiedAt === null)).toBe(true);
     const importedContactAssociations = await db.organizationContact.findMany({ where: { dataImportBatchId: { in: batchIds } } });
     const importedPersonAssociations = await db.personContact.findMany({ where: { dataImportBatchId: { in: batchIds } } });
     expect(importedContactAssociations.length + importedPersonAssociations.length).toBe(2);
-    expect(await db.verification.count({ where: { organizationContactId: { in: importedContactAssociations.map((row) => row.id) } } })).toBe(0);
-    expect(await db.verification.count({ where: { personContactId: { in: importedPersonAssociations.map((row) => row.id) } } })).toBe(0);
     expect(await db.importedHistoricalRecord.count({ where: { batchId: { in: batchIds } } })).toBe(1);
 
     const demoOrganization = await db.organization.findFirstOrThrow({ where: { name: 'Fundación Horizonte Comunitario Demo' } });

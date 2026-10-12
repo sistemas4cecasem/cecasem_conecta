@@ -9,8 +9,6 @@ export class SearchQueryDto {
   @ValidateIf((_o, v) => v !== undefined) @IsUUID() organizationCategoryId?: string;
   @ApiPropertyOptional({ enum: ['active', 'inactive', 'all'], description: 'Solo organizaciones; intersección con includeInactive.' })
   @ValidateIf((_o, v) => v !== undefined) @IsIn(['active', 'inactive', 'all']) organizationStatus?: 'active' | 'inactive' | 'all';
-  @ApiPropertyOptional({ enum: ['CURRENT', 'REVIEW_DUE', 'NEVER_VERIFIED'], description: 'Solo organizaciones.' })
-  @ValidateIf((_o, v) => v !== undefined) @IsIn(['CURRENT', 'REVIEW_DUE', 'NEVER_VERIFIED']) organizationVerificationStatus?: 'CURRENT' | 'REVIEW_DUE' | 'NEVER_VERIFIED';
   @ApiPropertyOptional({ description: 'Solo organizaciones: antecedentes externos, incluidas invalidaciones.' })
   @Transform(({ value }: { value: unknown }) => value === 'true' ? true : value === 'false' ? false : value)
   @ValidateIf((_o, v) => v !== undefined) @IsBoolean() organizationWithCommunications?: boolean;

@@ -13,7 +13,7 @@ const stamp = '2026-10-03T00:00:00.000Z';
 const x = { id: '00000000-0000-4000-8000-000000000001', name: 'Educación', isActive: true, version: 1, createdAt: stamp, updatedAt: stamp };
 const y = { ...x, id: '00000000-0000-4000-8000-000000000002', name: 'Ambiente', isActive: false };
 const empty = { ...x, id: '00000000-0000-4000-8000-000000000003', name: 'Sin organizaciones' };
-const a: Organization = { id: 'a', name: 'Organización A', country: null, alias: null, description: null, officialWebsite: null, isActive: true, version: 1, branchOfId: null, branchOf: null, categories: [x, y], createdAt: stamp, updatedAt: stamp, lastVerifiedAt: null };
+const a: Organization = { id: 'a', name: 'Organización A', country: null, alias: null, description: null, officialWebsite: null, isActive: true, version: 1, branchOfId: null, branchOf: null, categories: [x, y], createdAt: stamp, updatedAt: stamp, };
 const b = { ...a, id: 'b', name: 'Organización B', isActive: false, categories: [x] };
 const d = { ...a, id: 'd', name: 'Organización sin categoría', categories: [] };
 const page = (items: unknown[], total = items.length, number = 1) => ({ items, total, page: number, pageSize: 25 });

@@ -11,10 +11,10 @@ import type { PageQueryDto } from './directory.dto';
 import type { DuplicateDecisionDto } from './duplicates.dto';
 
 export const duplicateOrganizationSelect = { id: true, name: true, alias: true, country: true, branchOfId: true,
-  version: true, duplicateOfId: true, isActive: true, lastVerifiedAt: true,
+  version: true, duplicateOfId: true, isActive: true,
   branchOf: { select: { id: true, name: true } } } satisfies Prisma.OrganizationSelect;
 export const duplicatePersonSelect = { id: true, displayName: true, givenNames: true, familyNames: true,
-  version: true, duplicateOfId: true, isActive: true, lastVerifiedAt: true } satisfies Prisma.PersonSelect;
+  version: true, duplicateOfId: true, isActive: true } satisfies Prisma.PersonSelect;
 const candidateInclude = { organizationA: { select: duplicateOrganizationSelect }, organizationB: { select: duplicateOrganizationSelect },
   personA: { select: duplicatePersonSelect }, personB: { select: duplicatePersonSelect },
   resolvedBy: { select: { id: true, givenNames: true, familyNames: true, isActive: true } } } as const;
@@ -67,7 +67,7 @@ export class DuplicateDetectionService {
         : await tx.person.findUnique({ where: { id }, select: duplicatePersonSelect });
       if (!current) throw new DirectoryError(kind === 'organization' ? 'ORGANIZATION_NOT_FOUND' : 'PERSON_NOT_FOUND');
       // Consulta explícita: escaneo por cursor de 200 fichas, sin descartar candidatos
-      // por país, actividad o verificación. Nunca modifica los nombres originales.
+      // por país ni actividad. Nunca modifica los nombres originales.
       if (!current.duplicateOfId) {
         let cursor: string | undefined;
         for (;;) {

@@ -17,7 +17,7 @@ describe('Medios canónicos y contexto de asociación',()=>{
   it.each(['abc','123','+591 1234 ext 8','++12345678'])('rechaza teléfono evidentemente inválido %s',value=>{expect(()=>contactFields({type:ContactType.PHONE,value})).toThrow();});
   it.each(['javascript:alert(1)','https://linkedin.com.evil.test/in/a','https://example.org','https://user:secret@linkedin.com/in/a'])('rechaza LinkedIn inválido %s',value=>{expect(()=>contactFields({type:ContactType.LINKEDIN,value})).toThrow();});
   it('OTHER requiere descripción comprensible y no impone catálogo nuevo',()=>{expect(()=>contactFields({type:ContactType.OTHER,value:'Canal'})).toThrow();expect(contactFields({type:ContactType.OTHER,value:'Canal',label:'Telegram público'}).label).toBe('Telegram público');});
-  it('el contexto no incluye valor del medio, estado ni verificación',()=>{
+  it('el contexto conserva solo fuente y observaciones de la asociación',()=>{
     expect(contactContext({sourceDescription:'  Sitio   oficial ',notes:'Dato informado'})).toEqual({sourceDescription:'Sitio oficial',sourceUrl:null,notes:'Dato informado'});
   });
   it('fuente admite ausencia y rechaza credenciales en URL',()=>{expect(contactContext({})).toEqual({sourceDescription:null,sourceUrl:null,notes:null});expect(()=>contactContext({sourceUrl:'https://user:secret@example.org'})).toThrow();});

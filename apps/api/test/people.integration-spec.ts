@@ -22,8 +22,8 @@ import { AuditService } from '../src/modules/audit/audit.service';
 const databaseUrl=validateDatabaseUrl(process.env.DATABASE_URL);
 if(!new URL(databaseUrl).pathname.endsWith('_test')) throw new Error('Personas requiere una base aislada _test.');
 function barrier(){let release!:()=>void;const promise=new Promise<void>(resolve=>{release=resolve;});return {promise,release};}
-type ContextualPersonResponse={person:{id:string;displayName:string;givenNames:string|null;familyNames:string|null;isActive:boolean;currentRelationsCount:number;institutionalStatus:string;lastVerifiedAt:string|null};
-  relation:{id:string;personId:string;organizationId:string;isCurrent:boolean;positionTitle:string|null;area:string|null;lastVerifiedAt:string|null}};
+type ContextualPersonResponse={person:{id:string;displayName:string;givenNames:string|null;familyNames:string|null;isActive:boolean;currentRelationsCount:number;institutionalStatus:string};
+  relation:{id:string;personId:string;organizationId:string;isCurrent:boolean;positionTitle:string|null;area:string|null}};
 type PeoplePageResponse={total:number;items:Array<{id:string;institutionalStatus:string}>};
 type OrganizationPeoplePageResponse={total:number;page:number;pageSize:number;items:Array<{person:{displayName:string}}>};
 describe('Personas PostgreSQL y HTTP',()=>{
@@ -58,9 +58,9 @@ describe('Personas PostgreSQL y HTTP',()=>{
       personMode:'new',person:{displayName:'Ana contextual',givenNames:'Ana',familyNames:'Pérez'},positionTitle:'Coordinadora',area:'Cooperación',isCurrent:true,startDate:'2024-01-15',sourceDescription:'Directorio público',sourceUrl:'https://example.test/persona',notes:'Alta contextual',
     }).expect(201);
     const body=created.body as ContextualPersonResponse,personId=body.person.id,relationId=body.relation.id;personIds.push(personId);
-    expect(body.person).toMatchObject({displayName:'Ana contextual',givenNames:'Ana',familyNames:'Pérez',currentRelationsCount:1,institutionalStatus:'CURRENT',lastVerifiedAt:null});
+    expect(body.person).toMatchObject({displayName:'Ana contextual',givenNames:'Ana',familyNames:'Pérez',currentRelationsCount:1,institutionalStatus:'CURRENT',});
     expect(body.person).not.toHaveProperty('relations');
-    expect(body.relation).toMatchObject({personId,organizationId:organization.id,isCurrent:true,positionTitle:'Coordinadora',area:'Cooperación',lastVerifiedAt:null});
+    expect(body.relation).toMatchObject({personId,organizationId:organization.id,isCurrent:true,positionTitle:'Coordinadora',area:'Cooperación',});
     expect((await people.personHistory(personId,{page:1,pageSize:25})).total).toBe(1);
     expect((await people.relationHistory(relationId,{page:1,pageSize:25})).total).toBe(1);
     expect((await people.get(personId)).institutionalStatus).toBe('CURRENT');
@@ -200,7 +200,7 @@ describe('Personas PostgreSQL y HTTP',()=>{
     const actor=await fixture(role),auth=await cookie(actor),organization=await org(actor.id);
     const created=await request(app.getHttpServer()).post('/api/v1/people').set('Cookie',auth).send({displayName:'  Ana   conocida '}).expect(201);
     const row=created.body as {id:string};personIds.push(row.id);
-    expect(created.body).toMatchObject({displayName:'Ana conocida',givenNames:null,familyNames:null,currentRelationsCount:0,lastVerifiedAt:null,version:1});expect(created.body).not.toHaveProperty('_count');expect(created.body).not.toHaveProperty('organizationId');
+    expect(created.body).toMatchObject({displayName:'Ana conocida',givenNames:null,familyNames:null,currentRelationsCount:0,version:1});expect(created.body).not.toHaveProperty('_count');expect(created.body).not.toHaveProperty('organizationId');
     await request(app.getHttpServer()).put('/api/v1/people/'+row.id).set('Cookie',auth).send({displayName:'Ana corregida',expectedVersion:1}).expect(200);
     const relation=await request(app.getHttpServer()).post('/api/v1/people/'+row.id+'/relations').set('Cookie',auth).send({organizationId:organization.id,positionTitle:'Coordinador'}).expect(201);
     const episode=relation.body as {id:string};
@@ -208,7 +208,7 @@ describe('Personas PostgreSQL y HTTP',()=>{
     await request(app.getHttpServer()).patch('/api/v1/person-organization-relations/'+episode.id+'/end').set('Cookie',auth).send({expectedVersion:2}).expect(200);
     for(const path of ['people','people/'+row.id,'people/'+row.id+'/history','people/'+row.id+'/relations','organizations/'+organization.id+'/people','person-organization-relations/'+episode.id,'person-organization-relations/'+episode.id+'/history']) await request(app.getHttpServer()).get('/api/v1/'+path).set('Cookie',auth).expect(200);
     await request(app.getHttpServer()).patch('/api/v1/people/'+row.id+'/status').set('Cookie',auth).send({isActive:false,expectedVersion:2}).expect(role===UserRole.ADMINISTRATOR?200:403);
-    expect((await people.get(row.id)).lastVerifiedAt).toBeNull();
+    expect(await people.get(row.id)).not.toHaveProperty('lastVerifiedAt');
   });
   it.each([{}, {displayName:''},{displayName:12},{displayName:'x'.repeat(251)},{displayName:'Ana',organizationId:randomUUID()},{displayName:'Ana',email:'external@example.test'},{displayName:'Ana',lastVerifiedAt:'2026-01-01'},{displayName:'Ana',isActive:false}])('persona inválida %j →400',async body=>{const auth=await cookie(await fixture());await request(app.getHttpServer()).post('/api/v1/people').set('Cookie',auth).send(body).expect(400);});
   it.each([{startDate:'2024'},{startDate:'2024-02-30'},{isCurrent:true,endDate:'2024-01-01'},{isCurrent:false,startDate:'2025-01-01',endDate:'2024-01-01'},{sourceUrl:'javascript:alert(1)'},{organizationId:'invalid'},{personId:randomUUID()},{positionTitle:'x'.repeat(251)}])('episodio inválido %j →400',async invalid=>{
@@ -247,10 +247,10 @@ describe('Personas PostgreSQL y HTTP',()=>{
     expect((current.body as OrganizationPeoplePageResponse).total).toBe(2);expect((historical.body as OrganizationPeoplePageResponse).total).toBe(1);
     await request(app.getHttpServer()).get(path).query({name:'x'.repeat(251)}).set('Cookie',auth).expect(400);
   });
-  it('edición persona y corrección episodio conservan autores/valores/operación, fechas de creación y verificación',async()=>{
+  it('edición persona y corrección episodio conservan autores/valores/operación y fechas de creación',async()=>{
     const actor=await fixture(),row=await person(actor.id),organization=await org(actor.id);
     await people.edit(row.id,{displayName:'Ana Pérez',givenNames:'Ana',familyNames:'Pérez',expectedVersion:1},actor.id);
-    expect(await people.get(row.id)).toMatchObject({createdAt:row.createdAt,lastVerifiedAt:null,version:2});
+    expect(await people.get(row.id)).toMatchObject({createdAt:row.createdAt,version:2});
     const episode=await people.createRelation(row.id,{organizationId:organization.id,isCurrent:true,positionTitle:'Coordinador'},actor.id);
     await people.editRelation(episode.id,{positionTitle:'Coordinadora',area:'Cooperación',isCurrent:true,startDate:'2024-02-29',sourceDescription:'Documento público',sourceUrl:'https://example.test/fuente',notes:'Corrección',expectedVersion:1},actor.id);
     const changes=await people.relationHistory(episode.id,{page:1,pageSize:25});expect(changes.total).toBe(2);expect(changes.items[0].changes).toHaveLength(6);

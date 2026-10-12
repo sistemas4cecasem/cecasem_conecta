@@ -14,7 +14,7 @@ export class DataExportService {
 
   private async page(type: ExportType, filters: ExportFiltersDto, page: number, pageSize: number, actorId: string) {
     if (type === 'organizations') return this.directory.organizations({ name: filters.name, country: filters.country,
-      categoryId: filters.categoryId, status: filters.organizationStatus, verificationStatus: filters.verificationStatus,
+      categoryId: filters.categoryId, status: filters.organizationStatus,
       withCommunications: filters.withCommunications }, page, pageSize, actorId);
     if (type === 'contacts') return this.directory.contacts({ name: filters.name, status: filters.personStatus,
       contactType: filters.contactType, relationStatus: filters.relationStatus }, page, pageSize, actorId);
@@ -46,7 +46,7 @@ export class DataExportService {
     const data: ExportRows = {};
     if (type === 'organizations') data.organizations = await this.allPages(summary.count, (page, pageSize) => this.directory.organizations({ name: selectedFilters.name,
       country: selectedFilters.country, categoryId: selectedFilters.categoryId, status: selectedFilters.organizationStatus,
-      verificationStatus: selectedFilters.verificationStatus, withCommunications: selectedFilters.withCommunications }, page, pageSize, actorId));
+      withCommunications: selectedFilters.withCommunications }, page, pageSize, actorId));
     else if (type === 'contacts') data.contacts = await this.allPages(summary.count, (page, pageSize) => this.directory.contacts({ name: selectedFilters.name,
       status: selectedFilters.personStatus, contactType: selectedFilters.contactType, relationStatus: selectedFilters.relationStatus }, page, pageSize, actorId));
     else if (type === 'processes') data.processes = await this.allPages(summary.count, (page, pageSize) => this.processes.exportPage({ state: selectedFilters.processState,

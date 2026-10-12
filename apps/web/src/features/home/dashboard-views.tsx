@@ -38,14 +38,7 @@ export function InstitutionalDashboard({ panel }: { panel: InstitutionalPanel })
         <MetricCard label="Postulaciones pendientes" value={panel.pendingApplications} icon={<iconCatalog.metric.application size={20} />} to="/opportunities?status=SUBMITTED" description="Postuladas que aún no están finalizadas" />
       </div>
     </section>
-    <div className="dashboard-columns">
-      <section aria-label="Directorio" className="dashboard-section">
-        <h2>Directorio</h2><p className="ui-description">Actualización de la información institucional.</p>
-        <div className="dashboard-metrics">
-          <MetricCard label="Requieren revisión" value={panel.organizationsReviewDue} icon={<iconCatalog.metric.review size={20} />} to="/organizations?status=active&verificationStatus=REVIEW_DUE" />
-          <MetricCard label="Nunca verificadas" value={panel.organizationsNeverVerified} icon={<iconCatalog.metric.verification size={20} />} to="/organizations?status=active&verificationStatus=NEVER_VERIFIED" />
-        </div>
-      </section>
+    <div className="dashboard-stack">
       <Surface heading={`Reuniones próximas (${panel.upcomingMeetingCount})`} actions={<ActionLink appearance="context" to="/meetings">Ver reuniones</ActionLink>}>
         <MeetingList rows={panel.upcomingMeetings} />
       </Surface>

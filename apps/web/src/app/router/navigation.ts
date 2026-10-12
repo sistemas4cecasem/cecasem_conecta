@@ -16,7 +16,6 @@ export const AUTHENTICATED_NAVIGATION: readonly NavigationItem[] = [
   { label: 'Procesos', to: '/relationship-processes', requiredPermission: 'relationships.process.read' },
   { label: 'Restricciones', to: '/contact-restrictions', requiredPermission: 'relationships.restriction.read' },
   { label: 'Configuración de recordatorios', to: '/settings/reminders', requiredPermission: 'settings.reminders.update' },
-  { label: 'Configuración de verificación', to: '/settings/verification', requiredPermission: 'settings.verification.update' },
   { label: 'Importar Excel', to: '/admin/imports', requiredPermission: 'data_exchange.import.execute' },
   { label: 'Exportar Excel', to: '/admin/exports' },
   { label: 'Usuarios', to: '/users', requiredPermission: 'users.read' },
@@ -34,7 +33,7 @@ export const NAVIGATION_GROUPS = [
   { label: 'Relaciones', routes: ['/contact-intents', '/relationship-processes', '/contact-restrictions'] },
   { label: 'Planificación y seguimiento', routes: ['/opportunities', '/meetings'] },
   { label: 'Herramientas', routes: ['/admin/exports', '/admin/imports'] },
-  { label: 'Administración', routes: ['/users', '/settings/reminders', '/settings/verification'] },
+  { label: 'Administración', routes: ['/users', '/settings/reminders'] },
 ] as const;
 
 export function activeNavigationRoute(pathname: string): string | undefined {

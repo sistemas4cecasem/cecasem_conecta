@@ -182,7 +182,7 @@ model User {
   issuedFirstAccessTokens FirstAccessToken[] @relation("FirstAccessIssuer")
   passwordResetTokens PasswordResetToken[] @relation("PasswordResetRecipient")
   issuedPasswordResetTokens PasswordResetToken[] @relation("PasswordResetIssuer")
-  verifications Verification[]
+  historicalVerifications HistoricalVerification[] @ignore
   performedAuditEvents AuditEvent[] @relation("AuditActor")
   receivedAuditEvents AuditEvent[] @relation("AuditTarget")
   directoryChanges DirectoryChange[]
@@ -328,7 +328,7 @@ model Organization {
   branchOfId      String? @db.Uuid
   createdAt       DateTime @default(now()) @db.Timestamptz(3)
   updatedAt       DateTime @default(now()) @updatedAt @db.Timestamptz(3)
-  lastVerifiedAt  DateTime? @db.Timestamptz(3)
+  legacyLastVerifiedAt DateTime? @ignore @db.Timestamptz(3)
   branchOf        Organization? @relation("OrganizationBranches", fields: [branchOfId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   branches        Organization[] @relation("OrganizationBranches")
   categories      OrganizationCategory[]
@@ -339,7 +339,7 @@ model Organization {
 
   @@index([branchOfId, name, id])
   @@index([isActive, name, id])
-  verifications Verification[]
+  historicalVerifications HistoricalVerification[] @ignore
 }
 
 model Category {
@@ -430,14 +430,14 @@ model Person {
   version        Int @default(1)
   createdAt      DateTime @default(now()) @db.Timestamptz(3)
   updatedAt      DateTime @default(now()) @updatedAt @db.Timestamptz(3)
-  lastVerifiedAt DateTime? @db.Timestamptz(3)
+  legacyLastVerifiedAt DateTime? @ignore @db.Timestamptz(3)
   relations      PersonOrganizationRelation[]
   contacts       PersonContact[]
   changes        DirectoryChange[]
   auditEvents    AuditEvent[]
 
   @@index([isActive, displayName, id])
-  verifications Verification[]
+  historicalVerifications HistoricalVerification[] @ignore
 }
 
 model PersonOrganizationRelation {
@@ -450,7 +450,7 @@ model PersonOrganizationRelation {
   organizationId    String @db.Uuid
   positionTitle     String? @db.VarChar(250)
   area              String? @db.VarChar(250)
-  lastVerifiedAt    DateTime? @db.Timestamptz(3)
+  legacyLastVerifiedAt DateTime? @ignore @db.Timestamptz(3)
   isCurrent         Boolean @default(true)
   startDate         DateTime? @db.Date
   endDate           DateTime? @db.Date
@@ -467,7 +467,7 @@ model PersonOrganizationRelation {
 
   @@index([personId, isCurrent, createdAt, id])
   @@index([organizationId, isCurrent, createdAt, id])
-  verifications Verification[]
+  historicalVerifications HistoricalVerification[] @ignore
 }
 
 model ContactMethod {
@@ -475,7 +475,7 @@ model ContactMethod {
   dataImportBatch DataImportBatch? @relation(fields:[dataImportBatchId],references:[id],onDelete:Restrict,onUpdate:Restrict)
   importedRows DataImportRow[] @relation("ImportedRowContactMethod")
   referrals Referral[]
-  valueVersion Int @default(1)
+  legacyValueVersion Int @default(1) @ignore
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   type ContactType
   value String @db.VarChar(2048)
@@ -510,7 +510,7 @@ model PersonContact {
   version Int @default(1)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3)
-  lastVerifiedAt DateTime? @db.Timestamptz(3)
+  legacyLastVerifiedAt DateTime? @ignore @db.Timestamptz(3)
   person Person @relation(fields: [personId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   contactMethod ContactMethod @relation(fields: [contactMethodId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   changes DirectoryChange[]
@@ -519,7 +519,7 @@ model PersonContact {
   @@unique([personId, contactMethodId])
   @@index([personId, isActive, createdAt, id])
   @@index([contactMethodId, createdAt, id])
-  verifications Verification[]
+  historicalVerifications HistoricalVerification[] @ignore
 }
 
 model OrganizationContact {
@@ -538,7 +538,7 @@ model OrganizationContact {
   version Int @default(1)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3)
-  lastVerifiedAt DateTime? @db.Timestamptz(3)
+  legacyLastVerifiedAt DateTime? @ignore @db.Timestamptz(3)
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   contactMethod ContactMethod @relation(fields: [contactMethodId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   changes DirectoryChange[]
@@ -547,7 +547,7 @@ model OrganizationContact {
   @@unique([organizationId, contactMethodId])
   @@index([organizationId, isActive, createdAt, id])
   @@index([contactMethodId, createdAt, id])
-  verifications Verification[]
+  historicalVerifications HistoricalVerification[] @ignore
 }
 
 model FirstAccessToken {
@@ -605,15 +605,19 @@ model UserEmailAccount {
   @@index([emailAccountId])
 }
 
-model VerificationSettings {
+/// Historical configuration retained for traceability; no active application workflow reads or changes it.
+model ArchivedVerificationSettings {
   id Int @id @default(1)
   personalVerificationMonths Int @default(6)
   institutionalVerificationMonths Int @default(12)
   version Int @default(1)
   updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz(3)
+
+  @@ignore
 }
 
-model Verification {
+/// Historical verification events retained for institutional traceability; this model is not part of active workflows.
+model HistoricalVerification {
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   organizationId String? @db.Uuid
   personId String? @db.Uuid
@@ -640,6 +644,7 @@ model Verification {
   @@index([personContactId,verifiedAt,id])
   @@index([organizationContactId,verifiedAt,id])
   @@index([actorUserId])
+  @@ignore
 }
 
 
@@ -1415,13 +1420,13 @@ model ImportedHistoricalRecord {
   organizationId String? @db.Uuid
   personId String? @db.Uuid
   version Int @default(1)
-  lastVerifiedAt DateTime? @db.Timestamptz(3)
+  legacyLastVerifiedAt DateTime? @ignore @db.Timestamptz(3)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   batch DataImportBatch @relation(fields:[batchId],references:[id],onDelete:Restrict,onUpdate:Restrict)
   organization Organization? @relation(fields:[organizationId],references:[id],onDelete:Restrict,onUpdate:Restrict)
   person Person? @relation(fields:[personId],references:[id],onDelete:Restrict,onUpdate:Restrict)
   sourceRow DataImportRow?
-  verifications Verification[]
+  historicalVerifications HistoricalVerification[] @ignore
   @@unique([batchId,rowNumber])
   @@index([email,occurredOn,id])
   @@index([organizationId,occurredOn,id])

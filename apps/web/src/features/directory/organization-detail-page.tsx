@@ -54,7 +54,7 @@ export function OrganizationDetailPage() {
         {!organization.duplicateOfId && identity.permissions.includes('directory.status.update') && <Button ref={statusAction} variant="ghost" disabled={mutation.isPending}
           onClick={() => { mutation.reset(); setConfirmStatusChange(true); }}>{organization.isActive ? 'Desactivar organización' : 'Reactivar organización'}</Button>}</>} />
 
-    {organization.dataImportBatch && <Alert role="status" tone="info">Dato importado desde Excel · pendiente de verificación · lote {organization.dataImportBatch.id} · {organization.dataImportBatch.originalFilename}</Alert>}
+    {organization.dataImportBatch && <Alert role="status" tone="info">Dato importado desde Excel · lote {organization.dataImportBatch.id} · {organization.dataImportBatch.originalFilename}</Alert>}
     {organization.duplicateOf && <Alert role="status" tone="warning">Este registro fue consolidado en: <Link className="underline" to={'/organizations/' + organization.duplicateOf.id}>{organization.duplicateOf.name}</Link>. Su historial permanece disponible.</Alert>}
     {!!organization.consolidatedRecords?.length && <p>Fichas consolidadas: {organization.consolidatedRecords.map(item => <Link key={item.id} className="inline-flex min-h-11 items-center px-2 underline" to={'/organizations/' + item.id}>{item.name}</Link>)}</p>}
 

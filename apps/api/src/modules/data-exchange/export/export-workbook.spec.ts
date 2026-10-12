@@ -6,7 +6,7 @@ describe('XLSX export workbook', () => {
     const rows: NonNullable<ExportRows['organizations']> = [{
       id: 'org-1', name: '=HYPERLINK("https://example.test")', alias: '+cmd', country: '-1+1', isActive: true,
       branchOf: null, categories: [{ category: { id: 'cat-1', name: '@TEST' } }], contacts: [], createdAt: new Date('2026-10-06T10:15:30.000Z'),
-      updatedAt: new Date('2026-10-06T12:30:00.000Z'), lastVerifiedAt: null, verificationStatus: 'NEVER_VERIFIED',
+      updatedAt: new Date('2026-10-06T12:30:00.000Z'),
       dataImportBatchId: null, dataImportBatch: null,
     }];
     const workbook = buildExportWorkbook('organizations', { organizations: rows });
@@ -22,6 +22,7 @@ describe('XLSX export workbook', () => {
     expect(sheet.getRow(2).getCell(4).value).toBe('-1+1');
     expect(sheet.autoFilter).toBeDefined();
     expect(sheet.views[0]).toMatchObject({ state: 'frozen', ySplit: 1 });
+    expect(sheet.getRow(1).values).not.toEqual(expect.arrayContaining([expect.stringMatching(/verificaci[oó]n/i)]));
     expect(sheet.getRow(2).getCell(9).value).toBeNull();
     expect(reopened.getWorksheet('Categorías')!.getRow(2).getCell(4).value).toBe('@TEST');
     for (const worksheet of reopened.worksheets) {

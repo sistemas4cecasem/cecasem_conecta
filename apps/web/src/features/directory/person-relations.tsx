@@ -1,5 +1,4 @@
 import { ConsolidationProvenance } from './consolidation-provenance';
-import { VerificationPanel } from './verification-panel';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { useForm } from 'react-hook-form';
@@ -17,7 +16,7 @@ import { FormField, Select } from '../../components/ui/forms';
 import { OrganizationPersonForm } from './organization-person-form';
 import { PersonForm } from './person-form';
 
-function RelationCard({identity,row,fromOrganization,readOnly=false,organizationPresentation=false,hideEmptyHistoryPagination=false}:{identity:AuthIdentity;row:PersonRelation;fromOrganization:boolean;readOnly?:boolean;organizationPresentation?:boolean;hideEmptyHistoryPagination?:boolean}) {
+function RelationCard({identity,row,fromOrganization,readOnly=false,organizationPresentation=false}:{identity:AuthIdentity;row:PersonRelation;fromOrganization:boolean;readOnly?:boolean;organizationPresentation?:boolean}) {
   const [editing,setEditing]=useState<PersonRelation|null>(null),[ending,setEnding]=useState<PersonRelation|null>(null),[history,setHistory]=useState(false),[detailsOpen,setDetailsOpen]=useState(false),[detailsVisited,setDetailsVisited]=useState(false);
   const [editingPersonId,setEditingPersonId]=useState<string>();
   const personForEdit=usePerson(identity,organizationPresentation?editingPersonId:undefined);
@@ -57,8 +56,6 @@ function RelationCard({identity,row,fromOrganization,readOnly=false,organization
       {!row.person.isActive&&<p>Persona inactiva; vínculo conservado.</p>}{!row.organization.isActive&&<p>Organización inactiva; vínculo conservado.</p>}
     </div>}
     <ConsolidationProvenance origins={row.consolidationOrigins}/>
-    {organizationPresentation&&<VerificationPanel modern headingLevel={3} compactActionLabels hideEmptyHistoryPagination={hideEmptyHistoryPagination} identity={identity} readOnly={readOnly}
-      path={'person-organization-relations/'+row.id} label={'vínculo de '+row.person.displayName+' con '+row.organization.name}/>}
     {history&&<DirectoryHistory modern headingLevel={3} hideEmptyPagination={organizationPresentation} identity={identity} path={'person-organization-relations/'+row.id+'/history'}/>}
   </>;
   return <DataListItem className={organizationPresentation?'organization-episode-row':''}><div className="directory-episode-context space-y-3">
@@ -74,7 +71,6 @@ function RelationCard({identity,row,fromOrganization,readOnly=false,organization
       {row.sourceDescription&&<p>Fuente: {row.sourceDescription}</p>}{row.sourceUrl&&<p>URL de fuente: {row.sourceUrl}</p>}{row.notes&&<p>Observaciones: {row.notes}</p>}
       {!row.person.isActive&&<p>Persona inactiva; vínculo conservado.</p>}{!row.organization.isActive&&<p>Organización inactiva; vínculo conservado.</p>}
       {relationActions}{relationDetails}
-      <VerificationPanel modern headingLevel={3} identity={identity} readOnly={readOnly} path={'person-organization-relations/'+row.id} label={'vínculo de '+row.person.displayName+' con '+row.organization.name}/>
     </>}
   </div></DataListItem>;
 }
@@ -102,6 +98,6 @@ export function PersonRelations({identity,personId,organizationId,readOnly=false
       :<FormField label="Vigencia de vínculos">{control=><Select {...control} value={status} onChange={e=>{setStatus(e.target.value);setPage(1);}}><option value="all">Vigentes e históricos</option><option value="current">Solo vigentes</option><option value="historical">Solo históricos / finalizados</option></Select>}</FormField>}
     <QueryState pending={relations.isPending} error={relations.isError} retry={relations.refetch}/>
     {relations.data?.total===0&&<p>No hay vínculos en esta selección.</p>}
-    <DataList className="directory-episode-list">{relations.data?.items.map(row=><RelationCard key={row.id} identity={identity} row={row} fromOrganization={!!organizationId} readOnly={readOnly} organizationPresentation={organizationPresentation} hideEmptyHistoryPagination={organizationPresentation}/>)}</DataList>
+    <DataList className="directory-episode-list">{relations.data?.items.map(row=><RelationCard key={row.id} identity={identity} row={row} fromOrganization={!!organizationId} readOnly={readOnly} organizationPresentation={organizationPresentation}/>)}</DataList>
     {relations.data&&(!organizationPresentation||relations.data.total>0)&&<Pagination page={page} total={relations.data.total} pageSize={pageSize} onPage={setPage}/>}</section>;
 }

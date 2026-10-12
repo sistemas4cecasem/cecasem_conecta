@@ -17,7 +17,6 @@ import { PeopleService } from '../src/modules/directory/people.service';
 import { ContactsService } from '../src/modules/directory/contacts.service';
 import { DuplicateDetectionService } from '../src/modules/directory/duplicate-detection.service';
 import { ConsolidationService } from '../src/modules/directory/consolidation.service';
-import { VerificationService } from '../src/modules/directory/verification.service';
 import { AuditService } from '../src/modules/audit/audit.service';
 import type { DuplicateDecisionDto } from '../src/modules/directory/duplicates.dto';
 
@@ -30,8 +29,8 @@ function decision(candidate: Candidate): DuplicateDecisionDto {
 }
 describe('Candidatos y consolidación PostgreSQL/HTTP', () => {
   let app: INestApplication<Server>, prisma: PrismaService, users: UsersService, directory: DirectoryService, people: PeopleService,
-    contacts: ContactsService, detection: DuplicateDetectionService, consolidation: ConsolidationService, verification: VerificationService, passwordHash: string;
-  const password = randomBytes(24).toString('base64url');
+    contacts: ContactsService, detection: DuplicateDetectionService, consolidation: ConsolidationService, passwordHash: string;
+  const password = `Dup!a${randomBytes(24).toString('base64url')}`;
   const userIds: string[] = [], organizationIds: string[] = [], personIds: string[] = [], categoryIds: string[] = [], methodIds: string[] = [];
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(ConfigService)
@@ -39,7 +38,7 @@ describe('Candidatos y consolidación PostgreSQL/HTTP', () => {
     app = moduleRef.createNestApplication<INestApplication<Server>>(); configureApplication(app); await app.init();
     prisma = app.get(PrismaService); users = app.get(UsersService); directory = app.get(DirectoryService); people = app.get(PeopleService);
     contacts = app.get(ContactsService); detection = app.get(DuplicateDetectionService); consolidation = app.get(ConsolidationService);
-    verification = app.get(VerificationService); passwordHash = await app.get(PasswordService).hashNew(password);
+    passwordHash = await app.get(PasswordService).hashNew(password);
   });
   afterEach(async () => {
     jest.restoreAllMocks();
@@ -47,7 +46,6 @@ describe('Candidatos y consolidación PostgreSQL/HTTP', () => {
     const candidates = await prisma.duplicateCandidate.findMany({ where: actorPair, select: { id: true } });
     await prisma.$transaction([
       prisma.duplicateReconciliation.deleteMany({ where: { candidateId: { in: candidates.map(row => row.id) } } }),
-      prisma.verification.deleteMany({ where: { actorUserId: { in: userIds } } }),
       prisma.auditEvent.deleteMany({ where: { actorUserId: { in: userIds } } }),
       prisma.duplicateCandidate.deleteMany({ where: actorPair }),
       prisma.directoryChange.deleteMany({ where: { actorUserId: { in: userIds } } }),
@@ -98,14 +96,12 @@ describe('Candidatos y consolidación PostgreSQL/HTTP', () => {
     return { ...decision(candidate), principalId, previewToken: preview.previewToken, confirmed: true,
       reconcileCurrentRelations: true, contactConflictPolicy: 'KEEP_PRINCIPAL_CONTEXT' as const };
   }
-  it.each(Object.values(UserRole))('%s consulta y descarta sin modificar fichas ni verificaciones', async role => {
+  it.each(Object.values(UserRole))('%s consulta y descarta sin modificar fichas', async role => {
     const actor = await user(role), { a, b, candidate } = await orgPair(actor.id), session = await cookie(actor);
-    await verification.verify('organization', a.id, { expectedVersion: 1 }, actor.id);
     const original = await prisma.organization.findMany({ where: { id: { in: [a.id, b.id] } }, orderBy: { id: 'asc' } });
     await request(app.getHttpServer()).get('/api/v1/organizations/' + a.id + '/duplicate-candidates').set('Cookie', session).expect(200);
     await request(app.getHttpServer()).post('/api/v1/duplicate-candidates/' + candidate.id + '/dismiss').set('Cookie', session).send(decision(candidate)).expect(201);
     expect(await prisma.organization.findMany({ where: { id: { in: [a.id, b.id] } }, orderBy: { id: 'asc' } })).toEqual(original);
-    expect(await prisma.verification.count({ where: { organizationId: a.id } })).toBe(1);
     const refreshed = await detection.listActor('organization', a.id, page, actor.id);
     expect(refreshed.items).toHaveLength(1); expect(refreshed.items[0]).toMatchObject({ state: 'NOT_DUPLICATE', resolvedBy: { id: actor.id } });
   });
@@ -190,16 +186,13 @@ describe('Candidatos y consolidación PostgreSQL/HTTP', () => {
     const input = await proposal(candidate, a.id, actor.id);
     await expect(consolidation.consolidate(candidate.id, { ...input, confirmed: false }, actor.id)).rejects.toMatchObject({ code: 'CONSOLIDATION_CONFIRMATION_REQUIRED' });
   });
-  it('consolidación institucional conserva categorías originales, contactos, vínculos y verificaciones', async () => {
+  it('consolidación institucional conserva categorías originales, contactos y vínculos', async () => {
     const actor = await user(), { a, b, candidate } = await orgPair(actor.id), p = await person(actor.id), m = await medium(actor.id);
     const category = await directory.createCategory({ name: 'Categoría ' + randomUUID() }, actor.id); categoryIds.push(category.id);
     // Preparar clasificación antes de reevaluar: las versiones examinadas se actualizan explícitamente.
     await directory.editOrganization(b.id, { name: b.name, categoryIds: [category.id], expectedVersion: 1 }, actor.id);
     const pc = await contacts.associate({ organizationId: b.id }, m.id, { expectedMethodVersion: 1, sourceDescription: 'Evidencia institucional' }, actor.id);
     const relation = await people.createRelation(p.id, { organizationId: b.id, positionTitle: 'Coordinadora', isCurrent: true, startDate: '2020-01-01' }, actor.id);
-    await verification.verify('organization', b.id, { expectedVersion: 2 }, actor.id);
-    await verification.verify('organizationContact', pc.association.id, { expectedVersion: 1, expectedContactValueVersion: 1 }, actor.id);
-    await verification.verify('relation', relation.id, { expectedVersion: 1 }, actor.id);
     const current = (await detection.listActor('organization', a.id, page, actor.id)).items.find(row => row.id === candidate.id)!;
     const input = await proposal(current, a.id, actor.id), session = await cookie(actor);
     await request(app.getHttpServer()).post('/api/v1/duplicate-candidates/' + candidate.id + '/consolidate').set('Cookie', session).send(input).expect(201);
@@ -207,17 +200,15 @@ describe('Candidatos y consolidación PostgreSQL/HTTP', () => {
     expect(await prisma.organizationCategory.count({ where: { categoryId: category.id } })).toBe(2);
     expect(await prisma.personOrganizationRelation.findUniqueOrThrow({ where: { id: relation.id } })).toMatchObject({ organizationId: b.id, isCurrent: true });
     const primaryContact = await prisma.organizationContact.findFirstOrThrow({ where: { organizationId: a.id } });
-    expect(primaryContact).toMatchObject({ contactMethodId: m.id, lastVerifiedAt: null, sourceDescription: 'Evidencia institucional' });
+    expect(primaryContact).toMatchObject({ contactMethodId: m.id, sourceDescription: 'Evidencia institucional' });
     const primaryRelation = await prisma.personOrganizationRelation.findFirstOrThrow({ where: { organizationId: a.id } });
-    expect(primaryRelation).toMatchObject({ positionTitle: 'Coordinadora', lastVerifiedAt: null, startDate: new Date('2020-01-01') });
+    expect(primaryRelation).toMatchObject({ positionTitle: 'Coordinadora', startDate: new Date('2020-01-01') });
     expect((await contacts.listActor({ organizationId: a.id }, page)).items[0].consolidationOrigins[0]).toMatchObject({
       source: { id: pc.association.id, path: 'organizations/' + b.id }, outcome: 'CREATED', resolvedBy: { id: actor.id },
     });
     expect((await people.relationsOfOrganization(a.id, { ...page, status: 'all' })).items[0].consolidationOrigins[0]).toMatchObject({
       source: { id: relation.id, path: 'people/' + p.id }, outcome: 'CREATED', resolvedBy: { id: actor.id },
     });
-    expect(await prisma.verification.count({ where: { organizationId: b.id } })).toBe(1);
-    expect((await verification.status('organization', a.id)).verificationStatus).toBe('NEVER_VERIFIED');
     expect(await prisma.duplicateReconciliation.count({ where: { candidateId: candidate.id } })).toBe(2);
     expect(await prisma.auditEvent.findFirstOrThrow({ where: { action: 'DUPLICATE_CONSOLIDATED' } })).toMatchObject({ principalOrganizationId: a.id, duplicateOrganizationId: b.id, duplicateCandidateId: candidate.id });
     const history = await directory.organizationHistory(b.id, page); expect(history.items[0].changes[0]).toMatchObject({ field: 'duplicateOfOrganizationId' });
@@ -236,14 +227,6 @@ describe('Candidatos y consolidación PostgreSQL/HTTP', () => {
     ]) await expect(prisma.auditEvent.create({ data: { ...event, id: randomUUID(), ...change } })).rejects.toThrow();
     expect(await prisma.auditEvent.count({ where: { action: 'DUPLICATE_CONSOLIDATED' } })).toBe(1);
   });
-  it('principal verificado requiere revisión propia; no recibe verificación del duplicado', async () => {
-    const actor = await user(), { a, b, candidate } = await personPair(actor.id);
-    await verification.verify('person', a.id, { expectedVersion: 1 }, actor.id); await verification.verify('person', b.id, { expectedVersion: 1 }, actor.id);
-    const before = await prisma.verification.findMany({ orderBy: { id: 'asc' } });
-    await consolidation.consolidate(candidate.id, await proposal(candidate, a.id, actor.id), actor.id);
-    expect(await prisma.verification.findMany({ orderBy: { id: 'asc' } })).toEqual(before);
-    expect(await verification.status('person', a.id)).toMatchObject({ verificationStatus: 'REVIEW_DUE', changedSinceVerification: true });
-  });
   it('contextos discrepantes conservan fuente del principal y evidencia original, sin duplicar asociación', async () => {
     const actor = await user(), { a, b, candidate } = await personPair(actor.id), m = await medium(actor.id);
     const main = await contacts.associate({ personId: a.id }, m.id, { expectedMethodVersion: 1, notes: 'Principal' }, actor.id);
@@ -252,7 +235,7 @@ describe('Candidatos y consolidación PostgreSQL/HTTP', () => {
     const preview = await consolidation.preview(candidate.id, a.id, actor.id);
     expect(preview.contacts[0]).toMatchObject({ contextConflict: true, reactivate: true });
     await consolidation.consolidate(candidate.id, await proposal(candidate, a.id, actor.id), actor.id);
-    expect(await prisma.personContact.findUniqueOrThrow({ where: { id: main.association.id } })).toMatchObject({ notes: 'Principal', isActive: true, lastVerifiedAt: null });
+    expect(await prisma.personContact.findUniqueOrThrow({ where: { id: main.association.id } })).toMatchObject({ notes: 'Principal', isActive: true });
     expect(await prisma.personContact.findUniqueOrThrow({ where: { id: old.association.id } })).toMatchObject({ notes: 'Evidencia duplicada', personId: b.id });
     expect(await prisma.personContact.count({ where: { personId: a.id } })).toBe(1);
   });
@@ -324,14 +307,13 @@ describe('Candidatos y consolidación PostgreSQL/HTTP', () => {
     expect(preview.blockers).toContain('INVALID_CONSOLIDATION_TARGET');
     await expect(consolidation.consolidate(refreshed.id, await proposal(refreshed, c.id, actor.id), actor.id)).rejects.toMatchObject({ code: 'INVALID_CONSOLIDATION_TARGET' });
   });
-  it('ficha consolidada no acepta edición, estado, contactos, vínculos ni verificación; lectura e historia continúan', async () => {
+  it('ficha consolidada no acepta edición, estado, contactos ni vínculos; lectura e historia continúan', async () => {
     const actor = await user(), { a, b, candidate } = await personPair(actor.id), org = await organization(actor.id), m = await medium(actor.id);
     await consolidation.consolidate(candidate.id, await proposal(candidate, a.id, actor.id), actor.id);
     for (const work of [() => people.edit(b.id, { displayName: 'Cambio', expectedVersion: 2 }, actor.id),
       () => people.status(b.id, { isActive: false, expectedVersion: 2 }, actor.id),
       () => contacts.associate({ personId: b.id }, m.id, { expectedMethodVersion: 1 }, actor.id),
-      () => people.createRelation(b.id, { organizationId: org.id, isCurrent: true }, actor.id),
-      () => verification.verify('person', b.id, { expectedVersion: 2 }, actor.id)]) {
+      () => people.createRelation(b.id, { organizationId: org.id, isCurrent: true }, actor.id)]) {
       await expect(work()).rejects.toMatchObject({ code: 'ACTOR_ALREADY_CONSOLIDATED', details: { principalId: a.id, principalPath: 'people/' + a.id } });
     }
     expect(await people.get(b.id)).toMatchObject({ id: b.id, duplicateOfId: a.id });

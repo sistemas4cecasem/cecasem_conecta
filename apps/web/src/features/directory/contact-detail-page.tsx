@@ -34,7 +34,7 @@ export function ContactDetailPage() {
   const row=query.data;
   return <section className="ui-detail-page"><PageHeader eyebrow="Directorio / Medios de contacto" title={'Medio de contacto: ' + row.value} description={`${contactLabels[row.type]} · ${conditionLabels[row.condition]}`} actions={<Link className={buttonClass} to="/organizations">Volver al directorio</Link>} />
     <Surface heading="Información del medio">{row.label&&<p>Etiqueta: {row.label}</p>}
-    <p>{row.associationCount>1?'Medio compartido':'Medio canónico'} · {row.associationCount} asociaciones. La condición global no representa verificación.</p></Surface>
+    <p>{row.associationCount>1?'Medio compartido':'Medio canónico'} · {row.associationCount} asociaciones.</p></Surface>
     {editing?<ContactCorrectionForm identity={identity} initial={editing} saved={()=>{setEditing(null);setReplacementId(undefined);}} cancel={()=>setEditing(null)} onExisting={setReplacementId}/>:
       identity.permissions.includes('directory.write')&&<button className={buttonClass} onClick={()=>setEditing(row)}>Corregir medio de contacto</button>}
     {identity.permissions.includes('directory.write')&&<button className={buttonClass} disabled={mutation.isPending} onClick={()=>{void mutation.mutateAsync({path:'contact-methods/'+id+'/condition',method:'PATCH',body:{condition:row.condition==='USABLE'?'UNUSABLE':'USABLE',expectedVersion:row.version}}).catch(()=>undefined);}}>{row.condition==='USABLE'?'Marcar medio no utilizable':'Restablecer medio disponible'}</button>}

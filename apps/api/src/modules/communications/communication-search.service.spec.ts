@@ -39,12 +39,12 @@ describe('Antecedentes públicos de correo', () => {
   });
   it('mantiene los antecedentes del Excel separados y conserva vacíos los campos no conocidos', async () => {
     const f = fixture(); f.tx.importedHistoricalRecord.findMany.mockResolvedValue([{ id: 'imported', kind: 'SENT', occurredOn: null, email: query.address,
-      subject: null, body: null, originalObservation: 'Se indicó un envío', lastVerifiedAt: null,
+      subject: null, body: null, originalObservation: 'Se indicó un envío',
       batch: { id: 'batch', originalFilename: 'historial.xlsx', createdAt: new Date('2026-10-05T10:00:00Z') }, organization: null, person: null }]);
     f.tx.importedHistoricalRecord.count.mockResolvedValue(1);
     const history = await f.service.history({ ...query, page: 1 }, 'actor');
     expect(history.importedRecords.items[0]).toMatchObject({ type: 'IMPORTED_HISTORICAL_RECORD', id: 'imported', kind: 'SENT', occurredOn: null,
-      subject: null, body: null, originalObservation: 'Se indicó un envío', lastVerifiedAt: null, batch: { id: 'batch', originalFilename: 'historial.xlsx' } });
+      subject: null, body: null, originalObservation: 'Se indicó un envío', batch: { id: 'batch', originalFilename: 'historial.xlsx' } });
     expect(history.items).toHaveLength(1); expect(history.importedRecords.total).toBe(1);
   });
   it.each([null, { isActive: false, role: 'RESEARCH' }, { isActive: true, role: 'UNKNOWN' }])('revalida acceso antes de datos históricos %j', async actor => {

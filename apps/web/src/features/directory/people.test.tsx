@@ -9,8 +9,8 @@ import { type AuthIdentity } from '../auth/session';
 import { personFormSchema,relationFormSchema,type Person,type PersonRelation } from './contracts';
 const stamp='2026-10-02T00:00:00.000Z';
 const identity:AuthIdentity={id:'qa',givenNames:'QA',familyNames:'Personas',username:'qa',email:'qa@example.test',role:'RESEARCH',permissions:['directory.read','directory.write','directory.history.read']};
-const base:Person={id:'person',displayName:'Ana QA',givenNames:null,familyNames:null,isActive:true,version:1,createdAt:stamp,updatedAt:stamp,lastVerifiedAt:null,currentRelationsCount:0,institutionalStatus:'NO_KNOWN_LINKS'};
-const org={id:'org-a',name:'Organización A',country:null,alias:null,description:null,officialWebsite:null,branchOfId:null,branchOf:null,categories:[],isActive:true,version:1,createdAt:stamp,updatedAt:stamp,lastVerifiedAt:null};
+const base:Person={id:'person',displayName:'Ana QA',givenNames:null,familyNames:null,isActive:true,version:1,createdAt:stamp,updatedAt:stamp,currentRelationsCount:0,institutionalStatus:'NO_KNOWN_LINKS'};
+const org={id:'org-a',name:'Organización A',country:null,alias:null,description:null,officialWebsite:null,branchOfId:null,branchOf:null,categories:[],isActive:true,version:1,createdAt:stamp,updatedAt:stamp,};
 const episode:PersonRelation={id:'episode-a',personId:base.id,organizationId:org.id,positionTitle:'Coordinadora',area:null,isCurrent:true,startDate:null,endDate:null,sourceDescription:null,sourceUrl:null,notes:null,version:1,createdAt:stamp,updatedAt:stamp,person:{id:base.id,displayName:base.displayName,isActive:true},organization:{id:org.id,name:org.name,isActive:true}};
 const page=(items:unknown[],total=items.length)=>({items,total,page:1,pageSize:25});
 describe('Personas y episodios institucionales en UI',()=>{
@@ -21,7 +21,6 @@ describe('Personas y episodios institucionales en UI',()=>{
     fetchMock.mockImplementation((url,options)=>{
       const path=url.replace('/api/v1/',''),method=options?.method??'GET';
       if (url.includes('/duplicate-candidates?')) return Promise.resolve(Response.json({items:[],total:0,page:1,pageSize:25}));
-      if (path.endsWith('/verification')) return Promise.resolve(Response.json({objectType:'person',classification:'personal',intervalMonths:6,verificationStatus:'NEVER_VERIFIED',lastVerifiedAt:null,lastVerifiedBy:null,nextReviewAt:null,changedSinceVerification:false,timeReviewDue:false,version:1,contactValueVersion:null}));
       if(path==='auth/me')return Promise.resolve(Response.json(loggedOut?{}:actor,{status:loggedOut?401:200}));
       if(path==='auth/logout'){loggedOut=true;return Promise.resolve(new Response(null,{status:204}));}
       if(path.includes('/history'))return Promise.resolve(Response.json({...page([{operationId:'operation-test',createdAt:stamp,objectType:'PERSON',actor:{id:actor.id,givenNames:actor.givenNames,familyNames:actor.familyNames,isActive:true},contextRecorded:true,relatedReferences:[],replacement:null,changes:[{field:path.startsWith('people')?'displayName':'positionTitle',label:'Dato de ficha',previousValue:'Anterior',newValue:'Corregido',previousReferences:[],newReferences:[],added:[],removed:[]}]}]),references:{}}));
@@ -164,7 +163,7 @@ describe('Personas y episodios institucionales en UI',()=>{
   });
   it('crea independiente con solo presentación e invalida directorio',async()=>{
     const user=userEvent.setup(),invalidate=vi.spyOn(client,'invalidateQueries');app('/people/new');await user.type(await screen.findByLabelText('Nombre de presentación'),'Profesional independiente');await user.click(screen.getByRole('button',{name:'Guardar persona'}));
-    await screen.findByRole('heading',{name:'Profesional independiente'});expect(screen.getByText(/Sin vínculos vigentes: persona independiente/)).toBeVisible();expect(screen.getByText('Sin verificar')).toBeVisible();
+    await screen.findByRole('heading',{name:'Profesional independiente'});expect(screen.getByText(/Sin vínculos vigentes: persona independiente/)).toBeVisible();
     const created=fetchMock.mock.calls.find(([url,options])=>url.endsWith('/people')&&options?.method==='POST');expect(JSON.parse(String(created?.[1]?.body))).toEqual({displayName:'Profesional independiente',givenNames:'',familyNames:''});expect(invalidate).toHaveBeenCalledWith({queryKey:['directory','qa']});
   });
   it('muestra dos organizaciones simultáneas y períodos desconocidos',async()=>{

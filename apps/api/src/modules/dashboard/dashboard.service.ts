@@ -4,9 +4,6 @@ import { PrismaService } from '../../database/prisma.service';
 import { UsersService } from '../users/users.service';
 import { hasPermission } from '../auth/authorization/role-permissions';
 import { PERMISSIONS } from '../auth/authorization/permission';
-import { VerificationSettingsService } from '../settings/verification-settings.service';
-import { VerificationClock } from '../directory/verification.service';
-import { organizationVerificationPredicate } from '../directory/verification.rules';
 import type { DashboardResponseDto } from './dashboard.dto';
 
 const meetingSelect = { id: true, purpose: true, scheduledAt: true, timezone: true, processId: true, opportunityId: true,
@@ -14,8 +11,7 @@ const meetingSelect = { id: true, purpose: true, scheduledAt: true, timezone: tr
 
 @Injectable()
 export class DashboardService {
-  constructor(private readonly prisma: PrismaService, private readonly users: UsersService,
-    private readonly verificationSettings: VerificationSettingsService, private readonly verificationClock: VerificationClock) {}
+  constructor(private readonly prisma: PrismaService, private readonly users: UsersService) {}
 
   async get(actorId: string): Promise<DashboardResponseDto> {
     return this.prisma.$transaction(async tx => {
@@ -33,22 +29,14 @@ export class DashboardService {
   private async institutional(asOf: Date, tx: Prisma.TransactionClient): Promise<DashboardResponseDto> {
     const activeProcessWhere = { state: { not: 'CLOSED' as const } };
     const futureMeetingWhere = { status: 'SCHEDULED' as const, scheduledAt: { gt: asOf } };
-    const settings = await this.verificationSettings.get(tx);
-    const now = this.verificationClock.now();
-    const reviewDue = organizationVerificationPredicate('REVIEW_DUE', Prisma.sql`o.id`, Prisma.sql`o.version`, settings.institutionalVerificationMonths, now);
-    const neverVerified = organizationVerificationPredicate('NEVER_VERIFIED', Prisma.sql`o.id`, Prisma.sql`o.version`, settings.institutionalVerificationMonths, now);
     const [activeProcesses, waitingResponseProcesses, opportunityGroups, upcomingMeetingCount, upcomingMeetings,
-      pendingApplications, verificationCounts] = await Promise.all([
+      pendingApplications] = await Promise.all([
       tx.relationshipProcess.count({ where: activeProcessWhere }),
       tx.relationshipProcess.count({ where: { state: 'WAITING_RESPONSE' } }),
       tx.opportunity.groupBy({ by: ['status'], _count: { _all: true } }),
       tx.meeting.count({ where: futureMeetingWhere }),
       tx.meeting.findMany({ where: futureMeetingWhere, select: meetingSelect, orderBy: [{ scheduledAt: 'asc' }, { id: 'asc' }], take: 5 }),
       tx.opportunity.count({ where: { status: 'SUBMITTED' } }),
-      tx.$queryRaw<{ reviewDue: bigint; neverVerified: bigint }[]>(Prisma.sql`
-        SELECT count(*) FILTER (WHERE ${reviewDue}) AS "reviewDue",
-          count(*) FILTER (WHERE ${neverVerified}) AS "neverVerified"
-        FROM "Organization" o WHERE o."isActive" = true`),
     ]);
     const byStatus = Object.fromEntries(opportunityGroups.map(row => [row.status, row._count._all]));
     return { view: 'institutional', asOf: asOf.toISOString(), activeProcesses, waitingResponseProcesses,
@@ -56,8 +44,7 @@ export class DashboardService {
         submitted: byStatus.SUBMITTED ?? 0, discarded: byStatus.DISCARDED ?? 0, finished: byStatus.FINISHED ?? 0 },
       upcomingMeetingCount, upcomingMeetings: upcomingMeetings.map(row => ({ id: row.id, purpose: row.purpose,
         scheduledAt: row.scheduledAt.toISOString(), timezone: row.timezone, processId: row.processId, opportunityId: row.opportunityId,
-        relatedTitle: row.opportunity?.name ?? row.process?.purpose ?? null })), pendingApplications,
-      organizationsReviewDue: Number(verificationCounts[0]?.reviewDue ?? 0), organizationsNeverVerified: Number(verificationCounts[0]?.neverVerified ?? 0) };
+        relatedTitle: row.opportunity?.name ?? row.process?.purpose ?? null })), pendingApplications };
   }
 
   private async research(actorId: string, asOf: Date, tx: Prisma.TransactionClient): Promise<DashboardResponseDto> {
