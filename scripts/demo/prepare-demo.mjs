@@ -77,7 +77,28 @@ function setCookie(response) {
 }
 
 function accountPassword() {
-  return randomBytes(32).toString('base64url');
+  return 'Aa!' + randomBytes(32).toString('base64url');
+}
+// Recorre el mismo contrato HTTP que usa una cuenta con contraseña inicial.
+export async function provisionDemoAccount({ api, adminCookie, spec, initialPassword, password, fetchImpl = fetch }) {
+  async function call(path, body, session) {
+    const response = await fetchImpl(new URL(path, api), {
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...(session ? { Cookie: session } : {}) },
+      body: JSON.stringify(body), redirect: 'error',
+    });
+    if (!response.ok) throw new Error(`La API rechazó POST ${path} (HTTP ${response.status}).`);
+    return response;
+  }
+  const created = await call('users', { givenNames: spec.givenNames, familyNames: spec.familyNames, email: spec.email, role: spec.role, password: initialPassword }, adminCookie);
+  const user = await created.json();
+  const initial = await call('auth/login', { email: spec.email, password: initialPassword });
+  const initialIdentity = await initial.json();
+  if (initialIdentity.id !== user.id || initialIdentity.mustChangePassword !== true) throw new Error('La cuenta de demo no requiere el cambio inicial esperado.');
+  const changed = await call('auth/change-password', { password }, setCookie(initial));
+  const established = await call('auth/login', { email: spec.email, password }, setCookie(changed));
+  const actor = await established.json();
+  if (actor.id !== user.id || actor.role !== spec.role || actor.mustChangePassword) throw new Error('El acceso personal de demo no quedó habilitado.');
+  return { id: actor.id, email: actor.email, cookie: setCookie(established) };
 }
 
 async function saveRoleCredentials(path, credentials) {
@@ -134,6 +155,7 @@ export async function prepareDemoDataset({ baseUrl = defaultBaseUrl, adminEmail,
   if (!loginResponse.ok) throw new Error('No se pudo autenticar al Administrador indicado.');
   const login = await loginResponse.json();
   if (login.role !== 'ADMINISTRATOR') throw new Error('La cuenta indicada no tiene rol Administrador.');
+  if (login.mustChangePassword) throw new Error('Completa el cambio obligatorio del Administrador antes de preparar la demo.');
   cookie = setCookie(loginResponse);
 
   const users = collectionItems(await request('GET', 'users?status=all'));
@@ -158,17 +180,9 @@ export async function prepareDemoDataset({ baseUrl = defaultBaseUrl, adminEmail,
   ];
 
   for (const spec of roleSpecs) {
-    const user = await request('POST', 'users', { body: { givenNames: spec.givenNames, familyNames: spec.familyNames, email: spec.email, role: spec.role } });
-    const issued = await request('POST', 'auth/first-access-tokens', { body: { userId: user.id } });
     const password = accountPassword();
-    await request('POST', 'auth/first-access', { body: { token: issued.token, password }, authenticated: false });
-    const actorLogin = await fetchImpl(new URL('auth/login', api), {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: spec.email, password }), redirect: 'error',
-    });
-    if (!actorLogin.ok) throw new Error(`No se pudo validar el primer acceso del rol ${spec.role}.`);
-    const actor = await actorLogin.json();
-    const actorCookie = setCookie(actorLogin);
-    actors.set(spec.key, { id: actor.id, email: actor.email, cookie: actorCookie });
+    const actor = await provisionDemoAccount({ api, adminCookie: cookie, spec, initialPassword: accountPassword(), password, fetchImpl });
+    actors.set(spec.key, actor);
     credentials.push({ role: spec.role, name: `${spec.givenNames} ${spec.familyNames}`, email: spec.email, password });
     await saveRoleCredentials(credentialsPath, credentials);
   }

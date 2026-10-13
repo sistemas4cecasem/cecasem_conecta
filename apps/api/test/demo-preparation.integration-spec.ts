@@ -116,6 +116,15 @@ describe('preparación del dataset de demostración 6.2 PostgreSQL/HTTP', () => 
     expect(await db.contactRestriction.count({ where: { state: 'ACTIVE' } })).toBe(1);
 
     const savedCredentials = JSON.parse(await readFile(credentialsPath, 'utf8')) as { accounts: Array<{ role: string; email: string; password: string }> };
+    expect(savedCredentials.accounts).toHaveLength(5);
+    expect(await db.firstAccessToken.count()).toBe(0);
+    expect(await db.passwordResetToken.count()).toBe(0);
+    for (const account of savedCredentials.accounts) {
+      const user = await db.user.findUniqueOrThrow({ where: { email: account.email } });
+      expect(user.mustChangePassword).toBe(false);
+      expect(await passwordService.verify(account.password, user.passwordHash)).toBe(true);
+      expect(await db.userSession.count({ where: { userId: user.id, revokedAt: null } })).toBe(0);
+    }
     const research = savedCredentials.accounts.find((account) => account.email === 'investigacion@demo.example.test');
     if (!research) throw new Error('Faltó la cuenta sintética de Búsqueda.');
     await request(app.getHttpServer()).post('/api/v1/auth/login').send({ email: research.email, password: research.password }).expect(200)

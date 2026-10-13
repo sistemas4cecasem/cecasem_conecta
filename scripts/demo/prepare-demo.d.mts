@@ -54,3 +54,12 @@ export interface DemoPrepareResult {
 }
 
 export declare function prepareDemoDataset(options: DemoPrepareOptions): Promise<DemoPrepareResult>;
+
+export declare function provisionDemoAccount(options: {
+  api: URL;
+  adminCookie: string;
+  spec: { givenNames: string; familyNames: string; email: string; role: string };
+  initialPassword: string;
+  password: string;
+  fetchImpl?: typeof fetch;
+}): Promise<{ id: string; email: string; cookie: string }>;

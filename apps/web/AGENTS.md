@@ -6,10 +6,11 @@ These instructions apply to everything under `apps/web` and complement the
 [root AGENTS.md](../../AGENTS.md). Higher-level documented architecture,
 functional and business decisions remain authoritative; do not override them here.
 
-At Subphase 0.1.1, this workspace contains only its package manifest and these
-instructions. React/Vite has not been initialized. The conventions below describe
-future work when the corresponding subphase authorizes it; they do not authorize
-creating application code, installing dependencies or advancing future phases.
+The React/Vite application is initialized and implements the current authorized phases.
+The current prompt remains the scope boundary; these conventions do not authorize
+new features or dependencies. Access uses an initial password and a mandatory
+personal password change. Public first-access/reset token workflows are retired;
+retain their historical structures without adding active emission or consumption.
 
 ## Approved frontend stack
 
@@ -19,8 +20,7 @@ required by the current scope, following the root dependency discipline.
 
 ## Feature organization
 
-When initialized, the intended direction is the following; these directories and
-source files do not exist yet:
+The frontend organization follows this direction:
 
 ```text
 src/

@@ -61,7 +61,9 @@ Para el primer administrador, cuando la API esté saludable:
 docker compose --project-name cecasem_conecta --env-file infra/production/.env -f docker-compose.yml exec api node dist/bootstrap-admin.js --given-names "Nombres" --family-names "Apellidos" --email "admin@example.org"
 ```
 
-El comando no acepta ni establece password. Devuelve un token temporal de primer acceso: consérvalo fuera de logs e historial compartido y entrégalo por un canal seguro. El Administrador define su propia contraseña desde `/first-access`.
+El comando solicita y confirma una contraseña inicial mediante entrada oculta en la terminal; no la pases como argumento ni la registres en logs. Crea el Administrador con cambio obligatorio y devuelve únicamente su identidad. Ingresa desde `/login` con esa contraseña inicial: el sistema exige reemplazarla en `/change-password` antes de usar las funcionalidades protegidas. No emite tokens de primer acceso.
+
+Para las cuentas posteriores, el Administrador asigna una contraseña inicial al crearlas o al restablecer su contraseña desde Usuarios; el mismo cambio obligatorio se aplica y el restablecimiento revoca las sesiones anteriores.
 
 ## Servicios, puertos y health
 

@@ -236,3 +236,13 @@ creación/edición, sedes y representaciones, categorías e historial. Las capab
 controlan los accesos. Un conflicto conserva el borrador y ofrece recargar con
 advertencia; las queries se invalidan por identidad y se limpian al cerrar sesión.
 Detalles en [Organizaciones](../../docs/subfase-2.1-organizaciones.md).
+
+## Cobertura vigente tras la auditoría AF-02 (13 de octubre de 2026)
+
+Las pruebas actuales ejercitan contraseña inicial, bloqueo de funciones protegidas,
+cambio obligatorio, restablecimiento administrativo y revocación de sesiones.
+Las secciones 1.3 y 1.4 anteriores son antecedentes históricos: sus endpoints y
+pantallas públicos por token siguen retirados. La cobertura de esos recorridos se
+reemplazó por los comportamientos equivalentes del acceso vigente; las estructuras
+históricas se conservan y sus credenciales pendientes se revocan al restablecer o
+desactivar una cuenta. No se emiten credenciales de token nuevas.

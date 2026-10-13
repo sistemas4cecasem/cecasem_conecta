@@ -32,7 +32,7 @@ describe('User identity persistence rules', () => {
     expect(create.mock.calls.map((call: unknown[]) => call[0])).toEqual([1, 2, 3].map((attempt) => ({
       select: userIdentitySelect,
       data: { givenNames: input.givenNames, familyNames: input.familyNames, email: 'diego@cecasem.com',
-        role: UserRole.RESEARCH, username: `diego.farinas${attempt === 1 ? '' : attempt}` },
+        role: UserRole.RESEARCH, mustChangePassword: false, passwordHash: null, username: `diego.farinas${attempt === 1 ? '' : attempt}` },
     })));
   });
 

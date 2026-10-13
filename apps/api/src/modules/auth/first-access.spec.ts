@@ -13,7 +13,7 @@ import { AppEnvironment } from '../../config/environment';
 import { UserRole } from '../../generated/prisma/client';
 
 describe('First access credential policy', () => {
-  it.each([UserRole.BOARD, UserRole.RESEARCH, UserRole.PLANNING])('rejects issuance by %s before touching persistence', async (role) => {
+  it.each(Object.values(UserRole))('rejects issuance by %s before touching persistence', async (role) => {
     const locked = jest.fn();
     const service = new FirstAccessService({ withLockedCredentials: locked } as unknown as UsersService,
       {} as FirstAccessTokensService, {} as PasswordService, {} as SessionsService, {} as ConfigService<AppEnvironment, true>);
@@ -41,7 +41,7 @@ describe('First access credential policy', () => {
     const now = new Date();
     expect(firstAccessIsValid({ expiresAt: new Date(+now + 1), usedAt: null, revokedAt: null }, now)).toBe(true);
   });
-  it.each(['😀'.repeat(15), 'e\u0301'.repeat(15), ' '.repeat(15), 'a'.repeat(128)])('reuses normalized Unicode policy', (password) => {
+  it.each(['Aa!'+ '😀'.repeat(5), 'A!'+ 'e\u0301'.repeat(6), 'Aa!'+ ' '.repeat(5), 'Aa!'+ 'a'.repeat(125)])('reuses normalized Unicode policy', (password) => {
     expect(validNewPassword(password)).toBe(true);
     expect(validateSync(Object.assign(new ConsumeFirstAccessDto(), { token: createOpaqueToken(), password }))).toHaveLength(0);
   });

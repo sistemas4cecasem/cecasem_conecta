@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createDemoWorkbook, demoSheets } from './demo-workbook.mjs';
-import { decisionsForPreview, summarizeImportPreview, validateDemoBaseUrl } from './prepare-demo.mjs';
+import { decisionsForPreview, summarizeImportPreview, validateDemoBaseUrl, provisionDemoAccount } from './prepare-demo.mjs';
 
 test('la preparación normal solo acepta el servidor demo local aislado', () => {
   assert.equal(validateDemoBaseUrl('http://127.0.0.1:8087'), 'http://127.0.0.1:8087');
@@ -52,3 +52,32 @@ test('el libro contiene cuatro hojas pequeñas y solo contactos de dominios rese
   assert.ok(contactValues.every((value) => /@[^@]+\.example\.test$/u.test(value)));
   assert.equal(workbook.worksheets.find((sheet) => sheet.name === 'Organizaciones').getRow(1).getCell(6).value, 'Categoría propuesta');
 });
+for (const failure of [null, 'create', 'change', 'established']) {
+  test(`aprovisionamiento usa contraseña inicial y contrato vigente; fallo=${failure}`, async () => {
+    const spec = { givenNames: 'Demo', familyNames: 'Prueba', email: 'demo@example.test', role: 'RESEARCH' };
+    const initialPassword = 'Aa!inicial-demo'; const password = 'Bb!personal-demo';
+    const calls = [];
+    const fetchImpl = async (url, options) => {
+      const path = url.pathname; const body = JSON.parse(options.body); calls.push(path);
+      assert.equal(options.method, 'POST'); assert.equal(options.redirect, 'error');
+      if (calls.length === 1) {
+        assert.equal(path, '/api/v1/users'); assert.deepEqual(body, { ...spec, password: initialPassword }); assert.equal(options.headers.Cookie, 'cecasem_session=admin');
+        return failure === 'create' ? new Response(null, { status: 400 }) : Response.json({ id: 'user' }, { status: 201 });
+      }
+      if (calls.length === 2) {
+        assert.equal(path, '/api/v1/auth/login'); assert.deepEqual(body, { email: spec.email, password: initialPassword }); assert.equal(options.headers.Cookie, undefined);
+        return Response.json({ id: 'user', mustChangePassword: true }, { headers: { 'Set-Cookie': 'cecasem_session=initial; HttpOnly' } });
+      }
+      if (calls.length === 3) {
+        assert.equal(path, '/api/v1/auth/change-password'); assert.deepEqual(body, { password }); assert.equal(options.headers.Cookie, 'cecasem_session=initial');
+        return new Response(null, { status: failure === 'change' ? 409 : 204, headers: { 'Set-Cookie': 'cecasem_session=rotated; HttpOnly' } });
+      }
+      assert.equal(options.headers.Cookie, 'cecasem_session=rotated'); assert.equal(calls.length, 4); assert.equal(path, '/api/v1/auth/login'); assert.deepEqual(body, { email: spec.email, password });
+      return Response.json({ id: 'user', email: spec.email, role: spec.role, mustChangePassword: failure === 'established' }, { headers: { 'Set-Cookie': 'cecasem_session=personal; HttpOnly' } });
+    };
+    const run = () => provisionDemoAccount({ api: new URL('http://127.0.0.1:8087/api/v1/'), adminCookie: 'cecasem_session=admin', spec, initialPassword, password, fetchImpl });
+    if (failure) await assert.rejects(run);
+    else assert.deepEqual(await run(), { id: 'user', email: spec.email, cookie: 'cecasem_session=personal' });
+    assert.equal(calls.length, failure === 'create' ? 1 : failure === 'change' ? 3 : 4);
+  });
+}

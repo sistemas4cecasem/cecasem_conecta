@@ -17,15 +17,14 @@ Todo dato del archivo y del relato es ficticio. Los correos usan `example.test`;
    Remove-Item Env:DATABASE_URL
    ```
 
-   El override usa `!override` y requiere Docker Compose 2.24.4 o superior. Verifica que estén aplicadas las 57 migraciones esperadas. El proyecto publica la web en `http://127.0.0.1:8087` y PostgreSQL solo en `127.0.0.1:55437`. El preparador rechaza cualquier host remoto, cualquier puerto distinto de 8087 y `localhost:8080`.
-3. Crea el primer Administrador con el CLI offline existente. El token se captura en una variable de PowerShell para no mostrarlo:
+   El override usa `!override` y requiere Docker Compose 2.24.4 o superior. Verifica con `prisma:migrate:status` que todas las migraciones versionadas estén aplicadas. El proyecto publica la web en `http://127.0.0.1:8087` y PostgreSQL solo en `127.0.0.1:55437`. El preparador rechaza cualquier host remoto, cualquier puerto distinto de 8087 y `localhost:8080`.
+3. Crea el primer Administrador con el CLI offline existente desde una terminal interactiva (sin `-T`):
 
    ```powershell
-   $firstAccessJson = docker compose --project-name cecasem-demo --env-file .env.demo exec -T api node dist/bootstrap-admin.js --given-names Administrador --family-names Demo --email admin@demo.example.test
-   $firstAccessToken = ($firstAccessJson | ConvertFrom-Json).token
+   docker compose --project-name cecasem-demo --env-file .env.demo exec api node dist/bootstrap-admin.js --given-names Administrador --family-names Demo --email admin@demo.example.test
    ```
 
-   Abre `http://127.0.0.1:8087/first-access`, completa el primer acceso con una contraseña propia de al menos 15 caracteres y cierra la sesión del navegador. El CLI solo emite el token; no define contraseña ni publica una puerta de autenticación.
+   El CLI solicita y confirma una contraseña inicial mediante entrada oculta. Solo imprime la identidad; no devuelve un token. Abre `http://127.0.0.1:8087/login`, ingresa con esa contraseña y completa el cambio obligatorio en `/change-password` antes de preparar datos. La contraseña personal debe tener 8–128 puntos de código después de NFC, una mayúscula, una minúscula y un símbolo. Cierra la sesión del navegador al terminar.
 4. En PowerShell, toma la contraseña elegida mediante el prompt seguro y ejecuta `yarn demo:prepare`:
 
    ```powershell
@@ -37,7 +36,7 @@ Todo dato del archivo y del relato es ficticio. Los correos usan `example.test`;
    Remove-Item Env:CECASEM_DEMO_ADMIN_PASSWORD
    ```
 
-   El guion crea los usuarios y el relato institucional mediante endpoints autenticados. Para cada hoja imprime análisis, advertencias, errores y coincidencias; confirma cada preview solo cuando se escribe `IMPORTAR-6.2`. Las filas inválidas quedan sin aplicar. En una coincidencia posible única, el guion propone vincularla a la ficha existente y registra esa decisión explícita.
+   El guion crea los usuarios con contraseña inicial, inicia sesión y completa el cambio obligatorio antes de registrar el relato institucional mediante endpoints autenticados. Solo guarda las contraseñas personales sintéticas resultantes, nunca las iniciales. El Administrador indicado debe haber completado previamente su cambio obligatorio. Para cada hoja imprime análisis, advertencias, errores y coincidencias; confirma cada preview solo cuando se escribe `IMPORTAR-6.2`. Las filas inválidas quedan sin aplicar. En una coincidencia posible única, el guion propone vincularla a la ficha existente y registra esa decisión explícita.
 
    La primera cuenta Administrador debe coincidir con el correo usado en el paso 3. No se necesita conocer ningún UUID: el guion encadena las referencias que devuelve cada API.
 
@@ -56,11 +55,11 @@ Todo dato del archivo y del relato es ficticio. Los correos usan `example.test`;
 - Una oportunidad enlazada a la respuesta y al proceso, en estado `PREPARING`; una reunión futura en `America/La_Paz` vinculada a ambos y con participantes internos y externos.
 - Una segunda organización ficticia con una restricción activa de no contacto y motivo explícito.
 - Cuatro hojas Excel: `Organizaciones` (4 filas analizadas: 3 para revisión y 1 inválida), `Personas` (2 importadas, sin inválidas), `Contactos` (3 analizadas: 2 importadas y 1 inválida) y `Antecedentes` (2 analizadas: 1 para revisión y 1 inválida). Incluyen Bolivia, Perú, Paraguay y Ecuador, registros completos y parciales, y una coincidencia posible vinculada a la ficha exacta mientras se conserva la advertencia de la candidata similar.
-- Las fichas nuevas creadas por importación conservan `dataImportBatchId`, estado pendiente de verificación y `lastVerifiedAt = null`. Importar la muestra no crea comunicaciones ordinarias ni registros de verificación.
+- Las fichas nuevas creadas por importación conservan `dataImportBatchId` y los datos incompletos cuando la fuente no aporta información. No se utiliza un estado ni timestamp de verificación en los flujos activos. Importar la muestra no crea comunicaciones ordinarias ni registros de verificación.
 
 El archivo `storage/demo/demo-accounts.local.json` contiene las credenciales generadas al azar de las cuatro identidades añadidas (Directorio, dos cuentas de Búsqueda y Planificación) y de la cuenta Administrador usada en la preparación. `storage/` está excluido de Git; conserva ese archivo en el equipo de demo y no lo copies al repositorio. Las contraseñas no se imprimen, no se fijan en el código y pueden cambiarse con las herramientas normales de administración.
 
-La preparación no es reejecutable sobre datos existentes: detecta los correos, nombres institucionales y lotes de importación de 6.2 y se detiene antes de crear fichas. Para repetir, reconstruye únicamente la base del proyecto aislado como se indica arriba y vuelve a emitir el primer acceso.
+La preparación no es reejecutable sobre datos existentes: detecta los correos, nombres institucionales y lotes de importación de 6.2 y se detiene antes de crear fichas. Para repetir, reconstruye únicamente la base del proyecto aislado como se indica arriba y vuelve a aprovisionar el Administrador y completar el cambio obligatorio.
 
 ## Comprobaciones
 
@@ -81,3 +80,10 @@ Remove-Item Env:DATABASE_URL
 ```
 
 La prueba ejecuta el mismo preparador contra una app Nest real. Compara PostgreSQL antes/después de cada preview, comprueba procedencia y fechas de verificación, valida una denegación por rol, e intenta repetir la ejecución. Usa una instancia PostgreSQL local desechable y vacía; no la apuntes a la base de demo, a `_test` compartidas ni a producción.
+
+### Actualización posterior a la auditoría del 13 de octubre de 2026
+
+El contrato de acceso y el preparador fueron actualizados en AF-03/AF-04. La
+preparación completa se valida con API real y PostgreSQL desechable
+`cecasem_demo_test`; esta corrección no vuelve a certificar el despliegue Compose
+completo descrito originalmente en la subfase 6.2.

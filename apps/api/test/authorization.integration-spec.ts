@@ -14,8 +14,7 @@ import { UsersService } from '../src/modules/users/users.service';
 import type { UserIdentity } from '../src/modules/users/user-projections';
 import { publicIdentity } from '../src/modules/auth/auth.dto';
 import { getRolePermissions } from '../src/modules/auth/authorization/role-permissions';
-import { FirstAccessService } from '../src/modules/auth/first-access.service';
-import { PasswordResetService } from '../src/modules/auth/password-reset.service';
+import { UsersAdministrationService } from '../src/modules/users-administration/users-administration.service';
 import { PasswordService } from '../src/modules/auth/password.service';
 import { createOpaqueToken } from '../src/modules/auth/opaque-token';
 
@@ -28,7 +27,7 @@ describe('RBAC PostgreSQL y HTTP con rol vigente', () => {
   let prisma: PrismaService;
   let users: UsersService;
   let configuredHash: string;
-  const password = randomBytes(24).toString('base64url');
+  const password = 'Aa!' + randomBytes(24).toString('base64url');
   const ids: string[] = [];
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(ConfigService)
@@ -62,8 +61,8 @@ describe('RBAC PostgreSQL y HTTP con rol vigente', () => {
     return { response, cookie: (response.headers['set-cookie'] as unknown as string[])[0].split(';')[0] };
   }
   const me = (cookie: string) => request(app.getHttpServer()).get('/api/v1/auth/me').set('Cookie', cookie);
-  function issue(endpoint: string, userId: string, cookie?: string) {
-    const req = request(app.getHttpServer()).post(`/api/v1/auth/${endpoint}`).send({ userId });
+  function updateAccount(endpoint: string, userId: string, cookie?: string) {
+    const req = request(app.getHttpServer()).patch(`/api/v1/users/${userId}/${endpoint}`).send(endpoint === 'profile' ? { givenNames: 'Perfil', familyNames: 'Actualizado', email: `${userId}@example.test` } : { password });
     return cookie === undefined ? req : req.set('Cookie', cookie);
   }
   async function state() {
@@ -77,40 +76,40 @@ describe('RBAC PostgreSQL y HTTP con rol vigente', () => {
   }
 
   it.each([UserRole.ADMINISTRATOR, UserRole.BOARD, UserRole.RESEARCH, UserRole.PLANNING])(
-    '%s devuelve login/me coherentes y aplica ambas capabilities sin efectos por 403', async role => {
+    '%s devuelve login/me coherentes y aplica permisos de perfil y contraseña sin efectos por 403', async role => {
       const actor = await fixture(role); const pending = await fixture(UserRole.RESEARCH, false);
       const configured = await fixture(UserRole.RESEARCH); const { response, cookie } = await login(actor);
       const expected = [...getRolePermissions(role)];
       expect(response.body).toEqual({ ...publicIdentity(actor), permissions: expected });
       expect(Object.keys(response.body as object).sort()).toEqual(['email','familyNames','givenNames','id','permissions','role','username']);
       expect((await me(cookie).expect(200)).body).toEqual(response.body);
-      const before = await state(); const status = role === UserRole.ADMINISTRATOR ? 201 : 403;
-      const first = await issue('first-access-tokens', pending.id, cookie).expect(status);
-      const reset = await issue('password-reset-tokens', configured.id, cookie).expect(status);
+      const before = await state(); const status = role === UserRole.ADMINISTRATOR ? 204 : 403;
+      const first = await updateAccount('profile', pending.id, cookie).expect(role === UserRole.ADMINISTRATOR ? 200 : 403);
+      const reset = await updateAccount('password', configured.id, cookie).expect(status);
       expect(first.headers['set-cookie']).toBeUndefined(); expect(reset.headers['set-cookie']).toBeUndefined();
       expect((await me(cookie).expect(200)).body).toEqual(response.body);
       if (status === 403) expect(await state()).toEqual(before);
       else {
-        expect(await prisma.firstAccessToken.count({ where: { userId: pending.id } })).toBe(1);
-        expect(await prisma.passwordResetToken.count({ where: { userId: configured.id } })).toBe(1);
+        expect((await users.findIdentityById(pending.id))?.givenNames).toBe('Perfil');
+        expect((await users.findCredentialsById(configured.id))?.mustChangePassword).toBe(true);
         expect(await prisma.auditEvent.count({ where: { targetUserId: configured.id } })).toBe(1);
       }
     });
 
-  it('la misma cookie pierde y recupera ambas capabilities sin relogin', async () => {
+  it('la misma cookie pierde y recupera permisos de perfil y contraseña sin relogin', async () => {
     const actor = await fixture(UserRole.ADMINISTRATOR); const pending = await fixture(UserRole.RESEARCH, false);
     const configured = await fixture(UserRole.RESEARCH); const { cookie } = await login(actor);
     const originalSessions = await prisma.userSession.findMany({ where: { userId: actor.id } });
     await prisma.user.update({ where: { id: actor.id }, data: { role: UserRole.BOARD } });
     expect((await me(cookie).expect(200)).body).toMatchObject({ role: UserRole.BOARD, permissions: [...getRolePermissions(UserRole.BOARD)] });
     const before = await state();
-    await issue('first-access-tokens', pending.id, cookie).expect(403);
-    await issue('password-reset-tokens', configured.id, cookie).expect(403);
+    await updateAccount('profile', pending.id, cookie).expect(403);
+    await updateAccount('password', configured.id, cookie).expect(403);
     expect(await state()).toEqual(before);
     await prisma.user.update({ where: { id: actor.id }, data: { role: UserRole.ADMINISTRATOR } });
     expect((await me(cookie).expect(200)).body).toMatchObject({ role: UserRole.ADMINISTRATOR, permissions: [...getRolePermissions(UserRole.ADMINISTRATOR)] });
-    await issue('first-access-tokens', pending.id, cookie).expect(201);
-    await issue('password-reset-tokens', configured.id, cookie).expect(201);
+    await updateAccount('profile', pending.id, cookie).expect(200);
+    await updateAccount('password', configured.id, cookie).expect(204);
     expect(await prisma.userSession.findMany({ where: { userId: actor.id } })).toEqual(originalSessions);
   });
   it('Búsqueda y Planificación conservan roles distintos con las mismas capabilities del directorio', async () => {
@@ -119,30 +118,30 @@ describe('RBAC PostgreSQL y HTTP con rol vigente', () => {
     await prisma.user.update({ where: { id: actor.id }, data: { role: UserRole.PLANNING } });
     expect((await me(cookie).expect(200)).body).toMatchObject({ role: UserRole.PLANNING, permissions: [...getRolePermissions(UserRole.PLANNING)] });
   });
-  it.each(['first-access-tokens', 'password-reset-tokens'])('%s revalida el emisor en llamadas directas', async endpoint => {
+  it.each(['profile', 'password'])('%s revalida el emisor en llamadas directas', async endpoint => {
     const actor = await fixture(UserRole.ADMINISTRATOR);
-    const target = await fixture(UserRole.RESEARCH, endpoint === 'password-reset-tokens');
-    const service = endpoint === 'first-access-tokens' ? app.get(FirstAccessService) : app.get(PasswordResetService);
-    const stale = publicIdentity(actor);
+    const target = await fixture(UserRole.RESEARCH, endpoint === 'password');
+    const service = app.get(UsersAdministrationService);
+    const operation = () => endpoint === 'profile' ? service.updateProfile(target.id, { givenNames: 'Perfil', familyNames: 'Actualizado', email: target.email }, actor.id) : service.resetPassword(target.id, password, actor.id);
     await prisma.user.update({ where: { id: actor.id }, data: { role: UserRole.BOARD } });
     const before = await state();
-    await expect(service.issue(target.id, stale)).rejects.toMatchObject({ reason: 'FORBIDDEN' });
+    await expect(operation()).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(await state()).toEqual(before);
     await prisma.user.update({ where: { id: actor.id }, data: { role: UserRole.ADMINISTRATOR } });
-    const current = publicIdentity((await users.findIdentityById(actor.id))!);
-    await expect(service.issue(target.id, current)).resolves.toHaveProperty('token');
+    await operation();
+    expect((await users.findCredentialsById(target.id))?.mustChangePassword).toBe(endpoint === 'password');
   });
-  it.each(['first-access-tokens', 'password-reset-tokens'])('%s rechaza un cambio de rol posterior al guard', async endpoint => {
+  it.each(['profile', 'password'])('%s rechaza un cambio de rol posterior al guard', async endpoint => {
     const actor = await fixture(UserRole.ADMINISTRATOR); const { cookie } = await login(actor);
-    const target = await fixture(UserRole.RESEARCH, endpoint === 'password-reset-tokens');
-    const original = users.withLockedCredentials.bind(users);
-    const lock = jest.spyOn(users, 'withLockedCredentials').mockImplementation(async (id, operation) => {
+    const target = await fixture(UserRole.RESEARCH, endpoint === 'password');
+    const original = users.withAdministrationLocks.bind(users);
+    const lock = jest.spyOn(users, 'withAdministrationLocks').mockImplementation(async (actorId, id, operation) => {
       await prisma.user.update({ where: { id: actor.id }, data: { role: UserRole.BOARD } });
-      return original(id, operation);
+      return original(actorId, id, operation);
     });
-    await issue(endpoint, target.id, cookie).expect(403);
+    await updateAccount(endpoint, target.id, cookie).expect(403);
     expect(lock).toHaveBeenCalledTimes(1);
-    expect((await users.findCredentialsById(target.id))?.passwordHash).toBe(endpoint === 'password-reset-tokens' ? configuredHash : null);
+    expect((await users.findCredentialsById(target.id))?.passwordHash).toBe(endpoint === 'password' ? configuredHash : null);
     expect(await prisma.firstAccessToken.count({ where: { userId: target.id } })).toBe(0);
     expect(await prisma.passwordResetToken.count({ where: { userId: target.id } })).toBe(0);
     expect(await prisma.auditEvent.count({ where: { targetUserId: target.id } })).toBe(0);
@@ -160,8 +159,8 @@ describe('RBAC PostgreSQL y HTTP con rol vigente', () => {
     if (kind === 'revoked') await prisma.userSession.updateMany({ where: { userId: actor.id }, data: { revokedAt: new Date() } });
     if (kind === 'inactive') await prisma.user.update({ where: { id: actor.id }, data: { isActive: false, deactivatedAt: new Date() } });
     const before = await state();
-    await issue('first-access-tokens', target.id, supplied).expect(401);
-    await issue('password-reset-tokens', target.id, supplied).expect(401);
+    await updateAccount('profile', target.id, supplied).expect(401);
+    await updateAccount('password', target.id, supplied).expect(401);
     expect(await state()).toEqual(before);
   });
 });

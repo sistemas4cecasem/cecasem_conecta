@@ -4,7 +4,7 @@ import { PasswordService, PASSWORD_OPTIONS, passwordLength, validLoginPassword }
 
 describe('Password policy and Argon2id', () => {
   const service = new PasswordService();
-  const password = randomBytes(24).toString('base64url');
+  const password = 'Aa!' + randomBytes(24).toString('base64url');
   beforeAll(() => service.onModuleInit());
 
   it('persists PHC with approved parameters and unique salts', async () => {
@@ -28,10 +28,13 @@ describe('Password policy and Argon2id', () => {
   it('counts Unicode code points and prepares the new-password policy', async () => {
     expect(passwordLength('😀'.repeat(15))).toBe(15);
     expect(passwordLength('e\u0301'.repeat(15))).toBe(15);
-    expect(await service.verify('😀'.repeat(15), await service.hashNew('😀'.repeat(15)))).toBe(true);
+    expect(await service.verify('Aa!'+ '😀'.repeat(5), await service.hashNew('Aa!'+ '😀'.repeat(5)))).toBe(true);
     expect(() => service.hashNew('a'.repeat(14))).toThrow();
     expect(() => service.hashNew('😀'.repeat(129))).toThrow();
-    expect(await service.verify('a'.repeat(128), await service.hashNew('a'.repeat(128)))).toBe(true);
+    expect(await service.verify('Aa!'+ 'a'.repeat(125), await service.hashNew('Aa!'+ 'a'.repeat(125)))).toBe(true);
+  });
+  it.each(['Aa!1234', 'aa!12345', 'AA!12345', 'Aa123456', 'Aa!'+ 'a'.repeat(126)])('rechaza contraseña fuera de la política vigente', value => {
+    expect(() => service.hashNew(value)).toThrow();
   });
 
   it('login permits short input without imposing creation policy, with a bounded maximum', () => {

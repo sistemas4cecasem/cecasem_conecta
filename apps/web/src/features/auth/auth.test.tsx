@@ -11,7 +11,7 @@ import { ApiError, apiRequest } from '../../lib/api/client';
 
 describe('Autenticación completa en interfaz', () => {
   let client = createQueryClient();
-  let authenticated = false;
+  let authenticated = false; let mustChangePassword = false;
   const identity = { id: 'fixture', givenNames: 'Ana', familyNames: 'Prueba', username: 'ana.prueba', email: 'fixture@example.test', role: 'RESEARCH', permissions: ['relationships.process.read'] };
   const password = crypto.randomUUID();
   let loginResult: () => Promise<Response>;
@@ -19,11 +19,11 @@ describe('Autenticación completa en interfaz', () => {
   const fetchMock = vi.fn();
 
   beforeEach(() => {
-    client = createQueryClient(); authenticated = false;
+    client = createQueryClient(); authenticated = false; mustChangePassword = false;
     loginResult = async () => { authenticated = true; return Response.json(identity); };
     logoutResult = async () => { authenticated = false; return new Response(null, { status: 204 }); };
     fetchMock.mockReset().mockImplementation((url: string) => {
-      if (url.endsWith('/auth/me')) return Promise.resolve(authenticated ? Response.json(identity) : new Response(null, { status: 401 }));
+      if (url.endsWith('/auth/me')) return Promise.resolve(authenticated ? Response.json({...identity,...(mustChangePassword?{mustChangePassword:true}:{})}) : new Response(null, { status: 401 }));
       if (url.endsWith('/auth/login')) return loginResult();
       if (url.endsWith('/auth/logout')) return logoutResult();
       if (url.endsWith('/dashboard')) return Promise.resolve(Response.json({ view: 'research', asOf: '2026-10-05T12:00:00Z', activeProcesses: 0, relevantProcesses: [], activeIntents: 0, relevantIntents: [], unreadReminders: 0, reminderItems: [] }));
@@ -51,9 +51,9 @@ describe('Autenticación completa en interfaz', () => {
     expect(screen.getByLabelText('Correo electrónico')).toHaveAttribute('autocomplete', 'username');
     expect(screen.getByLabelText('Contraseña')).toHaveAttribute('type','password');
     expect(screen.getByLabelText('Contraseña')).toHaveAttribute('autocomplete','current-password');
-    expect(screen.getByText(/solicita una credencial temporal al Administrador/)).toBeVisible();
-    expect(screen.getByRole('link',{name:'Primer acceso'})).toHaveAttribute('href','/first-access');
-    expect(screen.getByRole('link',{name:'Restablecer contraseña'})).toHaveAttribute('href','/reset-password');
+    expect(screen.getByText(/solicita al Administrador que restablezca tu contraseña/)).toBeVisible();
+    expect(screen.queryByRole('link',{name:'Primer acceso'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('link',{name:'Restablecer contraseña'})).not.toBeInTheDocument();
     expect(fetchMock.mock.calls.every(([url]:string[])=>url?.endsWith('/auth/me'))).toBe(true);
   });
   it('UI 2.11 asocia errores de campos con controles y permite corregirlos', async () => {
@@ -66,12 +66,10 @@ describe('Autenticación completa en interfaz', () => {
     await userEvent.type(screen.getByLabelText('Correo electrónico'),'fixture@example.test');
     await waitFor(()=>expect(screen.getByLabelText('Correo electrónico')).not.toHaveAttribute('aria-invalid','true'));
   });
-  it('UI 2.11 navegación a recuperación no inicia solicitudes ni consumo de credenciales', async()=>{
-    renderApp(); await screen.findByRole('heading',{name:'Iniciar sesión'});
-    await userEvent.click(screen.getByRole('link',{name:'Restablecer contraseña'}));
-    expect(await screen.findByRole('heading',{name:'Restablecer contraseña'})).toBeVisible();
-    expect(await screen.findByLabelText('Token de restablecimiento')).toHaveValue('');
-    expect(fetchMock.mock.calls.every(([url]:string[])=>url?.endsWith('/auth/me'))).toBe(true);
+  it.each(['/first-access', '/reset-password'])('la ruta retirada %s no consume credenciales', async path => {
+    renderApp(path);
+    expect(await screen.findByText(/Página no encontrada/)).toBeVisible();
+    expect(fetchMock.mock.calls.some(([, options]) => options?.method === 'POST')).toBe(false);
   });
   it('redirects anonymous protected access to the login without flashing protected content', async () => {
     renderApp('/');
@@ -114,6 +112,14 @@ describe('Autenticación completa en interfaz', () => {
     const [, options] = fetchMock.mock.calls.find(([url]: string[]) => url?.endsWith('/login'))!;
     expect(options.credentials).toBe('include');
     expect(JSON.parse(options.body)).toEqual({ email: 'fixture@example.test', password });
+  });
+  it('el login con contraseña inicial exige cambio antes de pedir el panel', async () => {
+    loginResult = async () => { authenticated=true; mustChangePassword=true; return Response.json({...identity,mustChangePassword:true}); };
+    client.setQueryData(['private','previous'],{dato:true}); renderApp(); await fillLogin();
+    expect(await screen.findByRole('heading',{name:'Cambia tu contraseña'})).toBeVisible();
+    expect(fetchMock.mock.calls.some(([url]:string[])=>url?.endsWith('/dashboard'))).toBe(false);
+    expect(client.getQueryData(['private','previous'])).toBeUndefined();
+    expect(client.getQueryData(AUTH_QUERY_KEY)).toMatchObject({mustChangePassword:true});
   });
   it('logs out and removes user-associated cache', async () => {
     authenticated = true; renderApp('/');
@@ -161,7 +167,7 @@ describe('Autenticación completa en interfaz', () => {
   });
   it.each(['ADMINISTRATOR', 'BOARD', 'RESEARCH', 'PLANNING'])('conserva Inicio y logout para %s', async role => {
     fetchMock.mockResolvedValueOnce(Response.json({ ...identity, role,
-      permissions: role === 'ADMINISTRATOR' ? ['auth.first_access.issue', 'auth.password_reset.issue', 'users.read'] : role === 'BOARD' ? ['users.read'] : [] }));
+      permissions: role === 'ADMINISTRATOR' ? ['users.create', 'users.password.reset', 'users.read'] : role === 'BOARD' ? ['users.read'] : [] }));
     renderApp('/');
     const navigations = await screen.findAllByRole('navigation', { name: 'Navegación principal' });
     const navigation = navigations[0]!;
@@ -185,8 +191,10 @@ describe('Autenticación completa en interfaz', () => {
   });
   it('actualiza rol y capabilities al refrescar me sin volver a iniciar sesión', async () => {
     let role = 'ADMINISTRATOR';
-    fetchMock.mockImplementation(() => Promise.resolve(Response.json({ ...identity, role,
-      permissions: role === 'ADMINISTRATOR' ? ['auth.first_access.issue', 'auth.password_reset.issue'] : [] })));
+    fetchMock.mockImplementation((url:string) => {
+      if(!url.endsWith('/auth/me')) throw new Error('Solicitud inesperada: '+url);
+      return Promise.resolve(Response.json({ ...identity, role, permissions: role === 'ADMINISTRATOR' ? ['users.create', 'users.password.reset'] : [] }));
+    });
     renderApp('/');
     expect(await screen.findByText('Administrador')).toBeVisible();
     role = 'BOARD'; await client.invalidateQueries({ queryKey: AUTH_QUERY_KEY });
@@ -194,7 +202,7 @@ describe('Autenticación completa en interfaz', () => {
     expect(client.getQueryData(AUTH_QUERY_KEY)).toMatchObject({ role: 'BOARD', permissions: [] });
     role = 'ADMINISTRATOR'; await client.invalidateQueries({ queryKey: AUTH_QUERY_KEY });
     expect(await screen.findByText('Administrador')).toBeVisible();
-    expect(client.getQueryData(AUTH_QUERY_KEY)).toMatchObject({ permissions: ['auth.first_access.issue', 'auth.password_reset.issue'] });
+    expect(client.getQueryData(AUTH_QUERY_KEY)).toMatchObject({ permissions: ['users.create', 'users.password.reset'] });
     expect(fetchMock.mock.calls.every(([url]: string[]) => url?.endsWith('/auth/me'))).toBe(true);
   });
   it('un 403 conserva la identidad y la sesión autenticada', async () => {
@@ -204,7 +212,7 @@ describe('Autenticación completa en interfaz', () => {
     await screen.findByRole('heading', { name: 'Panel institucional' });
     client.setQueryData(['private'], { private: true });
     fetchMock.mockResolvedValueOnce(Response.json({ message: 'No tiene los permisos necesarios.' }, { status: 403 }));
-    await expect(apiRequest('auth/first-access-tokens', { method: 'POST' })).rejects.toMatchObject({ status: 403 });
+    await expect(apiRequest('users/fixture/password', { method: 'POST' })).rejects.toMatchObject({ status: 403 });
     expect(client.getQueryData(AUTH_QUERY_KEY)).toEqual(identity);
     expect(client.getQueryData(['private'])).toEqual({ private: true });
     expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeVisible();

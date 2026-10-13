@@ -414,7 +414,7 @@ válida del navegador: 409 sin cambios; cookie ausente/inválida/expirada/revoca
 se trata como anónimo. No se crea sesión automáticamente: usar login posterior.
 Primer acceso no ofrece validación previa ni restablecimiento; el reset se implementa por separado en 1.4.
 
-Pruebas en test/first-access.integration-spec.ts: persistencia/constraints,
+Cobertura histórica original (sustituida por el flujo vigente) en test/first-access.integration-spec.ts: persistencia/constraints,
 HTTP completo, regeneración, rollback, sesiones y carreras con barreras. Ejecutar
 solo sobre PostgreSQL dedicado terminado en _test. La limpieza elimina únicamente
 UUID propios y sus referencias; no ejecuta ni depende del seed local de desarrollo.
@@ -540,3 +540,13 @@ historial y auditoría transaccional. Los cuatro roles tienen lectura, edición 
 historial del directorio; el cambio de estado corresponde a Administrador.
 Contratos, decisiones y migraciones están en
 [Organizaciones](../../docs/subfase-2.1-organizaciones.md).
+
+## Cobertura vigente tras la auditoría AF-02 (13 de octubre de 2026)
+
+Las pruebas actuales ejercitan contraseña inicial, bloqueo de funciones protegidas,
+cambio obligatorio, restablecimiento administrativo y revocación de sesiones.
+Las secciones 1.3 y 1.4 anteriores son antecedentes históricos: sus endpoints y
+pantallas públicos por token siguen retirados. La cobertura de esos recorridos se
+reemplazó por los comportamientos equivalentes del acceso vigente; las estructuras
+históricas se conservan y sus credenciales pendientes se revocan al restablecer o
+desactivar una cuenta. No se emiten credenciales de token nuevas.

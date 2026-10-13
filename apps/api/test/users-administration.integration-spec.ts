@@ -16,11 +16,8 @@ import { AuditService } from '../src/modules/audit/audit.service';
 import { PasswordService } from '../src/modules/auth/password.service';
 import { UserAccessService } from '../src/modules/auth/user-access.service';
 import { BootstrapAdminService } from '../src/modules/auth/bootstrap-admin.service';
-import { FirstAccessService } from '../src/modules/auth/first-access.service';
 import { FirstAccessTokensService } from '../src/modules/auth/first-access-tokens.service';
-import { PasswordResetService } from '../src/modules/auth/password-reset.service';
-import { publicIdentity } from '../src/modules/auth/auth.dto';
-import { hashOpaqueToken } from '../src/modules/auth/opaque-token';
+import { createOpaqueToken, hashOpaqueToken } from '../src/modules/auth/opaque-token';
 import { getRolePermissions } from '../src/modules/auth/authorization/role-permissions';
 
 const databaseUrl = validateDatabaseUrl(process.env.DATABASE_URL);
@@ -34,16 +31,16 @@ function barrier() {
 describe('Administración mínima PostgreSQL y HTTP', () => {
   let app: INestApplication<Server>; let prisma: PrismaService; let users: UsersService;
   let administration: UsersAdministrationService; let access: UserAccessService; let audit: AuditService;
-  let first: FirstAccessService; let resets: PasswordResetService; let bootstrap: BootstrapAdminService;
+  let bootstrap: BootstrapAdminService;
   let passwordHash: string;
-  const password = randomBytes(24).toString('base64url'); const ids: string[] = []; const accounts: string[] = [];
+  const password = 'Aa!' + randomBytes(24).toString('base64url'); const ids: string[] = []; const accounts: string[] = [];
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(ConfigService)
       .useValue(new ConfigService(validateEnvironment({ NODE_ENV: 'test', DATABASE_URL: databaseUrl }))).compile();
     app = moduleRef.createNestApplication<INestApplication<Server>>(); configureApplication(app); await app.init();
     prisma = app.get(PrismaService); users = app.get(UsersService); administration = app.get(UsersAdministrationService);
-    access = app.get(UserAccessService); audit = app.get(AuditService); first = app.get(FirstAccessService);
-    resets = app.get(PasswordResetService); bootstrap = app.get(BootstrapAdminService);
+    access = app.get(UserAccessService); audit = app.get(AuditService);
+    bootstrap = app.get(BootstrapAdminService);
     passwordHash = await app.get(PasswordService).hashNew(password);
   });
   afterEach(async () => {
@@ -63,6 +60,10 @@ describe('Administración mínima PostgreSQL y HTTP', () => {
     ids.push(user.id);
     if (established) await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
     return user;
+  }
+  async function historicalToken(kind: 'initial' | 'reset', userId: string, createdByUserId: string) {
+    const data = { userId, createdByUserId, tokenHash: hashOpaqueToken(createOpaqueToken())!, expiresAt: new Date(Date.now()+60000) };
+    return kind === 'initial' ? prisma.firstAccessToken.create({ data }) : prisma.passwordResetToken.create({ data });
   }
   async function mailbox() {
     const row = await users.createEmailAccount({ address: `${randomUUID()}@example.test`, displayName: 'Institucional' });
@@ -86,15 +87,15 @@ describe('Administración mínima PostgreSQL y HTTP', () => {
     ['get', 'email-accounts', 'mutation', 200], ['post', 'email-accounts', 'mutation', 201],
     ['get', 'users/TARGET/email-accounts', 'mutation', 200], ['put', 'users/TARGET/email-accounts/MAILBOX', 'mutation', 204],
     ['delete', 'users/TARGET/email-accounts/MAILBOX', 'mutation', 204],
-    ['post', 'auth/first-access-tokens', 'mutation', 201], ['post', 'auth/password-reset-tokens', 'mutation', 201],
+    ['patch', 'users/TARGET/profile', 'mutation', 200], ['patch', 'users/TARGET/password', 'mutation', 204],
   ] as const;
   it.each(Object.values(UserRole).flatMap(role => matrix.map(route => ({ role, route }))))('$role $route aplica RBAC', async ({ role, route }) => {
-    const actor = await fixture(role); const target = await fixture(); const pending = await fixture(UserRole.RESEARCH, false);
+    const actor = await fixture(role); const target = await fixture();
     const account = await mailbox(); const cookie = await login(actor);
     const [method, path, category, success] = route;
-    const data = path === 'users' && method === 'post' ? { givenNames: 'Nuevo', familyNames: 'Usuario', email: `${randomUUID()}@example.test`, role: UserRole.RESEARCH } :
+    const data = path === 'users' && method === 'post' ? { givenNames: 'Nuevo', familyNames: 'Usuario', email: `${randomUUID()}@example.test`, role: UserRole.RESEARCH, password } :
       path === 'email-accounts' && method === 'post' ? { address: `${randomUUID()}@example.test`, displayName: 'Nuevo buzón' } :
-      method === 'patch' ? { role: UserRole.PLANNING } : path.includes('tokens') ? { userId: path.includes('first-access') ? pending.id : target.id } : undefined;
+      path.endsWith('/profile') ? { givenNames: 'Nuevo', familyNames: 'Perfil', email: `${randomUUID()}@example.test` } : path.endsWith('/password') ? { password } : method === 'patch' ? { role: UserRole.PLANNING } : undefined;
     const status = role === UserRole.ADMINISTRATOR || role === UserRole.BOARD && category === 'read' ? success : 403;
     const before = await prisma.auditEvent.count();
     const response = await http(method, path.replace('TARGET', target.id).replace('MAILBOX', account.id), cookie, data).expect(status);
@@ -107,19 +108,19 @@ describe('Administración mínima PostgreSQL y HTTP', () => {
   });
   it('crea normalizado, sin token, con colisión de username y contrato público estricto', async () => {
     const actor = await fixture(UserRole.ADMINISTRATOR); const cookie = await login(actor);
-    const input = { givenNames: ' Diego  Armando ', familyNames: ` Fariñas ${randomUUID()} `, email: ` ${randomUUID()}@EXAMPLE.TEST `, role: UserRole.RESEARCH };
+    const input = { givenNames: ' Diego  Armando ', familyNames: ` Fariñas ${randomUUID()} `, email: ` ${randomUUID()}@EXAMPLE.TEST `, role: UserRole.RESEARCH, password };
     const created = await http('post', 'users', cookie, input).expect(201); ids.push((created.body as { id: string }).id);
     const second = await http('post', 'users', cookie, { ...input, email: `${randomUUID()}@example.test` }).expect(201); ids.push((second.body as { id: string }).id);
-    expect(second.body).toMatchObject({ username: `${(created.body as { username: string }).username}2`, isActive: true, credentialStatus: 'PENDING_FIRST_ACCESS' });
-    const row = await users.findCredentialsById(ids.at(-2)!); expect(row?.passwordHash).toBeNull();
+    expect(second.body).toMatchObject({ username: `${(created.body as { username: string }).username}2`, isActive: true, credentialStatus: 'CHANGE_REQUIRED' });
+    const row = await users.findCredentialsById(ids.at(-2)!); expect(row?.passwordHash).toMatch(/^\$argon2id\$/); expect(row?.mustChangePassword).toBe(true);
     expect(row?.email).toBe(input.email.trim().toLowerCase()); expect(row?.givenNames).toBe('Diego Armando');
     expect(Object.keys(created.body as object).sort()).toEqual(['id','givenNames','familyNames','username','email','role','isActive','createdAt','deactivatedAt','credentialStatus'].sort());
     expect(await prisma.firstAccessToken.count({ where: { userId: row!.id } })).toBe(0);
     await http('post', 'users', cookie, input).expect(409).expect(({ body }: { body: { code: string } }) => expect(body.code).toBe('EMAIL_EXISTS'));
   });
-  it.each(['username','password','passwordHash','isActive','createdAt','createdBy','permissions','deactivatedAt'])('rechaza campo extra %s', async field => {
+  it.each(['username','passwordHash','isActive','createdAt','createdBy','permissions','deactivatedAt'])('rechaza campo extra %s', async field => {
     const actor = await fixture(UserRole.ADMINISTRATOR);
-    await http('post', 'users', await login(actor), { givenNames: 'Ana', familyNames: 'Prueba', email: `${randomUUID()}@example.test`, role: UserRole.RESEARCH, [field]: 'fixture' }).expect(400);
+    await http('post', 'users', await login(actor), { givenNames: 'Ana', familyNames: 'Prueba', email: `${randomUUID()}@example.test`, role: UserRole.RESEARCH, password, [field]: 'fixture' }).expect(400);
   });
   it('rechaza UUID, rol, consulta y datos inválidos; no existe bootstrap HTTP', async () => {
     const actor = await fixture(UserRole.ADMINISTRATOR); const cookie = await login(actor);
@@ -181,7 +182,7 @@ describe('Administración mínima PostgreSQL y HTTP', () => {
     const actor = await fixture(UserRole.ADMINISTRATOR); const target = await fixture(); const pending = await fixture(UserRole.RESEARCH, false);
     const account = await mailbox(); const targetCookie = await login(target);
     await administration.setMailbox(target.id, account.id, true, actor.id);
-    const reset = await resets.issue(target.id, publicIdentity(actor)); const initial = await first.issue(pending.id, publicIdentity(actor));
+    const reset = await historicalToken('reset', target.id, actor.id); const initial = await historicalToken('initial', pending.id, actor.id);
     await access.deactivate(target.id, actor.id); await access.deactivate(target.id, actor.id); await access.deactivate(pending.id, actor.id);
     await http('get', 'auth/me', targetCookie).expect(401);
     expect(await prisma.auditEvent.count({ where: { targetUserId: target.id, action: AuditAction.USER_DEACTIVATED } })).toBe(1);
@@ -190,8 +191,8 @@ describe('Administración mínima PostgreSQL y HTTP', () => {
     expect(await prisma.auditEvent.count({ where: { targetUserId: target.id, action: AuditAction.USER_REACTIVATED } })).toBe(1);
     expect(await users.findCredentialsById(target.id)).toMatchObject({ id: target.id, email: target.email, username: target.username, passwordHash, isActive: true, deactivatedAt: null });
     await http('get', 'auth/me', targetCookie).expect(401); await login(target);
-    await expect(resets.consume(reset.token, randomBytes(24).toString('base64url'))).rejects.toThrow();
-    await expect(first.consume(initial.token, password)).rejects.toThrow();
+    expect((await prisma.passwordResetToken.findUniqueOrThrow({where:{id:reset.id}})).revokedAt).not.toBeNull();
+    expect((await prisma.firstAccessToken.findUniqueOrThrow({where:{id:initial.id}})).revokedAt).not.toBeNull();
     expect(await administration.assignments(target.id, actor.id)).toMatchObject([{ id: account.id }]);
   });
   it('buzones: catálogo, duplicado, asignar/retirar/reasignar idempotentes conservan createdAt', async () => {
@@ -229,15 +230,19 @@ describe('Administración mínima PostgreSQL y HTTP', () => {
   });
   it.each(Object.values(AuditAction).filter(action => action.startsWith('PASSWORD_RESET_') || action.startsWith('USER_') || action.startsWith('MAILBOX_')))('CHECK acepta %s correcto y rechaza combinaciones imposibles', async action => {
     const actor = await fixture(UserRole.ADMINISTRATOR); const target = await fixture(); const account = await mailbox();
-    const token = await resets.issue(target.id, publicIdentity(actor));
-    const reset = await prisma.passwordResetToken.findUniqueOrThrow({ where: { tokenHash: hashOpaqueToken(token.token)! } });
+    const reset = await historicalToken('reset',target.id,actor.id);
     const data: Prisma.AuditEventUncheckedCreateInput = { action, targetUserId: target.id, actorUserId: actor.id };
     if (action.startsWith('PASSWORD_RESET')) { data.passwordResetTokenId = reset.id; if (action === AuditAction.PASSWORD_RESET_COMPLETED) data.actorUserId = null; }
+    else if (action === AuditAction.USER_PROFILE_UPDATED) { data.previousGivenNames = 'Anterior'; data.newGivenNames = 'Actualizado'; }
     else if (action === AuditAction.USER_ROLE_CHANGED) { data.previousRole = UserRole.RESEARCH; data.newRole = UserRole.BOARD; }
     else if (action.startsWith('MAILBOX')) data.emailAccountId = account.id;
     await prisma.auditEvent.create({ data });
     await expect(prisma.auditEvent.create({ data: { ...data, ...(action.startsWith('PASSWORD_RESET') ? { newRole: UserRole.BOARD } : { passwordResetTokenId: reset.id }) } })).rejects.toThrow();
     if (!action.startsWith('PASSWORD_RESET')) await expect(prisma.auditEvent.create({ data: { ...data, actorUserId: null } })).rejects.toThrow();
+    if (action === AuditAction.USER_PROFILE_UPDATED) {
+      await expect(prisma.auditEvent.create({data:{...data,newGivenNames:undefined}})).rejects.toThrow();
+      await expect(prisma.auditEvent.create({data:{...data,previousGivenNames:undefined,newGivenNames:undefined}})).rejects.toThrow();
+    }
     if (action === AuditAction.USER_ROLE_CHANGED) await expect(prisma.auditEvent.create({ data: { ...data, newRole: UserRole.RESEARCH } })).rejects.toThrow();
     if (action.startsWith('MAILBOX')) await expect(prisma.emailAccount.delete({ where: { id: account.id } })).rejects.toThrow();
   });
@@ -255,7 +260,7 @@ describe('Administración mínima PostgreSQL y HTTP', () => {
     const firstOperation = () => scenario.startsWith('role') ? administration.changeRole(target.id, UserRole.BOARD, actor.id) :
       scenario.startsWith('assign') ? administration.setMailbox(target.id, account.id, true, actor.id) :
       scenario === 'reactivate-deactivate' ? administration.reactivate(target.id, actor.id) :
-      scenario === 'emission-status' ? resets.issue(target.id, publicIdentity(actor)) : access.deactivate(target.id, actor.id);
+      scenario === 'emission-status' ? administration.resetPassword(target.id, password, actor.id) : access.deactivate(target.id, actor.id);
     const secondOperation = () => scenario === 'role-role' ? administration.changeRole(target.id, UserRole.PLANNING, actor.id) :
       scenario === 'assign-assign' || scenario === 'assign-remove' ? administration.setMailbox(target.id, account.id, scenario === 'assign-assign', actor.id) : access.deactivate(target.id, actor.id);
     const one = firstOperation(); await entered.promise; const two = secondOperation(); release.release();
@@ -281,7 +286,7 @@ describe('Administración mínima PostgreSQL y HTTP', () => {
     const entered = barrier(); const release = barrier(); const original = users.protectLastAdministrator.bind(users);
     jest.spyOn(users, 'protectLastAdministrator').mockImplementationOnce(async (user, tx) => { entered.release(); await release.promise; return original(user, tx); });
     const change = administration.changeRole(actor.id, UserRole.BOARD, other.id); await entered.promise;
-    const denied = Promise.allSettled([administration.changeRole(target.id, UserRole.PLANNING, actor.id), first.issue(target.id, publicIdentity(actor))]);
+    const denied = Promise.allSettled([administration.changeRole(target.id, UserRole.PLANNING, actor.id), administration.resetPassword(target.id, password, actor.id)]);
     release.release(); await change;
     expect((await denied).every(result => result.status === 'rejected')).toBe(true);
     expect(await prisma.firstAccessToken.count({ where: { userId: target.id } })).toBe(0);

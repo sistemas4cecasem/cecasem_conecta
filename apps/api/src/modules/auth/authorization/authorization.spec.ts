@@ -2,6 +2,7 @@ import { type ExecutionContext, ForbiddenException, InternalServerErrorException
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Reflector } from '@nestjs/core';
 import { UserRole } from '../../../generated/prisma/client';
+import { UsersController } from '../../users-administration/users.controller';
 import { AuthController } from '../auth.controller';
 import { publicIdentity } from '../auth.dto';
 import { SessionGuard } from '../session.guard';
@@ -11,8 +12,7 @@ import { PERMISSIONS, type Permission, REQUIRED_PERMISSIONS_KEY } from './permis
 import { getRolePermissions, hasAllPermissions, hasPermission } from './role-permissions';
 import { PermissionsGuard } from './permissions.guard';
 import { RequirePermissions } from './require-permissions.decorator';
-
-const both = [PERMISSIONS.FIRST_ACCESS_ISSUE, PERMISSIONS.PASSWORD_RESET_ISSUE];
+const both = [PERMISSIONS.USERS_CREATE, PERMISSIONS.USERS_PASSWORD_RESET];
 const opportunityPermissions = [PERMISSIONS.OPPORTUNITY_READ, PERMISSIONS.OPPORTUNITY_CREATE, PERMISSIONS.OPPORTUNITY_UPDATE, PERMISSIONS.OPPORTUNITY_STATE_CHANGE, PERMISSIONS.OPPORTUNITY_DISCARD, PERMISSIONS.OPPORTUNITY_FINISH];
 const filePermissions = [PERMISSIONS.FILE_READ, PERMISSIONS.FILE_UPLOAD];
 const communicationPermissions = [PERMISSIONS.TRANSLATION_READ, PERMISSIONS.TRANSLATION_REQUEST, PERMISSIONS.COMMUNICATION_READ, PERMISSIONS.SENT_COMMUNICATION_CREATE, PERMISSIONS.RECEIVED_COMMUNICATION_CREATE, PERMISSIONS.COMMUNICATION_AMEND, PERMISSIONS.COMMUNICATION_INVALIDATE];
@@ -20,8 +20,8 @@ const restrictionPermissions = [PERMISSIONS.RESTRICTION_READ, PERMISSIONS.RESTRI
 const processPermissions = [PERMISSIONS.PROCESS_READ, PERMISSIONS.PROCESS_CREATE, PERMISSIONS.PROCESS_STATE_CHANGE, PERMISSIONS.PROCESS_CLOSE, PERMISSIONS.PROCESS_REOPEN, PERMISSIONS.INTERNAL_NOTE_CREATE];
 const intentPermissions = [PERMISSIONS.INTENT_READ, PERMISSIONS.INTENT_CREATE, PERMISSIONS.INTENT_CANCEL, PERMISSIONS.INTENT_CONVERT];
 const directoryPermissions = [PERMISSIONS.DIRECTORY_READ, PERMISSIONS.DIRECTORY_WRITE, PERMISSIONS.DIRECTORY_HISTORY_READ, PERMISSIONS.DIRECTORY_DUPLICATES_DISMISS];
-const allPermissions = [PERMISSIONS.FIRST_ACCESS_ISSUE, PERMISSIONS.PASSWORD_RESET_ISSUE, PERMISSIONS.DATA_IMPORT_EXECUTE, PERMISSIONS.USERS_READ,
-  PERMISSIONS.USERS_DEACTIVATED_READ, PERMISSIONS.USERS_CREATE, PERMISSIONS.USERS_ROLE_UPDATE,
+const allPermissions = [PERMISSIONS.DATA_IMPORT_EXECUTE, PERMISSIONS.USERS_READ,
+  PERMISSIONS.USERS_DEACTIVATED_READ, PERMISSIONS.USERS_CREATE, PERMISSIONS.USERS_PROFILE_UPDATE, PERMISSIONS.USERS_PASSWORD_RESET, PERMISSIONS.USERS_ROLE_UPDATE,
   PERMISSIONS.USERS_STATUS_UPDATE, PERMISSIONS.USERS_MAILBOXES_MANAGE, ...directoryPermissions, PERMISSIONS.DIRECTORY_STATUS_UPDATE, PERMISSIONS.SETTINGS_REMINDERS_UPDATE, PERMISSIONS.DIRECTORY_DUPLICATES_MANAGE, ...intentPermissions, ...processPermissions, ...restrictionPermissions, ...communicationPermissions, PERMISSIONS.RESTRICTION_LIFT, ...filePermissions, ...opportunityPermissions, PERMISSIONS.NOTIFICATION_READ, PERMISSIONS.NOTIFICATION_MARK_READ, PERMISSIONS.REFERRAL_READ, PERMISSIONS.REFERRAL_CREATE, PERMISSIONS.MEETING_READ, PERMISSIONS.MEETING_CREATE, PERMISSIONS.MEETING_UPDATE, PERMISSIONS.MEETING_PARTICIPANTS, PERMISSIONS.MEETING_RESULTS];
 const reflector = new Reflector();
 
@@ -37,16 +37,16 @@ describe('RBAC explícito y sin bypass', () => {
     [UserRole.ADMINISTRATOR, allPermissions], [UserRole.BOARD, [PERMISSIONS.USERS_READ, ...directoryPermissions, ...intentPermissions, ...processPermissions, ...restrictionPermissions, ...communicationPermissions, PERMISSIONS.RESTRICTION_LIFT, ...filePermissions, ...opportunityPermissions, PERMISSIONS.NOTIFICATION_READ, PERMISSIONS.NOTIFICATION_MARK_READ, PERMISSIONS.REFERRAL_READ, PERMISSIONS.REFERRAL_CREATE, PERMISSIONS.MEETING_READ, PERMISSIONS.MEETING_CREATE, PERMISSIONS.MEETING_UPDATE, PERMISSIONS.MEETING_PARTICIPANTS, PERMISSIONS.MEETING_RESULTS]], [UserRole.RESEARCH, [...directoryPermissions, ...intentPermissions, ...processPermissions, ...restrictionPermissions, ...communicationPermissions, ...filePermissions, ...opportunityPermissions, PERMISSIONS.NOTIFICATION_READ, PERMISSIONS.NOTIFICATION_MARK_READ, PERMISSIONS.REFERRAL_READ, PERMISSIONS.REFERRAL_CREATE, PERMISSIONS.MEETING_READ, PERMISSIONS.MEETING_CREATE, PERMISSIONS.MEETING_UPDATE, PERMISSIONS.MEETING_PARTICIPANTS, PERMISSIONS.MEETING_RESULTS]], [UserRole.PLANNING, [...directoryPermissions, ...intentPermissions, ...processPermissions, ...restrictionPermissions, ...communicationPermissions, ...filePermissions, ...opportunityPermissions, PERMISSIONS.NOTIFICATION_READ, PERMISSIONS.NOTIFICATION_MARK_READ, PERMISSIONS.REFERRAL_READ, PERMISSIONS.REFERRAL_CREATE, PERMISSIONS.MEETING_READ, PERMISSIONS.MEETING_CREATE, PERMISSIONS.MEETING_UPDATE, PERMISSIONS.MEETING_PARTICIPANTS, PERMISSIONS.MEETING_RESULTS]],
   ])('%s conserva su lista explícita', (role, expected) => {
     expect(getRolePermissions(role)).toEqual(expected);
-    expect(hasPermission(role, PERMISSIONS.FIRST_ACCESS_ISSUE)).toBe(role === UserRole.ADMINISTRATOR);
+    expect(hasPermission(role, PERMISSIONS.USERS_CREATE)).toBe(role === UserRole.ADMINISTRATOR);
     expect(hasAllPermissions(getRolePermissions(role), both)).toBe(role === UserRole.ADMINISTRATOR);
     expect(hasPermission(role, PERMISSIONS.DATA_IMPORT_EXECUTE)).toBe(role === UserRole.ADMINISTRATOR);
   });
   it.each(['UNKNOWN', '__proto__', 'constructor'])('el rol desconocido %s no concede acceso', role => {
     expect(getRolePermissions(role)).toEqual([]);
-    expect(hasPermission(role, PERMISSIONS.FIRST_ACCESS_ISSUE)).toBe(false);
+    expect(hasPermission(role, PERMISSIONS.USERS_CREATE)).toBe(false);
   });
   it('no concede capabilities desconocidas ni utiliza ANY o listas vacías', () => {
-    expect(Object.values(PERMISSIONS).sort()).toEqual([...allPermissions].sort());
+    expect(Object.values(PERMISSIONS).sort()).toEqual([...allPermissions, PERMISSIONS.FIRST_ACCESS_ISSUE, PERMISSIONS.PASSWORD_RESET_ISSUE].sort());
     const granted = getRolePermissions(UserRole.ADMINISTRATOR);
     expect(hasAllPermissions(granted, [both[0], 'unassigned'])).toBe(false);
     expect(hasPermission(UserRole.ADMINISTRATOR, '*')).toBe(false);
@@ -68,8 +68,8 @@ describe('RBAC explícito y sin bypass', () => {
 
 describe('RequirePermissions y PermissionsGuard', () => {
   class Restricted {
-    @RequirePermissions(PERMISSIONS.FIRST_ACCESS_ISSUE) one(this: void) {}
-    @RequirePermissions(PERMISSIONS.FIRST_ACCESS_ISSUE, PERMISSIONS.PASSWORD_RESET_ISSUE) all(this: void) {}
+    @RequirePermissions(PERMISSIONS.USERS_CREATE) one(this: void) {}
+    @RequirePermissions(PERMISSIONS.USERS_CREATE, PERMISSIONS.USERS_PASSWORD_RESET) all(this: void) {}
   }
   const guard = new PermissionsGuard(reflector);
   function context(handler: object, role?: string, permissions: string[] = []): ExecutionContext {
@@ -107,19 +107,27 @@ describe('RequirePermissions y PermissionsGuard', () => {
 
 describe('Inventario focal de endpoints existentes', () => {
   it.each([
-    ['issueFirstAccess', PERMISSIONS.FIRST_ACCESS_ISSUE], ['issuePasswordReset', PERMISSIONS.PASSWORD_RESET_ISSUE],
+    ['create', PERMISSIONS.USERS_CREATE], ['resetPassword', PERMISSIONS.USERS_PASSWORD_RESET], ['updateProfile', PERMISSIONS.USERS_PROFILE_UPDATE],
   ] as const)('%s utiliza su capability con guards en orden', (method, permission) => {
-    expect(reflector.get(REQUIRED_PERMISSIONS_KEY, methodHandler(AuthController.prototype, method))).toEqual([permission]);
-    expect(reflector.get(GUARDS_METADATA, methodHandler(AuthController.prototype, method))).toEqual([SessionGuard, PermissionsGuard]);
+    expect(reflector.get(REQUIRED_PERMISSIONS_KEY, methodHandler(UsersController.prototype, method))).toEqual([permission]);
+    expect(reflector.get(GUARDS_METADATA, methodHandler(UsersController.prototype, method))).toEqual([SessionGuard, PermissionsGuard]);
   });
   it('me permanece autenticado sin requerir capability', () => {
     expect(reflector.get(GUARDS_METADATA, methodHandler(AuthController.prototype, 'me'))).toEqual([SessionGuard]);
     expect(reflector.get(REQUIRED_PERMISSIONS_KEY, methodHandler(AuthController.prototype, 'me'))).toBeUndefined();
     expect(reflector.get(GUARDS_METADATA, AuthController)).toBeUndefined();
   });
-  it.each(['login', 'logout', 'consumeFirstAccess', 'consumePasswordReset'] as const)('%s conserva acceso público', method => {
+  it.each(['login', 'logout'] as const)('%s conserva acceso público', method => {
     expect(reflector.get(GUARDS_METADATA, methodHandler(AuthController.prototype, method))).toBeUndefined();
     expect(reflector.get(REQUIRED_PERMISSIONS_KEY, methodHandler(AuthController.prototype, method))).toBeUndefined();
+  });
+  it('cambio obligatorio exige sesión y no expone los consumidores retirados', () => {
+    expect(reflector.get(GUARDS_METADATA, methodHandler(AuthController.prototype, 'changeRequiredPassword'))).toEqual([SessionGuard]);
+    for (const method of ['issueFirstAccess','issuePasswordReset','consumeFirstAccess','consumePasswordReset']) expect(Reflect.get(AuthController.prototype, method)).toBeUndefined();
+    for (const role of Object.values(UserRole)) {
+      expect(hasPermission(role, PERMISSIONS.FIRST_ACCESS_ISSUE)).toBe(false);
+      expect(hasPermission(role, PERMISSIONS.PASSWORD_RESET_ISSUE)).toBe(false);
+    }
   });
   it('health conserva acceso público', () => {
     expect(reflector.get(GUARDS_METADATA, HealthController)).toBeUndefined();

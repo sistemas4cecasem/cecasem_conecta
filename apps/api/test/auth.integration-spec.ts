@@ -33,7 +33,7 @@ describe('Authentication integration and HTTP E2E with PostgreSQL', () => {
   let actorId: string;
   let sql: Pool;
   let configuredHash: string;
-  const password = randomBytes(24).toString('base64url');
+  const password = 'Aa!' + randomBytes(24).toString('base64url');
   const ids: string[] = [];
   let sequence = 0;
   const names = `Fixture${randomUUID().replace(/-/g, '')}`;
@@ -250,7 +250,7 @@ describe('Authentication integration and HTTP E2E with PostgreSQL', () => {
     const realVerify = passwords.verify.bind(passwords);
     jest.spyOn(passwords, 'verify').mockImplementationOnce(async (value, stored) => {
       const result = await realVerify(value, stored);
-      await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await passwords.hashNew(randomBytes(24).toString('base64url')) } });
+      await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await passwords.hashNew('Aa!'+randomBytes(24).toString('base64url')) } });
       return result;
     });
     await login(user.email).expect(401);

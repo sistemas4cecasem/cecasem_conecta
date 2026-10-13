@@ -6,10 +6,11 @@ These instructions apply to everything under `apps/api` and complement the
 [root AGENTS.md](../../AGENTS.md). Higher-level documented architecture, business
 and security decisions remain authoritative; do not override them here.
 
-At Subphase 0.1.1, this workspace contains only its package manifest and these
-instructions. NestJS has not been initialized. The conventions below describe
-future work when the corresponding subphase authorizes it; they do not authorize
-creating application code, installing dependencies or advancing future phases.
+The NestJS application is initialized and implements the current authorized phases.
+The current prompt remains the scope boundary; these conventions do not authorize
+new features or dependencies. Access uses an initial password and a mandatory
+personal password change. Public first-access/reset token workflows are retired;
+retain their historical structures without adding active emission or consumption.
 
 ## Approved backend stack
 
@@ -19,8 +20,7 @@ Document HTTP contracts with Swagger/OpenAPI in development when implemented.
 
 ## Modular organization
 
-The backend will be a modular monolith. When initialized, the intended direction
-is the following; these directories do not exist yet:
+The backend is a modular monolith organized in this direction:
 
 ```text
 src/

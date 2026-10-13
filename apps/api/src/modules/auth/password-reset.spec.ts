@@ -13,7 +13,7 @@ import { SessionsService } from './sessions.service';
 import { createOpaqueToken } from './opaque-token';
 
 describe('Password reset rules', () => {
-  it.each([UserRole.BOARD, UserRole.RESEARCH, UserRole.PLANNING])('rejects issuance by %s before persistence', async (role) => {
+  it.each(Object.values(UserRole))('rejects issuance by %s before persistence', async (role) => {
     const locked = jest.fn();
     const service = new PasswordResetService({ withLockedCredentials: locked } as unknown as UsersService,
       {} as PasswordResetTokensService, {} as PasswordService, {} as SessionsService, {} as AuditService, {} as ConfigService<AppEnvironment, true>);
@@ -29,7 +29,7 @@ describe('Password reset rules', () => {
   it('accepts an unused unexpired credential', () => {
     const now = new Date(); expect(passwordResetIsValid({ expiresAt: new Date(+now + 1), usedAt: null, revokedAt: null }, now)).toBe(true);
   });
-  it.each(['😀'.repeat(15), 'e\u0301'.repeat(15), ' '.repeat(15), 'a'.repeat(128)])('shares normalized password policy', (password) => {
+  it.each(['Aa!'+ '😀'.repeat(5), 'A!'+ 'e\u0301'.repeat(6), 'Aa!'+ ' '.repeat(5), 'Aa!'+ 'a'.repeat(125)])('shares normalized password policy', (password) => {
     expect(validateSync(Object.assign(new ConsumePasswordResetDto(), { token: createOpaqueToken(), password }))).toHaveLength(0);
   });
   it.each(['a'.repeat(14), '😀'.repeat(129), null])('rejects invalid password %s', (password) => {

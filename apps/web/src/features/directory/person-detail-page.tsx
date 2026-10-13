@@ -18,8 +18,9 @@ import { ContactSection } from './contact-section';
 import { RelationshipContextPanel } from '../relationships/relationship-context-panel';
 import type { OrganizationWorkspaceContext } from './organization-workspace-context';
 export function PersonDetailPage() {
-  const {id='',personId}=useParams();const organizationContext=useOutletContext<OrganizationWorkspaceContext|null>();
-  const personKey=personId??id;const organization=organizationContext?.organization;const identity=useSession().data??organizationContext?.identity;const detail=usePerson(identity,personKey);const mutation=useDirectoryMutation(identity);
+  const {id: routeId='',personId: nestedPersonId}=useParams();
+  const personId=nestedPersonId??routeId;const organizationContext=useOutletContext<OrganizationWorkspaceContext|null>();
+  const organization=organizationContext?.organization;const identity=useSession().data??organizationContext?.identity;const detail=usePerson(identity,personId);const mutation=useDirectoryMutation(identity);
   const backTo=organization?`/organizations/${organization.id}/people`:'/people';
   const backLabel=organization?`Volver a ${organization.name} · Personas`:'Volver a personas';
   const eyebrow=organization?`Directorio / Organizaciones / ${organization.name} / Personas`:'Directorio / Personas externas';
@@ -42,7 +43,7 @@ export function PersonDetailPage() {
     {!row.currentRelationsCount&&<p>Sin vínculos vigentes: persona independiente o institución aún no identificada. Los episodios históricos se conservan abajo.</p>}
     {!row.duplicateOfId&&identity.permissions.includes('directory.status.update')&&confirmStatusChange&&<ConfirmationPanel role="group" title={row.isActive?'Confirmar desactivación de persona':'Confirmar reactivación de persona'}>
       <p>{row.isActive?'La ficha quedará inactiva. Sus datos, vínculos e historial institucional se conservarán; podrás reactivarla después.':'La ficha volverá a estar activa para nuevas gestiones. Su historial y vínculos se conservarán.'}</p>
-      <div className="flex flex-wrap gap-3"><Button disabled={mutation.isPending||!!mutation.error} onClick={()=>{void mutation.mutateAsync({path:'people/'+id+'/status',method:'PATCH',body:{isActive:!row.isActive,expectedVersion:row.version}}).then(()=>setConfirmStatusChange(false)).catch(()=>undefined);}}>{mutation.isPending?(row.isActive?'Desactivando…':'Reactivando…'):row.isActive?'Confirmar desactivación':'Confirmar reactivación'}</Button>
+      <div className="flex flex-wrap gap-3"><Button disabled={mutation.isPending||!!mutation.error} onClick={()=>{void mutation.mutateAsync({path:'people/'+personId+'/status',method:'PATCH',body:{isActive:!row.isActive,expectedVersion:row.version}}).then(()=>setConfirmStatusChange(false)).catch(()=>undefined);}}>{mutation.isPending?(row.isActive?'Desactivando…':'Reactivando…'):row.isActive?'Confirmar desactivación':'Confirmar reactivación'}</Button>
         <Button disabled={mutation.isPending} onClick={()=>setConfirmStatusChange(false)}>Volver sin cambiar estado</Button></div>
     </ConfirmationPanel>}
     <MutationError modern error={mutation.error} reload={async()=>{await detail.refetch();mutation.reset();}}/>
@@ -52,11 +53,11 @@ export function PersonDetailPage() {
         {label:'Creación',value:<time dateTime={row.createdAt}>{dateLabel(row.createdAt)}</time>},
         {label:'Modificación',value:<time dateTime={row.updatedAt}>{dateLabel(row.updatedAt)}</time>}
       ]}/></Surface>
-      <Surface className="directory-detail-contacts"><ContactSection key={'contacts-'+id} identity={identity} actorPath={'people/'+id} readOnly={!!row.duplicateOfId}/></Surface>
+      <Surface className="directory-detail-contacts"><ContactSection key={'contacts-'+personId} identity={identity} actorPath={'people/'+personId} readOnly={!!row.duplicateOfId}/></Surface>
     </div>
-    <Surface><PersonRelations key={id} identity={identity} personId={id} readOnly={!!row.duplicateOfId}/></Surface>
+    <Surface><PersonRelations key={personId} identity={identity} personId={personId} readOnly={!!row.duplicateOfId}/></Surface>
     <RelationshipContextPanel identity={identity} target={{kind:'PERSON',id:row.id,label:row.displayName}} />
-    <Surface className="directory-detail-duplicates"><DuplicatePanel key={'duplicates-'+id} identity={identity} actorPath={'people/'+id}/></Surface>
-    {identity.permissions.includes('directory.history.read')&&<Surface className="directory-detail-history"><DirectoryHistory modern key={'history-'+id} identity={identity} path={'people/'+id+'/history'}/></Surface>}
+    <Surface className="directory-detail-duplicates"><DuplicatePanel key={'duplicates-'+personId} identity={identity} actorPath={'people/'+personId}/></Surface>
+    {identity.permissions.includes('directory.history.read')&&<Surface className="directory-detail-history"><DirectoryHistory modern key={'history-'+personId} identity={identity} path={'people/'+personId+'/history'}/></Surface>}
   </section>;
 }

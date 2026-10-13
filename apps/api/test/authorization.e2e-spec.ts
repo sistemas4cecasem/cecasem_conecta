@@ -23,7 +23,7 @@ describe('Errores controlados de configuración de autorización HTTP', () => {
   @Controller('configuration-fixture')
   class FixtureController {
     @Get('missing') @UseGuards(SessionGuard, PermissionsGuard) missing() { return operation(); }
-    @Get('valid') @RequirePermissions(PERMISSIONS.FIRST_ACCESS_ISSUE) valid() { return operation(); }
+    @Get('valid') @RequirePermissions(PERMISSIONS.USERS_CREATE) valid() { return operation(); }
   }
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ controllers: [FixtureController],

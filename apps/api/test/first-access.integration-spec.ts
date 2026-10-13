@@ -1,242 +1,98 @@
-import { INestApplication } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Test } from '@nestjs/testing';
-import { randomBytes, randomUUID } from 'node:crypto';
-import { Server } from 'node:http';
 import { Pool } from 'pg';
-import request from 'supertest';
-import { AppModule } from '../src/app.module';
-import { configureApplication } from '../src/config/application';
-import { validateEnvironment } from '../src/config/environment';
 import { validateDatabaseUrl } from '../src/config/database-url';
-import { PrismaService } from '../src/database/prisma.service';
-import { UserRole } from '../src/generated/prisma/client';
-import { UsersService } from '../src/modules/users/users.service';
-import { AuthenticatedUserDto, publicIdentity } from '../src/modules/auth/auth.dto';
-import { FirstAccessService } from '../src/modules/auth/first-access.service';
-import { FirstAccessTokensService } from '../src/modules/auth/first-access-tokens.service';
-import { FirstAccessEmissionError, INVALID_FIRST_ACCESS_MESSAGE, InvalidFirstAccessError } from '../src/modules/auth/first-access.errors';
-import { PasswordService, NEW_PASSWORD_MESSAGE } from '../src/modules/auth/password.service';
-import { SessionsService } from '../src/modules/auth/sessions.service';
-import { UserAccessService } from '../src/modules/auth/user-access.service';
-import { createOpaqueToken, hashOpaqueToken } from '../src/modules/auth/opaque-token';
-
-const databaseUrl = validateDatabaseUrl(process.env.DATABASE_URL);
-if (!new URL(databaseUrl).pathname.endsWith('_test')) throw new Error('Primer acceso requiere una base dedicada terminada en _test.');
-
-function barrier() {
-  let release!: () => void;
-  const promise = new Promise<void>((resolve) => { release = resolve; });
-  return { promise, release };
-}
-
-describe('First access PostgreSQL and HTTP E2E', () => {
-  let app: INestApplication<Server>;
-  let prisma: PrismaService;
-  let users: UsersService;
-  let passwords: PasswordService;
-  let sessions: SessionsService;
-  let tokens: FirstAccessTokensService;
-  let firstAccess: FirstAccessService;
-  let access: UserAccessService;
-  let sql: Pool;
-  let actor: AuthenticatedUserDto;
-  let actorCookie: string;
-  let configuredHash: string;
-  const password = randomBytes(24).toString('base64url');
-  const ids: string[] = [];
-
-  beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).overrideProvider(ConfigService)
-      .useValue(new ConfigService(validateEnvironment({ NODE_ENV: 'test', DATABASE_URL: databaseUrl }))).compile();
-    app = moduleRef.createNestApplication<INestApplication<Server>>(); configureApplication(app); await app.init();
-    prisma = app.get(PrismaService); users = app.get(UsersService); passwords = app.get(PasswordService);
-    sessions = app.get(SessionsService); tokens = app.get(FirstAccessTokensService); firstAccess = app.get(FirstAccessService); access = app.get(UserAccessService);
-    sql = new Pool({ connectionString: databaseUrl }); configuredHash = await passwords.hashNew(password);
+import { randomUUID } from 'node:crypto';
+const databaseUrl=validateDatabaseUrl(process.env.DATABASE_URL);
+import { accessFixture, UserRole, RequiredPasswordChangeService, SessionsService, UserAccessService, initialPassword, personalPassword, cookieOf, createOpaqueToken, hashOpaqueToken } from './access-fixture';
+describe('Contraseña inicial y cambio obligatorio PostgreSQL/HTTP', () => {
+  const f = accessFixture();
+  it.each(Object.values(UserRole))('%s solo accede a me y cambio hasta establecer contraseña personal', async role => {
+    const user = await f.user(role); const login = await f.login(user); const cookie = cookieOf(login);
+    expect(login.body).toMatchObject({ id: user.id, mustChangePassword: true });
+    await f.http().get('/api/v1/auth/me').set('Cookie', cookie).expect(200);
+    for (const path of ['organizations','people','dashboard']) await f.http().get('/api/v1/'+path).set('Cookie', cookie).expect(403);
+    const before = await f.users.findCredentialsById(user.id);
+    expect(before!.passwordHash).toMatch(/^\$argon2id\$/);
+    const changed = await f.change(cookie).expect(204).expect('Cache-Control','no-store');
+    expect(changed.text).toBe(''); const next = cookieOf(changed); expect(next).not.toBe(cookie);
+    expect(((await f.http().get('/api/v1/auth/me').set('Cookie', next).expect(200)).body as {mustChangePassword?:boolean}).mustChangePassword).toBeUndefined();
+    await f.http().get('/api/v1/organizations').set('Cookie', next).expect(200);
+    await f.http().get('/api/v1/auth/me').set('Cookie', cookie).expect(401);
+    await f.http().post('/api/v1/auth/login').send({ email: user.email, password: initialPassword }).expect(401);
+    await f.login(user, personalPassword);
   });
-  beforeEach(async () => {
-    const admin = await fixture(UserRole.ADMINISTRATOR, true); actor = publicIdentity(admin);
-    const response = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ email: admin.email, password }).expect(200);
-    actorCookie = (response.headers['set-cookie'] as unknown as string[])[0].split(';')[0];
+  it.each(['Aa!1234','aa!12345','AA!12345','Aa123456','Aa!'+ '😀'.repeat(126), null, 1])('rechaza política inválida sin cambiar hash ni sesión: %s', async password => {
+    const user = await f.user(); const cookie = cookieOf(await f.login(user)); const before = await f.users.findCredentialsById(user.id);
+    await f.change(cookie, password).expect(400); expect(await f.users.findCredentialsById(user.id)).toEqual(before);
+    await f.http().get('/api/v1/auth/me').set('Cookie',cookie).expect(200);
   });
-  afterEach(async () => {
-    jest.restoreAllMocks();
-    if (!prisma) return;
-    await prisma.$transaction([
-      prisma.firstAccessToken.deleteMany({ where: { OR: [{ userId: { in: ids } }, { createdByUserId: { in: ids } }] } }),
-      prisma.auditEvent.deleteMany({ where: { OR: [{ targetUserId: { in: ids } }, { actorUserId: { in: ids } }] } }),
-      prisma.userSession.deleteMany({ where: { userId: { in: ids } } }),
-      prisma.user.deleteMany({ where: { id: { in: ids } } }),
-    ]); ids.length = 0;
+  it('rechaza reutilización NFC y acepta límites Unicode de 8 y 128 puntos', async () => {
+    const original = 'A!'+ 'é'.repeat(6); const user = await f.user(UserRole.RESEARCH,true,original); const cookie = cookieOf(await f.login(user, original));
+    await f.change(cookie,'A!'+ 'e\u0301'.repeat(6)).expect(400);
+    await f.change(cookie,'Aa!'+ '😀'.repeat(125)).expect(204);
+    const minimal = await f.user(); await f.change(cookieOf(await f.login(minimal)),'Aa!12345').expect(204);
   });
-  afterAll(async () => { try { await sql?.end(); } finally { await app?.close(); } });
-
-  async function fixture(role: UserRole = UserRole.RESEARCH, withPassword = false) {
-    const identity = await users.createIdentity({ givenNames: `Fixture${randomUUID().replace(/-/g, '')}`, familyNames: 'PrimerAcceso', email: `${randomUUID()}@example.test`, role });
-    ids.push(identity.id);
-    if (withPassword) await prisma.user.update({ where: { id: identity.id }, data: { passwordHash: configuredHash } });
-    return identity;
-  }
-  const consume = (token: string, cookie?: string, inputPassword = password) => {
-    const req = request(app.getHttpServer()).post('/api/v1/auth/first-access').send({ token, password: inputPassword });
-    return cookie ? req.set('Cookie', cookie) : req;
-  };
-  const issue = (userId: string, cookie = actorCookie) => request(app.getHttpServer()).post('/api/v1/auth/first-access-tokens').set('Cookie', cookie).send({ userId });
-
-  // La primera operación retiene el lock; la segunda alcanza su adquisición antes de liberarlo.
-  async function race(first: () => Promise<unknown>, second: () => Promise<unknown>) {
-    const locked = barrier(); const resume = barrier(); const secondAttempted = barrier();
-    const original = users.withLockedCredentials.bind(users); let calls = 0;
-    jest.spyOn(users, 'withLockedCredentials').mockImplementation((id, operation) => {
-      const position = ++calls;
-      if (position === 2) secondAttempted.release();
-      return original(id, async (user, tx) => {
-        if (position === 1) { locked.release(); await resume.promise; }
-        return operation(user, tx);
-      });
-    });
-    const firstResult = first(); await locked.promise;
-    const secondResult = second(); const results = Promise.allSettled([firstResult, secondResult]);
-    await secondAttempted.promise; resume.release(); return results;
-  }
-
-  it('issues once, persists only a unique digest, UUIDs, issuer and absolute TTL', async () => {
-    const user = await fixture(); const response = await issue(user.id).expect(201).expect('Cache-Control', 'no-store');
-    const body = response.body as { token: string; expiresAt: string };
-    expect(Object.keys(body).sort()).toEqual(['expiresAt', 'token']);
-    const row = await tokens.findByToken(body.token);
-    expect(row!.id).toMatch(/^[0-9a-f-]{36}$/); expect(row!.createdByUserId).toBe(actor.id);
-    expect(+row!.expiresAt - +row!.createdAt).toBe(86400000); expect(JSON.stringify(row)).not.toContain(body.token);
-    expect((await sql.query("SELECT column_name FROM information_schema.columns WHERE table_name='FirstAccessToken'")).rows.map((row: { column_name: string }) => row.column_name).sort())
-      .toEqual(['createdAt', 'createdByUserId', 'expiresAt', 'id', 'revokedAt', 'tokenHash', 'usedAt', 'userId']);
-    await request(app.getHttpServer()).get('/api/v1/auth/first-access-tokens').set('Cookie', actorCookie).expect(404);
+  it.each(['absent','malformed','unknown','expired','revoked','inactive'])('sesión %s recibe 401 y no altera credenciales', async state => {
+    const user = await f.user(); let cookie: string | undefined = cookieOf(await f.login(user));
+    if (state === 'absent') cookie=undefined;
+    if (state === 'malformed') cookie='cecasem_session=bad';
+    if (state === 'unknown') cookie='cecasem_session='+createOpaqueToken();
+    if (state === 'expired') await f.prisma.userSession.updateMany({where:{userId:user.id},data:{createdAt:new Date(Date.now()-2000),expiresAt:new Date(Date.now()-1000)}});
+    if (state === 'revoked') await f.prisma.userSession.updateMany({where:{userId:user.id},data:{revokedAt:new Date()}});
+    if (state === 'inactive') await f.prisma.user.update({where:{id:user.id},data:{isActive:false,deactivatedAt:new Date()}});
+    const before = await f.users.findCredentialsById(user.id); await f.change(cookie).expect(401); expect(await f.users.findCredentialsById(user.id)).toEqual(before);
   });
-  it.each([UserRole.BOARD, UserRole.RESEARCH, UserRole.PLANNING])('denies emission to %s through HTTP and internal interface', async (role) => {
-    const user = await fixture(); const issuer = await fixture(role, true);
-    const login = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ email: issuer.email, password }).expect(200);
-    await issue(user.id, (login.headers['set-cookie'] as unknown as string[])[0].split(';')[0]).expect(403).expect('Cache-Control', 'no-store');
-    await expect(firstAccess.issue(user.id, publicIdentity(issuer))).rejects.toBeInstanceOf(FirstAccessEmissionError);
-    expect(await prisma.firstAccessToken.count({ where: { userId: user.id } })).toBe(0);
+  it('rechaza campos ajenos, cuerpo no JSON y cambio repetido', async () => {
+    const user = await f.user(); const cookie=cookieOf(await f.login(user));
+    await f.http().post('/api/v1/auth/change-password').set('Cookie',cookie).send({password:personalPassword,confirmPassword:personalPassword}).expect(400);
+    await f.http().post('/api/v1/auth/change-password').set('Cookie',cookie).type('form').send({password:personalPassword}).expect(415);
+    const next=cookieOf(await f.change(cookie).expect(204)); await f.change(next).expect(409); await f.change(cookie).expect(401);
   });
-  it('requires authentication and rejects forged actor, invalid UUID and non-JSON', async () => {
-    const user = await fixture();
-    await request(app.getHttpServer()).post('/api/v1/auth/first-access-tokens').send({ userId: user.id }).expect(401);
-    await issue('bad').expect(400);
-    await request(app.getHttpServer()).post('/api/v1/auth/first-access-tokens').set('Cookie', actorCookie).send({ userId: user.id, createdByUserId: user.id }).expect(400);
-    await request(app.getHttpServer()).post('/api/v1/auth/first-access-tokens').set('Cookie', actorCookie).type('form').send({ userId: user.id }).expect(415);
-    await request(app.getHttpServer()).post('/api/v1/auth/first-access').type('form').send({ token: createOpaqueToken(), password }).expect(415);
+  it('revoca todas las sesiones anteriores y persiste solo el hash del reemplazo', async () => {
+    const user=await f.user(); const cookies=[cookieOf(await f.login(user)),cookieOf(await f.login(user))];
+    const next=cookieOf(await f.change(cookies[0]).expect(204));
+    for (const cookie of cookies) await f.http().get('/api/v1/auth/me').set('Cookie',cookie).expect(401);
+    const sessions=await f.prisma.userSession.findMany({where:{userId:user.id,revokedAt:null}}); expect(sessions).toHaveLength(1);
+    expect(JSON.stringify(sessions)).not.toContain(next.split('=')[1]); expect(sessions[0].tokenHash).toBe(hashOpaqueToken(next.split('=')[1]));
+    expect(await f.passwords.verify(personalPassword,(await f.users.findCredentialsById(user.id))!.passwordHash)).toBe(true);
   });
-  it('rechecks current administrator state even when the caller holds an earlier identity', async () => {
-    const user = await fixture();
-    await prisma.user.update({ where: { id: actor.id }, data: { role: UserRole.BOARD } });
-    await expect(firstAccess.issue(user.id, actor)).rejects.toBeInstanceOf(FirstAccessEmissionError);
-    await issue(user.id).expect(403);
+  it.each(['replace','revoke','create'])('rollback completo ante fallo de %s permite reintentar', async operation => {
+    const user=await f.user(); const cookie=cookieOf(await f.login(user)); const before=await f.users.findCredentialsById(user.id);
+    if(operation==='replace') jest.spyOn(f.users,'replaceRequiredPassword').mockResolvedValueOnce(false);
+    else jest.spyOn(f.app.get(SessionsService), operation==='revoke'?'revokeAllForUser':'create').mockRejectedValueOnce(new Error('fixture persistence failure'));
+    await f.change(cookie).expect(operation==='replace'?409:500); expect(await f.users.findCredentialsById(user.id)).toEqual(before);
+    await f.http().get('/api/v1/auth/me').set('Cookie',cookie).expect(200); await f.change(cookie).expect(204);
   });
-  it('rejects missing, inactive and already established recipients with administrative errors', async () => {
-    await issue(randomUUID()).expect(404);
-    const inactive = await fixture(); await access.deactivate(inactive.id, actor.id); await issue(inactive.id).expect(409);
-    const established = await fixture(UserRole.RESEARCH, true); await issue(established.id).expect(409);
+  it.each(['hash','inactive','flag'])('revalida %s después del hash antes de escribir', async state => {
+    const user=await f.user(); const cookie=cookieOf(await f.login(user)); const original=f.passwords.hashNew.bind(f.passwords);
+    const initialHash=(await f.users.findCredentialsById(user.id))!.passwordHash;
+    const changedHash=await original('Cc!'+personalPassword);
+    jest.spyOn(f.passwords,'hashNew').mockImplementationOnce(async value=>{ const hash=await original(value);
+      await f.prisma.user.update({where:{id:user.id},data:state==='hash'?{passwordHash:changedHash}:state==='inactive'?{isActive:false,deactivatedAt:new Date()}:{mustChangePassword:false}}); return hash; });
+    await f.change(cookie).expect(409); expect((await f.users.findCredentialsById(user.id))!.passwordHash).toBe(state==='hash'?changedHash:initialHash);
+    expect(await f.passwords.verify(personalPassword,(await f.users.findCredentialsById(user.id))!.passwordHash)).toBe(false);
   });
-  it('revokes old pending credentials including expired ones on regeneration', async () => {
-    const user = await fixture(); const old = await firstAccess.issue(user.id, actor);
-    await prisma.firstAccessToken.updateMany({ where: { userId: user.id }, data: { createdAt: new Date(Date.now() - 2000), expiresAt: new Date(Date.now() - 1000) } });
-    const next = await firstAccess.issue(user.id, actor);
-    expect(next.token).not.toBe(old.token); expect((await tokens.findByToken(old.token))!.revokedAt).not.toBeNull();
-    await consume(old.token).expect(400); await consume(next.token).expect(204);
+  it('dos cambios sincronizados solo producen una contraseña y una sesión vigente', async () => {
+    const user=await f.user(); await f.login(user); const service=f.app.get(RequiredPasswordChangeService);
+    const results=await f.race(()=>service.change(user.id,personalPassword),()=>service.change(user.id,'Cc!'+personalPassword));
+    expect(results.map(r=>r.status)).toEqual(['fulfilled','rejected']); expect(await f.prisma.userSession.count({where:{userId:user.id,revokedAt:null}})).toBe(1);
+    expect(await f.passwords.verify(personalPassword,(await f.users.findCredentialsById(user.id))!.passwordHash)).toBe(true);
   });
-  it('consumes atomically, revokes defensive sessions, returns no identity/cookie and enables ordinary login', async () => {
-    const user = await fixture(); const emitted = await firstAccess.issue(user.id, actor);
-    await users.withLockedCredentials(user.id, async (_user, tx) => { await sessions.create(user.id, tx); });
-    const response = await consume(emitted.token).expect(204).expect('Cache-Control', 'no-store');
-    expect(response.text).toBe(''); expect(response.headers['set-cookie']).toBeUndefined();
-    const row = await tokens.findByToken(emitted.token); expect(row!.usedAt).not.toBeNull(); expect(row!.revokedAt).toBeNull();
-    const credentials = await users.findCredentialsByEmail(user.email);
-    expect(credentials!.passwordHash).toMatch(/^\$argon2id\$/); expect(await passwords.verify(password, credentials!.passwordHash)).toBe(true);
-    expect(await prisma.userSession.count({ where: { userId: user.id, revokedAt: null } })).toBe(0);
-    await consume(emitted.token).expect(400);
-    await request(app.getHttpServer()).post('/api/v1/auth/login').send({ email: user.email, password }).expect(200);
+  it.each([true,false])('cambio y desactivación se serializan, cambioPrimero=%s', async changeFirst => {
+    const admin=await f.user(UserRole.ADMINISTRATOR,false); const user=await f.user(); const change=()=>f.app.get(RequiredPasswordChangeService).change(user.id,personalPassword);
+    const deactivate=()=>f.app.get(UserAccessService).deactivate(user.id,admin.id);
+    const result=await f.race(changeFirst?change:deactivate,changeFirst?deactivate:change);
+    expect(result.map(r=>r.status)).toEqual(changeFirst?['fulfilled','fulfilled']:['fulfilled','rejected']);
+    expect((await f.users.findCredentialsById(user.id))!.isActive).toBe(false); expect(await f.prisma.userSession.count({where:{userId:user.id,revokedAt:null}})).toBe(0);
   });
-  it.each(['unknown', 'malformed', 'expired', 'used', 'revoked', 'inactive', 'established'])('returns the same public rejection for %s', async (state) => {
-    const user = await fixture(); const emitted = await firstAccess.issue(user.id, actor);
-    if (state === 'expired') await prisma.firstAccessToken.updateMany({ where: { userId: user.id }, data: { createdAt: new Date(Date.now() - 2000), expiresAt: new Date(Date.now() - 1000) } });
-    if (state === 'used') await firstAccess.consume(emitted.token, password);
-    if (state === 'revoked') await users.withLockedCredentials(user.id, (_user, tx) => tokens.revokePendingForUser(user.id, tx));
-    if (state === 'inactive') await access.deactivate(user.id, actor.id);
-    if (state === 'established') await prisma.user.update({ where: { id: user.id }, data: { passwordHash: configuredHash } });
-    const response = await consume(state === 'unknown' ? createOpaqueToken() : state === 'malformed' ? 'bad' : emitted.token).expect(400).expect('Cache-Control', 'no-store');
-    expect(response.body).toMatchObject({ message: INVALID_FIRST_ACCESS_MESSAGE }); expect(response.text).not.toContain(user.email);
-  });
-  it('distinguishes password policy errors and keeps the token unconsumed', async () => {
-    const user = await fixture(); const emitted = await firstAccess.issue(user.id, actor);
-    for (const invalid of ['a'.repeat(14), '😀'.repeat(129)]) {
-      const response = await consume(emitted.token, undefined, invalid).expect(400);
-      expect(response.body).toMatchObject({ message: [NEW_PASSWORD_MESSAGE] });
-    }
-    await request(app.getHttpServer()).post('/api/v1/auth/first-access').send({ token: emitted.token, password, confirmPassword: password }).expect(400);
-    expect((await tokens.findByToken(emitted.token))!.usedAt).toBeNull();
-    await consume(emitted.token, undefined, '😀'.repeat(15)).expect(204);
-  });
-  it('blocks valid browser sessions without changes and proceeds after explicit logout', async () => {
-    const user = await fixture(); const emitted = await firstAccess.issue(user.id, actor);
-    await consume(emitted.token, actorCookie).expect(409);
-    expect((await tokens.findByToken(emitted.token))!.usedAt).toBeNull(); expect((await users.findCredentialsByEmail(user.email))!.passwordHash).toBeNull();
-    await request(app.getHttpServer()).post('/api/v1/auth/logout').set('Cookie', actorCookie).send({}).expect(204);
-    await consume(emitted.token, actorCookie).expect(204);
-  });
-  it.each(['malformed', 'unknown', 'expired', 'revoked'])('treats %s browser cookie as anonymous', async (state) => {
-    const user = await fixture(); const emitted = await firstAccess.issue(user.id, actor);
-    let browserToken = createOpaqueToken();
-    if (state === 'expired' || state === 'revoked') {
-      browserToken = await users.withLockedCredentials(actor.id, (_user, tx) => sessions.create(actor.id, tx));
-      if (state === 'revoked') await sessions.revoke(browserToken);
-      else await prisma.userSession.updateMany({ where: { tokenHash: hashOpaqueToken(browserToken)! }, data: { createdAt: new Date(Date.now() - 2000), expiresAt: new Date(Date.now() - 1000) } });
-    }
-    await consume(emitted.token, `cecasem_session=${state === 'malformed' ? 'bad' : browserToken}`).expect(204);
-  });
-  it('rechecks expiration after hashing and before conditional consumption', async () => {
-    const user = await fixture(); const emitted = await firstAccess.issue(user.id, actor);
-    const original = passwords.hashNew.bind(passwords);
-    jest.spyOn(passwords, 'hashNew').mockImplementationOnce(async (value) => {
-      const hash = await original(value);
-      await prisma.firstAccessToken.updateMany({ where: { userId: user.id }, data: { createdAt: new Date(Date.now() - 2000), expiresAt: new Date(Date.now() - 1000) } });
-      return hash;
-    });
-    await expect(firstAccess.consume(emitted.token, password)).rejects.toBeInstanceOf(InvalidFirstAccessError);
-    expect((await users.findCredentialsByEmail(user.email))!.passwordHash).toBeNull();
-  });
-  it('revokes pending tokens on deactivation and never revives them on reactivation', async () => {
-    const user = await fixture(); const emitted = await firstAccess.issue(user.id, actor); await access.deactivate(user.id, actor.id);
-    expect((await tokens.findByToken(emitted.token))!.revokedAt).not.toBeNull();
-    await prisma.user.update({ where: { id: user.id }, data: { isActive: true, deactivatedAt: null } });
-    await consume(emitted.token).expect(400); const next = await firstAccess.issue(user.id, actor); await consume(next.token).expect(204);
-  });
-  it('rolls back password, token use and sibling revocation on session persistence failure', async () => {
-    const user = await fixture(); const emitted = await firstAccess.issue(user.id, actor);
-    const sibling = createOpaqueToken();
-    await prisma.firstAccessToken.create({ data: { userId: user.id, createdByUserId: actor.id, tokenHash: hashOpaqueToken(sibling)!, expiresAt: new Date(Date.now() + 60000) } });
-    jest.spyOn(sessions, 'revokeAllForUser').mockRejectedValueOnce(new Error('fixture failure'));
-    await consume(emitted.token).expect(500);
-    expect((await tokens.findByToken(emitted.token))!.usedAt).toBeNull(); expect((await tokens.findByToken(sibling))!.revokedAt).toBeNull();
-    expect((await users.findCredentialsByEmail(user.email))!.passwordHash).toBeNull();
-    await consume(emitted.token).expect(204); expect((await tokens.findByToken(sibling))!.revokedAt).not.toBeNull();
-  });
-  it('rolls back revocation if a replacement cannot be persisted', async () => {
-    const user = await fixture(); const old = await firstAccess.issue(user.id, actor);
-    const original = users.withLockedCredentials.bind(users);
-    jest.spyOn(users, 'withLockedCredentials').mockImplementationOnce((id, operation) => original(id, async (identity, tx) => {
-      jest.spyOn(tx.firstAccessToken, 'create').mockRejectedValueOnce(new Error('fixture failure')); return operation(identity, tx);
-    }));
-    await issue(user.id).expect(500); expect((await tokens.findByToken(old.token))!.revokedAt).toBeNull();
-  });
-  it('rolls back token use when conditional initial-password establishment fails', async () => {
-    const user = await fixture(); const emitted = await firstAccess.issue(user.id, actor);
-    jest.spyOn(users, 'establishInitialPassword').mockResolvedValueOnce(false);
-    await consume(emitted.token).expect(400);
-    expect((await tokens.findByToken(emitted.token))!.usedAt).toBeNull();
-    expect((await users.findCredentialsByEmail(user.email))!.passwordHash).toBeNull();
+  it.each(['first-access','first-access-tokens','password-reset','password-reset-tokens'])('endpoint retirado %s permanece ausente', async path => {
+    const user=await f.user(); await f.http().post('/api/v1/auth/'+path).send({token:createOpaqueToken(),password:personalPassword}).expect(404);
+    expect((await f.users.findCredentialsById(user.id))!.mustChangePassword).toBe(true);
   });
   it('enforces hash uniqueness, UUID FKs, restrictive deletion and every temporal CHECK', async () => {
-    const user = await fixture(); const emitted = await firstAccess.issue(user.id, actor); const row = (await tokens.findByToken(emitted.token))!;
+    const actor=await f.user(UserRole.ADMINISTRATOR,false);const user=await f.user();const prisma=f.prisma;
+    const row=await prisma.firstAccessToken.create({data:{userId:user.id,createdByUserId:actor.id,tokenHash:hashOpaqueToken(createOpaqueToken())!,expiresAt:new Date(Date.now()+60000)}});
+    const sql=new Pool({connectionString:databaseUrl});
+    try {
     await expect(prisma.firstAccessToken.create({ data: { userId: user.id, createdByUserId: actor.id, tokenHash: row.tokenHash, expiresAt: row.expiresAt } })).rejects.toMatchObject({ code: 'P2002' });
     for (const missing of ['userId', 'createdByUserId']) await expect(prisma.firstAccessToken.create({ data: {
       userId: user.id, createdByUserId: actor.id, [missing]: randomUUID(), tokenHash: hashOpaqueToken(createOpaqueToken())!, expiresAt: row.expiresAt,
@@ -247,38 +103,6 @@ describe('First access PostgreSQL and HTTP E2E', () => {
       '"revokedAt" = "createdAt" - interval \'1 second\'', '"usedAt" = "createdAt", "revokedAt" = "createdAt"', '"tokenHash" = \'bad\'']) {
       await expect(sql.query(`UPDATE "FirstAccessToken" SET ${expression} WHERE id=$1`, [row.id])).rejects.toMatchObject({ code: '23514' });
     }
-  });
-  it('allows only one of two synchronized consumers', async () => {
-    const user = await fixture(); const emitted = await firstAccess.issue(user.id, actor);
-    const results = await race(() => firstAccess.consume(emitted.token, password), () => firstAccess.consume(emitted.token, password));
-    expect(results.map((result) => result.status)).toEqual(['fulfilled', 'rejected']);
-  });
-  it('serializes two emissions and leaves only the last credential usable', async () => {
-    const user = await fixture(); const emitted: string[] = [];
-    const emission = async () => { emitted.push((await firstAccess.issue(user.id, actor)).token); };
-    expect((await race(emission, emission)).every((result) => result.status === 'fulfilled')).toBe(true);
-    expect((await tokens.findByToken(emitted[0]))!.revokedAt).not.toBeNull(); await consume(emitted[0]).expect(400); await consume(emitted[1]).expect(204);
-  });
-  it.each([true, false])('serializes consumption versus regeneration, consumptionFirst=%s', async (consumptionFirst) => {
-    const user = await fixture(); const old = await firstAccess.issue(user.id, actor);
-    let next: string | undefined;
-    const regenerate = async () => { next = (await firstAccess.issue(user.id, actor)).token; };
-    const consumption = () => firstAccess.consume(old.token, password);
-    expect((await race(consumptionFirst ? consumption : regenerate, consumptionFirst ? regenerate : consumption)).map((result) => result.status)).toEqual(['fulfilled', 'rejected']);
-    if (!consumptionFirst) { expect(next).toBeDefined(); await consume(next!).expect(204); }
-  });
-  it.each([true, false])('serializes consumption versus deactivation, consumptionFirst=%s', async (consumptionFirst) => {
-    const user = await fixture(); const emitted = await firstAccess.issue(user.id, actor);
-    const consumption = () => firstAccess.consume(emitted.token, password); const deactivate = () => access.deactivate(user.id, actor.id);
-    const results = await race(consumptionFirst ? consumption : deactivate, consumptionFirst ? deactivate : consumption);
-    expect(results.map((result) => result.status)).toEqual(consumptionFirst ? ['fulfilled', 'fulfilled'] : ['fulfilled', 'rejected']);
-    const credentials = (await users.findCredentialsByEmail(user.email))!; expect(credentials.isActive).toBe(false);
-    expect(credentials.passwordHash === null).toBe(!consumptionFirst);
-  });
-  it.each([true, false])('serializes emission versus deactivation, emissionFirst=%s', async (emissionFirst) => {
-    const user = await fixture(); const emission = () => firstAccess.issue(user.id, actor); const deactivate = () => access.deactivate(user.id, actor.id);
-    const results = await race(emissionFirst ? emission : deactivate, emissionFirst ? deactivate : emission);
-    expect(results.map((result) => result.status)).toEqual(emissionFirst ? ['fulfilled', 'fulfilled'] : ['fulfilled', 'rejected']);
-    expect(await prisma.firstAccessToken.count({ where: { userId: user.id, usedAt: null, revokedAt: null } })).toBe(0);
+      } finally {await sql.end();}
   });
 });
