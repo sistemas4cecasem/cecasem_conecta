@@ -24,13 +24,14 @@ function CommunicationDetail({ identity, id }: { identity: AuthIdentity; id: str
     <PageHeader eyebrow="Relaciones / Comunicaciones" title={row?.direction === 'RECEIVED' ? 'Comunicación recibida registrada' : 'Comunicación enviada registrada'}
       description={row && <span className="whitespace-pre-wrap">{row.subject}</span>}
       metadata={row && <p>{row.direction === 'SENT' ? 'Enviada' : 'Recibida'} · <StatusBadge tone={row.validity === 'INVALIDATED' ? 'warning' : 'neutral'}>{row.validity === 'INVALIDATED' ? 'INVALIDADA' : 'Registro válido'}</StatusBadge></p>}
-      actions={row && <><ActionLink appearance="context" to={'/relationship-processes/' + row.processId}>Volver al proceso</ActionLink>
+      back={row && <ActionLink appearance="back" to={'/relationship-processes/' + row.processId}>Volver al proceso</ActionLink>}
+      actions={row && <>
         {identity.permissions.includes('opportunities.create') && <ActionLink appearance="context" to={'/opportunities/new?processId=' + row.processId + '&communicationId=' + row.id}>Crear oportunidad desde esta comunicación</ActionLink>}</>} />
     <QueryFeedback pending={detail.isPending} error={detail.isError} retry={detail.refetch} />
     {row && <>
       {row.invalidation && <Alert tone="warning"><p>Invalidada por {row.invalidation.author.displayName} · <time dateTime={row.invalidation.createdAt}>{new Date(row.invalidation.createdAt).toLocaleString('es-BO')}</time></p><p className="whitespace-pre-wrap">Motivo: {row.invalidation.content}</p></Alert>}
       <Surface heading="Contenido original registrado" className="communication-original">
-      <Metadata items={[
+      <Metadata layout="grid" items={[
         { label: row.direction === 'SENT' ? 'Fecha real de envío' : 'Fecha real de recepción', value: <time dateTime={communicationDate(row)}>{new Date(communicationDate(row)).toLocaleString('es-BO')}</time> },
         { label: 'Fecha de registro', value: <time dateTime={row.createdAt}>{new Date(row.createdAt).toLocaleString('es-BO')}</time> },
       ]} />

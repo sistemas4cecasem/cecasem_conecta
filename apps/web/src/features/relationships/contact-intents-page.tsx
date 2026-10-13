@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { useSearchParams } from 'react-router';
 import { useSession, type AuthIdentity } from '../auth/session';
-import { ActionLink } from '../../components/ui/actions';
+import { ActionLink, Button } from '../../components/ui/actions';
 import { PageHeader, FilterBar, Surface } from '../../components/ui/layout';
 import { FormField, Select } from '../../components/ui/forms';
 import { DataList, DataListItem, Metadata, Pagination } from '../../components/ui/lists';
@@ -18,7 +18,7 @@ export function IntentContext({ intent, modern = false }: { intent: ContactInten
     { label: 'Última actividad', value: <time dateTime={intent.lastActivityAt}>{date(intent.lastActivityAt)}</time> },
     ...(intent.cancelledBy ? [{ label: 'Cancelada por', value: <>{intent.cancelledBy.displayName} · <time dateTime={intent.cancelledAt!}>{date(intent.cancelledAt!)}</time></> }] : [])
   ]} />;
-  return <div className="space-y-1"><p>Objetivo: <Link className="underline" to={'/' + (intent.target.kind === 'ORGANIZATION' ? 'organizations/' : 'people/') + intent.target.id}>{intent.target.label}</Link>{!intent.target.isActive && ' (inactivo)'}</p>
+  return <div className="space-y-1"><p>Objetivo: <ActionLink to={'/' + (intent.target.kind === 'ORGANIZATION' ? 'organizations/' : 'people/') + intent.target.id}>{intent.target.label}</ActionLink>{!intent.target.isActive && ' (inactivo)'}</p>
     <p>Autor: {intent.author.displayName}{!intent.author.isActive && ' (cuenta inactiva)'}</p><p>Estado: {INTENT_LABELS[intent.state]}</p>
     <p>Creación: {date(intent.createdAt)}</p><p>Última actividad: {date(intent.lastActivityAt)}</p>
     {intent.cancelledBy && <p>Cancelada por {intent.cancelledBy.displayName} · {date(intent.cancelledAt!)}</p>}</div>;
@@ -36,7 +36,7 @@ function IntentsList({ identity }: { identity: AuthIdentity }) {
   return <section className="relationships-page">
     <PageHeader eyebrow="Relaciones" title="Intenciones de contacto" description="Consulta los acercamientos previstos, sus objetivos y su actividad."
       primaryAction={identity.permissions.includes('relationships.intent.create') && <ActionLink appearance="action" variant="primary" to="/contact-intents/new">Crear intención</ActionLink>} />
-    <FilterBar aria-label="Filtros de intenciones"><FormField label="Estado de intenciones">{control => <Select {...control} value={state} onChange={e => { const next = new URLSearchParams(params); if (e.target.value === 'all') next.delete('state'); else next.set('state', e.target.value); next.delete('page'); setParams(next); setPage(1); }}>
+    <FilterBar aria-label="Filtros de intenciones" summary={list.data && <p>{list.data.total} registros encontrados</p>} actions={state!=='all' && <Button variant="ghost" onClick={()=>{const next=new URLSearchParams(params);next.delete('state');next.delete('page');setParams(next);setPage(1);}}>Limpiar filtro de estado</Button>}><FormField label="Estado de intenciones">{control => <Select {...control} value={state} onChange={e => { const next = new URLSearchParams(params); if (e.target.value === 'all') next.delete('state'); else next.set('state', e.target.value); next.delete('page'); setParams(next); setPage(1); }}>
       <option value="all">Todas</option><option value="ACTIVE">Activas</option><option value="CONVERTED">Convertidas</option><option value="CANCELLED">Canceladas</option><option value="CLOSED">Cerradas</option></Select>}</FormField></FilterBar>
     <Surface aria-label="Resultados de intenciones">
     <QueryFeedback pending={list.isPending} error={list.isError} retry={list.refetch} />

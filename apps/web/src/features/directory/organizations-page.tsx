@@ -123,7 +123,7 @@ function OrganizationsList({ identity }: { identity: AuthIdentity }) {
       <QueryFeedback pending={list.isPending} pendingMessage="Cargando organizaciones…" error={list.isError} retry={list.refetch} />
       {list.data?.total === 0 && <EmptyState title={unfilteredAll ? 'No hay organizaciones registradas.' : 'No hay organizaciones para estos filtros.'}
         description={unfilteredAll ? undefined : 'Revisa la búsqueda y los filtros seleccionados.'} />}
-      {!!list.data?.items.length && <DataList className="organizations-list">{list.data.items.map(row => <DataListItem className="organization-list-item" key={row.id}>
+      {!!list.data?.items.length && <DataList columns={2} className="organizations-list">{list.data.items.map(row => <DataListItem className="organization-list-item" key={row.id}>
         <div className="organization-row">
           <div className="organization-row-content">
             <div className="organization-row-heading">
@@ -149,7 +149,7 @@ export function OrganizationCreationPage() {
   const session = useSession(); const navigate = useNavigate();
   if (!session.data?.permissions.includes('directory.write')) return <p role="alert">No tienes permiso para crear organizaciones.</p>;
   return <section className="organization-form-page">
-    <PageHeader eyebrow="Directorio / Organizaciones" title="Crear organización" />
+    <PageHeader eyebrow="Directorio / Organizaciones" title="Crear organización" back={<ActionLink appearance="back" to="/organizations">Volver a organizaciones</ActionLink>} />
     <Surface className="organization-form-surface"><OrganizationForm identity={session.data} saved={row => navigate('/organizations/' + row.id)} cancel={() => navigate('/organizations')} /></Surface>
   </section>;
 }

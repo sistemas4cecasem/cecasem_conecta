@@ -15,7 +15,6 @@
   .directory-search-inactive { display: flex; align-items: center; gap: 0.5rem; min-height: 2.75rem; font-size: 0.875rem; margin-bottom: 0.75rem; }
   .directory-category-layout { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 1.5rem; }
   .directory-category-layout > * { min-width: 0; }
-  .directory-category-actions .ui-button-ghost { text-decoration: underline; text-underline-offset: 0.2em; font-weight: 400; }
   .directory-category-filter .ui-filter-controls { max-width: 20rem; }
   .directory-search-context { color: var(--color-app-muted); font-size: 0.875rem; line-height: 1.6; }
   .directory-search-results h3 { font-size: 0.875rem; font-weight: 600; margin-block: 0.75rem; }

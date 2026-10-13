@@ -14,7 +14,7 @@ type PlanningPanel = Extract<Dashboard, { view: 'planning' }>;
 
 function MeetingList({ rows }: { rows: InstitutionalPanel['upcomingMeetings'] }) {
   if (!rows.length) return <EmptyState title="No hay reuniones próximas." />;
-  return <DataList>{rows.map(row => <DataListItem key={row.id}>
+  return <DataList variant="compact">{rows.map(row => <DataListItem key={row.id}>
     <ActionLink appearance="list" to={`/meetings/${row.id}`}>{row.purpose}</ActionLink>
     <Metadata items={[
       { label: 'Fecha y hora', value: <time dateTime={row.scheduledAt}>{new Date(row.scheduledAt).toLocaleString('es-BO', {
@@ -50,7 +50,7 @@ export function ResearchDashboard({ panel }: { panel: ResearchPanel }) {
   return <div className="dashboard-columns dashboard-research">
     <Surface heading="Procesos activos relevantes">
       <div className="dashboard-process-summary"><MetricCard label="Tus procesos activos" value={panel.activeProcesses} icon={<iconCatalog.metric.process size={20} />} to="/relationship-processes" /></div>
-      {panel.relevantProcesses.length ? <DataList>{panel.relevantProcesses.map(row => <DataListItem key={row.id}>
+      {panel.relevantProcesses.length ? <DataList variant="compact">{panel.relevantProcesses.map(row => <DataListItem key={row.id}>
         <ActionLink appearance="list" to={`/relationship-processes/${row.id}`}>{row.purpose}</ActionLink>
         <Metadata items={[
           { label: 'Actor', value: row.target ?? 'Sin organización o persona indicada' },
@@ -60,13 +60,13 @@ export function ResearchDashboard({ panel }: { panel: ResearchPanel }) {
     </Surface>
     <div className="dashboard-stack">
       <Surface heading={`Intenciones activas (${panel.activeIntents})`} actions={<ActionLink appearance="context" to="/contact-intents">Ver intenciones</ActionLink>}>
-        {panel.relevantIntents.length ? <DataList>{panel.relevantIntents.map(row => <DataListItem key={row.id}>
+        {panel.relevantIntents.length ? <DataList variant="compact">{panel.relevantIntents.map(row => <DataListItem key={row.id}>
           <ActionLink appearance="list" to={`/contact-intents/${row.id}`}>{row.purpose}</ActionLink>
           <Metadata items={[{ label: 'Actor', value: row.target ?? 'Sin organización o persona indicada' }]} />
         </DataListItem>)}</DataList> : <EmptyState title="No tienes intenciones activas." />}
       </Surface>
       <Surface heading={`Recordatorios sin leer (${panel.unreadReminders})`} actions={<ActionLink appearance="context" to="/notifications">Ver notificaciones</ActionLink>}>
-        {panel.reminderItems.length ? <DataList>{panel.reminderItems.map(row => <DataListItem key={row.id}>
+        {panel.reminderItems.length ? <DataList variant="compact">{panel.reminderItems.map(row => <DataListItem key={row.id}>
           <ActionLink appearance="list" to={row.processId ? `/relationship-processes/${row.processId}` : row.intentId ? `/contact-intents/${row.intentId}` : '/notifications'}>{row.subject}</ActionLink>
           <Metadata items={[{ label: 'Fecha', value: <time dateTime={row.createdAt}>{new Date(row.createdAt).toLocaleDateString('es-BO')}</time> }]} />
         </DataListItem>)}</DataList> : <EmptyState title="No tienes recordatorios activos sin leer." />}
@@ -85,7 +85,7 @@ export function PlanningDashboard({ panel }: { panel: PlanningPanel }) {
     </section>
     <div className="dashboard-columns">
       <Surface heading={`Fechas límite en los próximos 30 días (${panel.deadlinesInNext30Days})`}>
-        {panel.upcomingDeadlines.length ? <DataList>{panel.upcomingDeadlines.map(row => <DataListItem key={row.id}>
+        {panel.upcomingDeadlines.length ? <DataList variant="compact">{panel.upcomingDeadlines.map(row => <DataListItem key={row.id}>
           <ActionLink appearance="list" to={`/opportunities/${row.id}`}>{row.name}</ActionLink>
           <Metadata items={[{ label: 'Fecha límite', value: <time className="dashboard-deadline" dateTime={row.deadline}>
             {new Intl.DateTimeFormat('es-BO', { timeZone: 'UTC', dateStyle: 'medium' }).format(new Date(`${row.deadline}T00:00:00.000Z`))}

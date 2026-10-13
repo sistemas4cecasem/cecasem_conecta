@@ -8,6 +8,9 @@
   .meetings-page .planning-history ol > li, .meetings-page .meeting-participant { border: 0; border-bottom: 1px solid var(--color-app-border); border-radius: 0; padding-block: 0.75rem; }
   .meetings-page input[type=file] { max-width: 100%; }
   .meetings-page form { border-color: var(--color-app-border); }
+  .meeting-origin-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 23rem), 1fr)); gap: 1.25rem; min-width: 0; }
+  .meeting-origin-picker { display: grid; align-content: start; gap: 0.75rem; min-width: 0; }
+  .meeting-origin-picker > h2 { color: var(--color-brand-primary); font-size: 0.9375rem; font-weight: 600; }
   @media (max-width: 39.999rem) {
     .meetings-page .ui-metadata { grid-template-columns: minmax(0, 1fr); }
     .meetings-page .planning-row-heading { flex-wrap: wrap; }

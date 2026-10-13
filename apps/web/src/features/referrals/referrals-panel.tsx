@@ -1,5 +1,6 @@
+import { ActionLink } from '../../components/ui/actions';
 import { useState } from 'react';
-import { Link } from 'react-router';
+
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { AuthIdentity } from '../auth/session';
@@ -18,9 +19,9 @@ export function ReferralContent({ row }: { row: Referral }) {
     {row.mediumType && <p>{mediumLabels[row.mediumType]} recomendado: {row.mediumValue}</p>}
     {row.notes && <p className="whitespace-pre-wrap">Observación: {row.notes}</p>}
     <div className="flex flex-wrap gap-3">
-      {row.person && <Link className={buttonClass} to={'/people/' + row.person.currentId}>Ficha de persona: {row.person.label}{!row.person.isActive && ' (inactiva)'}{row.person.currentId !== row.person.id && ' (consolidada)'}</Link>}
-      {row.organization && <Link className={buttonClass} to={'/organizations/' + row.organization.currentId}>Ficha de organización: {row.organization.label}{!row.organization.isActive && ' (inactiva)'}{row.organization.currentId !== row.organization.id && ' (consolidada)'}</Link>}
-      {row.contactMethod && <Link className={buttonClass} to={'/contact-methods/' + row.contactMethod.id}>Ficha del medio{row.contactMethod.condition === 'UNUSABLE' && ' (no utilizable actualmente)'}</Link>}
+      {row.person && <ActionLink appearance="context" to={'/people/' + row.person.currentId}>Ficha de persona: {row.person.label}{!row.person.isActive && ' (inactiva)'}{row.person.currentId !== row.person.id && ' (consolidada)'}</ActionLink>}
+      {row.organization && <ActionLink appearance="context" to={'/organizations/' + row.organization.currentId}>Ficha de organización: {row.organization.label}{!row.organization.isActive && ' (inactiva)'}{row.organization.currentId !== row.organization.id && ' (consolidada)'}</ActionLink>}
+      {row.contactMethod && <ActionLink appearance="context" to={'/contact-methods/' + row.contactMethod.id}>Ficha del medio{row.contactMethod.condition === 'UNUSABLE' && ' (no utilizable actualmente)'}</ActionLink>}
     </div>
     <p>Origen: {row.source.subject}{row.source.validity === 'INVALIDATED' && ' · Comunicación invalidada posteriormente'}</p>
     <p className="text-sm">Los datos mencionados conservan la recomendación original; las fichas vinculadas muestran el Directorio actual.</p>

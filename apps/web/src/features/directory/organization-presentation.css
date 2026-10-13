@@ -35,20 +35,9 @@
   .organization-detail .ui-page-header { align-items: center; }
   .organization-detail .directory-detail-main { grid-template-columns: minmax(0, 1fr); }
   .organization-detail-summary .ui-metadata { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.625rem; }
-  .organization-detail-summary .ui-metadata > div {
-    display: block;
-    min-width: 0;
-    border: 1px solid var(--color-app-border);
-    border-radius: var(--radius-control);
-    padding: 0.5rem 0.625rem;
-    background: var(--color-app-background);
-  }
   .organization-detail-summary .ui-metadata dt { font-size: 0.75rem; font-weight: 600; }
   .organization-detail-summary .ui-metadata dt::after { content: none; }
   .organization-detail-summary .ui-metadata dd { margin-top: 0.2rem; }
-  .organization-detail-summary .ui-metadata > div:nth-child(3),
-  .organization-detail-summary .ui-metadata > div:nth-child(4),
-  .organization-detail-summary .ui-metadata > div:nth-child(6) { grid-column: 1 / -1; }
 
 
   .organization-detail .directory-contact-context,
@@ -57,7 +46,7 @@
   .organization-person-success,
   .organization-person-existing-link { border-left: 3px solid var(--color-brand-accent); border-radius: var(--radius-control); padding: 0.625rem 0.75rem; background: var(--color-brand-soft); color: var(--color-app-text); }
   .organization-person-edit { min-width: 0; border: 1px solid var(--color-app-border); border-radius: var(--radius-control); padding: 1rem; background: var(--color-app-background); }
-  .organization-person-success a { color: var(--color-brand-primary); font-weight: 600; text-decoration: underline; text-underline-offset: 0.15em; }
+  .organization-person-success a { color: var(--color-brand-primary); font-weight: 600; text-decoration: none; }
   .organization-person-form { display: grid; gap: 1rem; min-width: 0; border: 1px solid var(--color-app-border); border-radius: var(--radius-control); padding: 1rem; background: var(--color-app-background); }
   .organization-person-form fieldset { display: grid; gap: 0.75rem; min-width: 0; border: 0; border-top: 1px solid var(--color-app-border); padding: 0.875rem 0 0; }
   .organization-person-form legend { padding-right: 0.375rem; color: var(--color-brand-primary); font-size: 0.9375rem; font-weight: 600; }
@@ -134,7 +123,7 @@
   .organization-control-layout { display: grid; gap: 1rem; min-width: 0; }
   .organization-section-surface { min-width: 0; padding: 1.125rem; }
   .organization-summary-layout .organization-detail-summary .ui-metadata { margin-top: 0; }
-  .organization-summary-metrics { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; min-width: 0; }
+  .organization-summary-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: 0.75rem; min-width: 0; }
   .organization-summary-metric {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -149,19 +138,19 @@
   }
   .organization-summary-metric > span:first-child { color: var(--color-app-muted); font-size: 0.8125rem; }
   .organization-summary-metric > strong { color: var(--color-brand-primary); font-size: 1.25rem; }
-  .organization-summary-metric > span:last-child { grid-column: 1 / -1; color: var(--color-brand-primary); font-size: 0.8125rem; text-decoration: underline; text-underline-offset: 0.15em; }
+  .organization-summary-metric > span:last-child { grid-column: 1 / -1; color: var(--color-brand-primary); font-size: 0.8125rem; text-decoration: none; }
   .organization-people-filters { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem 1rem; min-width: 0; }
   .organization-record-details { min-width: 0; border-top: 1px solid var(--color-app-border); padding-top: 0.5rem; }
-  .organization-record-details > summary { display: flex; align-items: center; min-height: 2.75rem; color: var(--color-brand-primary); cursor: pointer; font-size: 0.875rem; font-weight: 600; text-decoration: underline; text-underline-offset: 0.15em; }
+  .organization-record-details > summary { display: flex; align-items: center; min-height: 2.75rem; color: var(--color-brand-primary); cursor: pointer; font-size: 0.875rem; font-weight: 600; text-decoration: none; }
   .organization-record-detail-content { min-width: 0; padding-block: 0.75rem; }
   .organization-record-detail-content > * { min-width: 0; }
   .organization-history-details { min-width: 0; padding-block: 0.75rem; }
   .organization-contact-primary { overflow-wrap: anywhere; }
-  .organization-location-list { border-top: 1px solid var(--color-app-border); }
+  .organization-location-list { gap: var(--spacing-record-gap); }
   .organization-location-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
   .organization-location-primary,
   .organization-location-status { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; min-width: 0; }
-  .organization-location-name { display: inline-flex; min-height: 2.75rem; align-items: center; color: var(--color-brand-primary); font-weight: 600; text-decoration: underline; text-underline-offset: 0.15em; overflow-wrap: anywhere; }
+  .organization-location-name { display: inline-flex; min-height: 2.75rem; align-items: center; color: var(--color-brand-primary); font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
   .organization-location-status > span:last-child { color: var(--color-app-muted); font-size: 0.8125rem; }
 
   .organization-contact-form { display: grid; gap: 0.875rem; width: min(100%, 52rem); min-width: 0; margin-inline: auto; }
@@ -186,13 +175,10 @@
     .organization-contact-method-fields > :last-child,
     .organization-contact-context-fields > :last-child { grid-column: 1 / -1; }
     .organization-people-filters { grid-template-columns: minmax(0, 2fr) minmax(12rem, 1fr); }
-    .organization-summary-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .organization-location-row { grid-template-columns: minmax(0, 1.2fr) minmax(13rem, 1fr); align-items: center; gap: 1rem; }
   }
   @media (min-width: 48rem) {
     .organization-detail-summary .ui-metadata { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .organization-detail-summary .ui-metadata > div:nth-child(4) { grid-column: span 2; }
-    .organization-detail-summary .ui-metadata > div:nth-child(5) { grid-column: span 1; }
   }
   @media (min-width: 80rem) {
     .organization-summary-layout { grid-template-columns: minmax(0, 1.5fr) minmax(18rem, 1fr); align-items: start; }
@@ -205,7 +191,6 @@
   @media (max-width: 39.999rem) {
     .organization-form-surface { padding: 1rem; }
     .organization-detail-summary .ui-metadata { grid-template-columns: minmax(0, 1fr); }
-    .organization-detail-summary .ui-metadata > div { grid-column: 1; }
     .organization-detail .organization-contact-details,
     .organization-detail .organization-episode-details { grid-template-columns: minmax(0, 1fr); }
     .organization-detail .organization-contact-actions > *,

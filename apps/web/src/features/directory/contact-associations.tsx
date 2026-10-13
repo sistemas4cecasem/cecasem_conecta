@@ -1,6 +1,7 @@
+import { ActionLink } from '../../components/ui/actions';
 import { ConsolidationProvenance } from './consolidation-provenance';
 import { useState } from 'react';
-import { Link } from 'react-router';
+
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { AuthIdentity } from '../auth/session';
@@ -48,7 +49,7 @@ export function ContactAssociationCard({identity,row,readOnly=false,replacement,
     {reloadFailed&&<p role="alert">No se pudo recargar la asociación. Los datos se conservan.</p>}
     {replacing&&replacement&&<ContactReplacementForm identity={identity} row={row} target={replacement} done={()=>setReplacing(false)} cancel={()=>setReplacing(false)}/>}<ConsolidationProvenance origins={row.consolidationOrigins}/></>;
   const modificationHistory=history&&<DirectoryHistory modern={modern} headingLevel={modern?3:2} hideEmptyPagination={hideEmptyHistoryPagination} identity={identity} path={associationPath(row)+'/history'}/>;
-  const primary=<div className="organization-contact-primary"><p>{contactLabels[row.contactMethod.type]}: <Link className="underline" to={'/contact-methods/'+row.contactMethodId}>{row.contactMethod.value}</Link></p>
+  const primary=<div className="organization-contact-primary"><p>{contactLabels[row.contactMethod.type]}: <ActionLink to={'/contact-methods/'+row.contactMethodId}>{row.contactMethod.value}</ActionLink></p>
     <p>Asociación {row.isActive?'activa':'inactiva / antecedente'} · Medio: {conditionLabels[row.contactMethod.condition]}</p>
     <p>{row.contactMethod.associationCount>1?'Medio compartido entre '+row.contactMethod.associationCount+' asociaciones.':'Medio con una asociación.'}</p></div>;
   return <li className={`${modern?'ui-data-list-item':'min-w-0 space-y-3 rounded border p-3 break-words'} ${organizationPresentation?'organization-contact-row':''}`}>
@@ -60,8 +61,8 @@ export function ContactAssociationCard({identity,row,readOnly=false,replacement,
           {associationActions}{endingForm}{errors}{modificationHistory}</div>}
       </details>
     </> : <>
-      <div className={modern?'directory-contact-context space-y-3':'space-y-3'}><Link className="inline-flex min-h-11 underline" to={'personId' in row?'/people/'+row.personId:'/organizations/'+row.organizationId}>{actorName}</Link>
-        <p>{contactLabels[row.contactMethod.type]}: <Link className="underline" to={'/contact-methods/'+row.contactMethodId}>{row.contactMethod.value}</Link></p>
+      <div className={modern?'directory-contact-context space-y-3':'space-y-3'}><ActionLink className="inline-flex min-h-11" to={'personId' in row?'/people/'+row.personId:'/organizations/'+row.organizationId}>{actorName}</ActionLink>
+        <p>{contactLabels[row.contactMethod.type]}: <ActionLink to={'/contact-methods/'+row.contactMethodId}>{row.contactMethod.value}</ActionLink></p>
         <p>Asociación {row.isActive?'activa':'inactiva / antecedente'} · Medio: {conditionLabels[row.contactMethod.condition]}</p>
         <p>{row.contactMethod.associationCount>1?'Medio compartido entre '+row.contactMethod.associationCount+' asociaciones.':'Medio con una asociación.'}</p>
         {!('person' in row?row.person.isActive:row.organization.isActive)&&<p>Ficha del actor inactiva; asociación conservada.</p>}

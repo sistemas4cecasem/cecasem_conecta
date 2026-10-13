@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router';
+
 import { useSession, type AuthIdentity } from '../auth/session';
 import { ActionLink, Button } from '../../components/ui/actions';
 import { PageHeader, FilterBar, Surface } from '../../components/ui/layout';
@@ -18,7 +18,7 @@ export function RestrictionContext({ restriction, modern = false }: { restrictio
     ]} />
     {restriction.liftedAt && <p className="relationships-closure whitespace-pre-wrap break-words">Motivo de levantamiento: {restriction.liftReason}</p>}
   </>;
-  return <div className="space-y-1 text-sm"><p>Objetivo: <Link className="underline" to={'/' + (restriction.target.kind === 'ORGANIZATION' ? 'organizations/' : 'people/') + restriction.target.id}>{restriction.target.label}</Link>{!restriction.target.isActive && ' (ficha inactiva)'}</p>
+  return <div className="space-y-1 text-sm"><p>Objetivo: <ActionLink to={'/' + (restriction.target.kind === 'ORGANIZATION' ? 'organizations/' : 'people/') + restriction.target.id}>{restriction.target.label}</ActionLink>{!restriction.target.isActive && ' (ficha inactiva)'}</p>
     <p>Estado: {restriction.state === 'ACTIVE' ? 'Activa — no contactar' : 'Levantada'}</p>
     <p>Registrada por: {restriction.registeredBy.displayName}{!restriction.registeredBy.isActive && ' (cuenta inactiva)'} · {new Date(restriction.createdAt).toLocaleString('es-BO')}</p>
     {restriction.liftedAt && <><p>Levantada por: {restriction.liftedBy?.displayName}{restriction.liftedBy && !restriction.liftedBy.isActive && ' (cuenta inactiva)'} · {new Date(restriction.liftedAt).toLocaleString('es-BO')}</p>

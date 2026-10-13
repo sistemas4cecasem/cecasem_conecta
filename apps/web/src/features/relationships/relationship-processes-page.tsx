@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { useSearchParams } from 'react-router';
 import { useSession, type AuthIdentity } from '../auth/session';
-import { ActionLink } from '../../components/ui/actions';
+import { ActionLink, Button } from '../../components/ui/actions';
 import { PageHeader, FilterBar, Surface } from '../../components/ui/layout';
 import { FormField, Select } from '../../components/ui/forms';
 import { DataList, DataListItem, Metadata, Pagination } from '../../components/ui/lists';
@@ -21,11 +21,11 @@ export function ProcessContext({ process, modern = false }: { process: Relations
     {process.currentResult && <div className="relationships-closure"><p>Resultado: {PROCESS_RESULT_LABELS[process.currentResult]}</p><p>Cerrado por {process.closedBy?.displayName} · <time dateTime={process.closedAt!}>{date(process.closedAt!)}</time></p>{process.closureObservation && <p className="whitespace-pre-wrap break-words">{process.closureObservation}</p>}</div>}
     {process.sourceIntentId && <ActionLink appearance="context" to={'/contact-intents/' + process.sourceIntentId}>Consultar intención de origen</ActionLink>}
   </>;
-  return <div className="space-y-1"><p>Actor principal: <Link className="underline" to={'/' + (process.target.kind === 'ORGANIZATION' ? 'organizations/' : 'people/') + process.target.id}>{process.target.label}</Link>{!process.target.isActive && ' (inactivo)'}</p>
+  return <div className="space-y-1"><p>Actor principal: <ActionLink to={'/' + (process.target.kind === 'ORGANIZATION' ? 'organizations/' : 'people/') + process.target.id}>{process.target.label}</ActionLink>{!process.target.isActive && ' (inactivo)'}</p>
     <p>Creador: {process.createdBy.displayName}{!process.createdBy.isActive && ' (cuenta inactiva)'}</p><p>Estado: {PROCESS_STATE_LABELS[process.state]}</p>
     <p>Creación: {date(process.createdAt)}</p><p>Última actividad formal: {date(process.lastActivityAt)}</p>
     {process.currentResult && <div><p>Resultado: {PROCESS_RESULT_LABELS[process.currentResult]}</p><p>Cerrado por {process.closedBy?.displayName} · {date(process.closedAt!)}</p>{process.closureObservation && <p className="whitespace-pre-wrap break-words">{process.closureObservation}</p>}</div>}
-    {process.sourceIntentId && <Link className="underline" to={'/contact-intents/' + process.sourceIntentId}>Consultar intención de origen</Link>}</div>;
+    {process.sourceIntentId && <ActionLink to={'/contact-intents/' + process.sourceIntentId}>Consultar intención de origen</ActionLink>}</div>;
 }
 export function RelationshipProcessesPage() {
   const identity = useSession().data;
@@ -42,7 +42,7 @@ function ProcessesList({ identity }: { identity: AuthIdentity }) {
   return <section className="relationships-page processes-page">
     <PageHeader eyebrow="Relaciones" title="Procesos de relación" description="Consulta los objetivos institucionales en curso y sus antecedentes."
       primaryAction={identity.permissions.includes('relationships.process.create') && <ActionLink appearance="action" variant="primary" to="/relationship-processes/new">Crear proceso</ActionLink>} />
-    <FilterBar aria-label="Filtros de procesos"><FormField label="Estado de procesos">{control => <Select {...control} value={state} onChange={e => { const next = new URLSearchParams(params); if (e.target.value === 'all') next.delete('state'); else next.set('state', e.target.value); next.delete('page'); setParams(next); setPage(1); }}><option value="all">Todos</option>
+    <FilterBar aria-label="Filtros de procesos" summary={list.data && <p>{list.data.total} registros encontrados</p>} actions={state!=='all' && <Button variant="ghost" onClick={()=>{const next=new URLSearchParams(params);next.delete('state');next.delete('page');setParams(next);setPage(1);}}>Limpiar filtro de estado</Button>}><FormField label="Estado de procesos">{control => <Select {...control} value={state} onChange={e => { const next = new URLSearchParams(params); if (e.target.value === 'all') next.delete('state'); else next.set('state', e.target.value); next.delete('page'); setParams(next); setPage(1); }}><option value="all">Todos</option>
       {Object.entries(PROCESS_STATE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select>}</FormField></FilterBar>
     <Surface aria-label="Resultados de procesos">
     <QueryFeedback pending={list.isPending} error={list.isError} retry={list.refetch} />

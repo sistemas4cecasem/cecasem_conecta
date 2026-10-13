@@ -1,6 +1,6 @@
 import type { ComponentProps, ReactNode } from 'react';
 import { Link, type LinkProps } from 'react-router';
-import { LoaderCircle } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, ChevronRight, LoaderCircle } from 'lucide-react';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
 export type ActionSize = 'small' | 'medium' | 'large';
@@ -27,11 +27,18 @@ export function IconButton({ label, icon, className = '', ...props }: Omit<Butto
   return <Button {...props} aria-label={label} startIcon={icon} className={`ui-button-icon-only ${className}`} />;
 }
 
-export function ActionLink({ appearance = 'normal', variant = 'secondary', size = 'medium', startIcon, endIcon, className = '', children, ...props }: LinkProps & ActionPresentation & {
-  appearance?: 'normal' | 'action' | 'list' | 'context';
+export function ActionLink({ appearance = 'reference', variant = 'secondary', size = 'medium', startIcon, endIcon, className = '', children, ...props }: LinkProps & ActionPresentation & {
+  appearance?: 'normal' | 'action' | 'list' | 'context' | 'reference' | 'back';
 }) {
   const actionClass = appearance === 'action' ? `ui-button ui-link-action ui-button-${variant} ui-action-${size}` : `ui-link ui-link-${appearance}`;
   return <Link {...props} className={`${actionClass} ${className}`}>
-    <ActionContents startIcon={startIcon} endIcon={endIcon}>{children}</ActionContents>
+    <ActionContents startIcon={startIcon ?? (appearance === 'back' ? <ArrowLeft /> : undefined)}
+      endIcon={endIcon ?? (appearance === 'list' ? <ChevronRight /> : ['context', 'reference'].includes(appearance) ? <ArrowUpRight /> : undefined)}>{children}</ActionContents>
   </Link>;
+}
+
+export function ExternalLink({ children, className = '', ...props }: ComponentProps<'a'>) {
+  return <a {...props} aria-description={props['aria-description'] ?? (props.target === '_blank' ? 'Abre en otra pestaña' : undefined)} className={`ui-link ui-link-external ${className}`}>
+    {children}<span className="ui-action-icon" aria-hidden="true"><ArrowUpRight /></span>
+  </a>;
 }

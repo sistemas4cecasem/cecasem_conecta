@@ -3,9 +3,12 @@ import { useId, type ComponentProps, type ReactNode } from 'react';
 export interface PageHeaderProps {
   title: string; eyebrow?: string; description?: ReactNode; metadata?: ReactNode;
   primaryAction?: ReactNode; actions?: ReactNode;
+  back?: ReactNode;
 }
-export function PageHeader({ title, eyebrow, description, metadata, primaryAction, actions }: PageHeaderProps) {
-  return <header className="ui-page-header"><div className="ui-page-heading">
+export function PageHeader({ title, eyebrow, description, metadata, primaryAction, actions, back }: PageHeaderProps) {
+  return <header className="ui-page-header">
+    {back && <nav className="ui-page-return" aria-label="Navegación contextual">{back}</nav>}
+    <div className="ui-page-heading">
     {eyebrow && <p className="ui-eyebrow">{eyebrow}</p>}<h1>{title}</h1>
     {description && <p className="ui-description">{description}</p>}{metadata}
   </div>{(primaryAction || actions) && <div className="ui-actions">{primaryAction}{actions}</div>}</header>;

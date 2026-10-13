@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { useSession } from '../auth/session';
 import { usePeople } from './queries';
 import type { Person } from './contracts';
-import { ActionLink } from '../../components/ui/actions';
+import { ActionLink, Button } from '../../components/ui/actions';
 import { EmptyState, QueryFeedback, StatusBadge } from '../../components/ui/feedback';
 import { FormField, Input, Select } from '../../components/ui/forms';
 import { FilterBar, PageHeader, Surface } from '../../components/ui/layout';
@@ -27,7 +27,7 @@ export function PeoplePage() {
   return <section className="directory-page directory-people">
     <PageHeader eyebrow="Directorio" title="Personas externas" description="Personas sin vínculos institucionales vigentes, con o sin episodios históricos. El estado de la ficha se muestra por separado."
       primaryAction={identity.permissions.includes('directory.write') && <ActionLink appearance="action" variant="primary" to="/people/new">Crear persona</ActionLink>} />
-    <FilterBar aria-label="Filtros de personas">
+    <FilterBar aria-label="Filtros de personas" actions={(name || status !== 'active') && <Button variant="ghost" onClick={()=>{setName('');setStatus('active');setPage(1);}}>Limpiar filtros</Button>}>
       <FormField label="Filtrar personas por nombre">{control => <Input {...control} value={name} onChange={e=>{setName(e.target.value);setPage(1);}}/>}</FormField>
       <FormField label="Estado">{control => <Select {...control} value={status} onChange={e=>{setStatus(e.target.value);setPage(1);}}><option value="active">Activas</option><option value="inactive">Inactivas</option><option value="all">Todas</option></Select>}</FormField>
     </FilterBar>
@@ -36,7 +36,7 @@ export function PeoplePage() {
     <QueryFeedback pending={people.isPending} error={people.isError} retry={people.refetch}/>
     {people.data?.total===0&&<EmptyState title="No hay personas externas que coincidan."
       description="Las personas con vínculos vigentes se consultan desde Organizaciones. Ajusta la búsqueda o el estado administrativo."/>}
-    {!!people.data?.items.length && <DataList>{people.data.items.map(person=><DataListItem key={person.id}>
+    {!!people.data?.items.length && <DataList columns={2}>{people.data.items.map(person=><DataListItem key={person.id}>
       <div className="directory-row-heading"><ActionLink appearance="list" to={'/people/'+person.id}>{person.displayName}</ActionLink>
         <div className="directory-person-badges">
           <StatusBadge tone={person.isActive?'success':'neutral'}>{person.isActive?'Ficha activa':'Ficha inactiva'}</StatusBadge>
@@ -51,5 +51,5 @@ export function PeoplePage() {
 export function PersonCreationPage() {
   const identity=useSession().data;const navigate=useNavigate();
   if(!identity?.permissions.includes('directory.write')) return <p role="alert">No tienes permiso para crear personas.</p>;
-  return <section className="ui-editor-page"><PageHeader eyebrow="Directorio / Personas externas" title="Crear persona externa" /><Surface><PersonForm identity={identity} saved={row=>navigate('/people/'+row.id)} cancel={()=>navigate('/people')}/></Surface></section>;
+  return <section className="ui-editor-page"><PageHeader eyebrow="Directorio / Personas externas" title="Crear persona externa" back={<ActionLink appearance="back" to="/people">Volver a personas</ActionLink>} /><Surface><PersonForm identity={identity} saved={row=>navigate('/people/'+row.id)} cancel={()=>navigate('/people')}/></Surface></section>;
 }

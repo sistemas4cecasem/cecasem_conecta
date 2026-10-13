@@ -1,5 +1,6 @@
+import { ActionLink } from '../../components/ui/actions';
 import { useState } from 'react';
-import { Link } from 'react-router';
+
 import { useQuery } from '@tanstack/react-query';
 import type { AuthIdentity } from '../auth/session';
 import { apiRequest } from '../../lib/api/client';
@@ -14,7 +15,7 @@ const signalLabels: Record<string, string> = { SIMILAR_ORGANIZATION_NAMES: 'Nomb
   REVIEW_BRANCH_CONTEXT: 'Revisar si pertenecen a una misma organización o corresponden a sedes distintas' };
 function ComparisonActor({ actor, kind }: { actor: DuplicateActor; kind: DuplicateCandidate['kind'] }) {
   return <div className="min-w-0 space-y-2 rounded border p-3">
-    <Link className="inline-flex min-h-11 items-center underline" to={'/' + (kind === 'person' ? 'people/' : 'organizations/') + actor.id}>{duplicateActorLabel(actor)}</Link>
+    <ActionLink className="inline-flex min-h-11 items-center" to={'/' + (kind === 'person' ? 'people/' : 'organizations/') + actor.id}>{duplicateActorLabel(actor)}</ActionLink>
     <p>{actor.isActive ? 'Ficha activa' : 'Ficha inactiva'} · Versión {actor.version}</p>
     {kind === 'organization' ? <><p>País: {actor.country ?? 'Sin dato'}</p><p>Sigla: {actor.alias ?? 'Sin dato'}</p>{actor.branchOf&&<p>Sede de: {actor.branchOf.name}</p>}</>
       : <><p>Nombres: {actor.givenNames ?? 'Sin dato'}</p><p>Apellidos: {actor.familyNames ?? 'Sin dato'}</p></>}
@@ -54,7 +55,7 @@ export function DuplicatePanel({ identity, actorPath, hideEmptyPagination = fals
       <ul className="space-y-3">{query.data.items.filter(item => item.state !== 'PENDING').map(item => <li key={item.id}>
         {duplicateActorLabel(item.a)} / {duplicateActorLabel(item.b)}: {item.state === 'NOT_DUPLICATE' ? 'No son duplicados' : 'Consolidados'}.
         {' '}{item.resolvedBy?.givenNames} {item.resolvedBy?.familyNames} · {dateLabel(item.resolvedAt)} · Versiones examinadas {item.examinedVersionA}/{item.examinedVersionB}.
-        {item.principalId && <Link className="inline-flex min-h-11 underline" to={'/' + (item.kind === 'person' ? 'people/' : 'organizations/') + item.principalId}>Abrir principal</Link>}
+        {item.principalId && <ActionLink className="inline-flex min-h-11" to={'/' + (item.kind === 'person' ? 'people/' : 'organizations/') + item.principalId}>Abrir principal</ActionLink>}
       </li>)}</ul></details>}
     {query.data && (!hideEmptyPagination || query.data.total > 0) && <Pagination page={page} total={query.data.total} onPage={setPage} />}
   </section>;

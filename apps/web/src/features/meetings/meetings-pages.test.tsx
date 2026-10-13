@@ -89,6 +89,22 @@ describe('Reuniones: formularios, resultados, conflictos y privacidad',()=>{
  it('muestra vacío y permite crear',async()=>{total=0;view('/meetings');await screen.findByText('No hay reuniones para estos filtros.');expect(screen.getByRole('link',{name:'Crear reunión'})).toHaveAttribute('href','/meetings/new');});
  it('muestra error sin revelar datos técnicos y permite reintentar',async()=>{fetchMock.mockImplementation(async()=>new Response(null,{status:500}));view('/meetings');await screen.findByRole('alert');expect(screen.getByRole('button',{name:'Reintentar'})).toBeInTheDocument();expect(screen.queryByText('Cooperación regional')).not.toBeInTheDocument();});
  it('muestra carga mientras la petición sigue pendiente',async()=>{fetchMock.mockImplementation(()=>new Promise(()=>{}));view('/meetings');expect(screen.getByText('Cargando…')).toBeInTheDocument();});
+ it('el selector de origen permite elegir con teclado y retirar la selección sin escribir datos',async()=>{
+  const previous=fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation((url,options)=>url.includes('/relationship-processes?')?Promise.resolve(Response.json(page([{
+   id:processId,purpose:'Proceso institucional',state:'PREPARATION',version:1,sourceIntentId:null,
+   target:{kind:'ORGANIZATION',id:other,label:'Organización de prueba',isActive:true},createdBy:user,
+   createdAt:fixture.createdAt,updatedAt:fixture.updatedAt,lastActivityAt:fixture.createdAt,currentResult:null,
+   closureObservation:null,closedAt:null,closedBy:null,allowedStates:['IN_PROGRESS'],canClose:true,canReopen:false,exceptionalAdministration:false,
+  }]))):previous(url,options));
+  view('/meetings/new');
+  const option=await screen.findByRole('button',{name:'Seleccionar proceso: Proceso institucional'});
+  expect(option).toHaveAttribute('aria-pressed','false'); option.focus(); await userEvent.keyboard('{Enter}');
+  expect(option).toHaveAttribute('aria-pressed','true');
+  expect(screen.getByRole('link',{name:'Consultar proceso seleccionado'})).toHaveAttribute('href','/relationship-processes/'+processId);
+  await userEvent.click(screen.getByRole('button',{name:'Quitar proceso'}));
+  expect(option).toHaveAttribute('aria-pressed','false'); expect(commands()).toHaveLength(0);
+ });
  it('crea desde un proceso real con zona explícita y clave idempotente',async()=>{view('/meetings/new?processId='+processId);fireEvent.change(screen.getByLabelText('Fecha y hora local'),{target:{value:'2099-10-15T10:00'}});await userEvent.type(screen.getByLabelText('Propósito de reunión'),'Mesa regional');await userEvent.click(screen.getByRole('button',{name:'Guardar reunión'}));await screen.findByRole('heading',{level:1,name:'Mesa regional'});expect(body()).toMatchObject({processId,opportunityId:null,timezone:'America/La_Paz',scheduledLocal:'2099-10-15T10:00',purpose:'Mesa regional'});expect(new Headers(commands()[0]?.[1]?.headers).get('Idempotency-Key')).toMatch(/^[0-9a-f-]{36}$/);});
  it('impide crear sin origen y no inventa entidades',async()=>{view('/meetings/new');fireEvent.change(screen.getByLabelText('Fecha y hora local'),{target:{value:'2099-10-15T10:00'}});await userEvent.type(screen.getByLabelText('Propósito de reunión'),'Mesa');await userEvent.click(screen.getByRole('button',{name:'Guardar reunión'}));await screen.findByText('Selecciona al menos un proceso o una oportunidad.');expect(commands()).toHaveLength(0);});
  it('rechaza un enlace de origen inválido antes de consultar reuniones',async()=>{view('/meetings/new?processId=invalid');await screen.findByText('El enlace de origen no es válido.');expect(fetchMock.mock.calls.some(([url])=>url.includes('/meetings'))).toBe(false);});

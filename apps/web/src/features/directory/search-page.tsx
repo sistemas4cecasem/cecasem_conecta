@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router';
-import { ActionLink as Link } from '../../components/ui/actions';
+import { ActionLink } from '../../components/ui/actions';
 import { EmptyState, QueryFeedback, StatusBadge } from '../../components/ui/feedback';
 import { FormField, Input } from '../../components/ui/forms';
 import { FilterBar, PageHeader, Surface } from '../../components/ui/layout';
@@ -16,9 +16,9 @@ import './directory-pages.css';
 
 function ProcessResult({ process }: { process: NonNullable<DirectorySearchResponse['processes']>['items'][number] }) {
   return <div className="min-w-0 space-y-1 break-words">
-    <Link className="inline-flex min-h-11 items-center font-semibold underline" to={'/relationship-processes/' + process.id}>{process.purpose}</Link>
+    <ActionLink className="inline-flex min-h-11 items-center font-semibold" to={'/relationship-processes/' + process.id}>{process.purpose}</ActionLink>
     <p>Estado del proceso: {PROCESS_STATE_LABELS[process.state]}</p>
-    <p>Actor principal: <Link className="underline" to={'/' + (process.target.kind === 'ORGANIZATION' ? 'organizations/' : 'people/') + process.target.id}>{process.target.label}</Link>{!process.target.isActive && ' (inactivo)'}</p>
+    <p>Actor principal: <ActionLink to={'/' + (process.target.kind === 'ORGANIZATION' ? 'organizations/' : 'people/') + process.target.id}>{process.target.label}</ActionLink>{!process.target.isActive && ' (inactivo)'}</p>
   </div>;
 }
 function CommunicationResult({ item }: { item: NonNullable<DirectorySearchResponse['emailHistory']>['items'][number] }) {
@@ -28,41 +28,41 @@ function CommunicationResult({ item }: { item: NonNullable<DirectorySearchRespon
     <p>Fecha real: <time dateTime={item.occurredAt}>{new Date(item.occurredAt).toLocaleString('es-BO')}</time></p>
     <p>Registrada por: {item.registeredBy.displayName}{!item.registeredBy.isActive && ' (cuenta inactiva)'}</p>
     <ProcessResult process={item.process} />
-    <Link className="inline-flex min-h-11 items-center underline" to={'/communications/' + item.id}>Abrir comunicación</Link>
+    <ActionLink className="inline-flex min-h-11 items-center" to={'/communications/' + item.id}>Abrir comunicación</ActionLink>
   </div>;
 }
 
 function ActorState({ isActive, duplicateOf, kind }: { isActive: boolean; duplicateOf: { id: string; name?: string; displayName?: string } | null; kind: 'organizations' | 'people' }) {
   return <><p><StatusBadge tone={isActive ? 'success' : 'neutral'}>{isActive ? 'Activa' : 'Inactiva'}</StatusBadge>{duplicateOf ? ' · Ficha histórica consolidada' : ''}</p>
-    {duplicateOf && <p>Consolidada en: <Link className="inline-flex min-h-11 items-center underline" to={'/' + kind + '/' + duplicateOf.id}>{duplicateOf.name ?? duplicateOf.displayName}</Link></p>}</>;
+    {duplicateOf && <p>Consolidada en: <ActionLink className="inline-flex min-h-11 items-center" to={'/' + kind + '/' + duplicateOf.id}>{duplicateOf.name ?? duplicateOf.displayName}</ActionLink></p>}</>;
 }
 function SearchResults({ data }: { data: DirectorySearchResponse }) {
   return <div className="directory-search-results">
     <Surface aria-label="Organizaciones encontradas"><h2 className="directory-result-title">Organizaciones · {data.organizations.total}</h2>
       {data.organizations.total > 0 && data.organizations.items.length === 0 && <p>No hay organizaciones en esta página.</p>}
       <DataList>{data.organizations.items.map(row => <DataListItem key={row.id}>
-        <div className="directory-row-heading"><Link appearance="list" to={'/organizations/' + row.id}>{row.name}</Link>
+        <div className="directory-row-heading"><ActionLink appearance="list" to={'/organizations/' + row.id}>{row.name}</ActionLink>
         <ActorState isActive={row.isActive} duplicateOf={row.duplicateOf} kind="organizations" /></div>
         <p className="directory-search-context">{row.country ?? 'País sin registrar'}{row.alias ? ' · ' + row.alias : ''}</p>
-        {row.branchOf && <p>Sede de: <Link className="underline" to={'/organizations/' + row.branchOf.id}>{row.branchOf.name}</Link>{!row.branchOf.isActive && ' (inactiva)'}</p>}
+        {row.branchOf && <p>Sede de: <ActionLink to={'/organizations/' + row.branchOf.id}>{row.branchOf.name}</ActionLink>{!row.branchOf.isActive && ' (inactiva)'}</p>}
       </DataListItem>)}</DataList></Surface>
     <Surface aria-label="Personas encontradas"><h2 className="directory-result-title">Personas · {data.people.total}</h2>
       {data.people.total > 0 && data.people.items.length === 0 && <p>No hay personas en esta página.</p>}
       <DataList>{data.people.items.map(row => <DataListItem key={row.id}>
-        <div className="directory-row-heading"><Link appearance="list" to={'/people/' + row.id}>{row.displayName}</Link>
+        <div className="directory-row-heading"><ActionLink appearance="list" to={'/people/' + row.id}>{row.displayName}</ActionLink>
         <ActorState isActive={row.isActive} duplicateOf={row.duplicateOf} kind="people" /></div>
-        {row.currentRelations.map(relation => <p className="directory-search-context" key={relation.id}>{relation.positionTitle ?? 'Cargo sin registrar'} · <Link className="underline" to={'/organizations/' + relation.organization.id}>{relation.organization.name}</Link>{!relation.organization.isActive && ' (inactiva)'}</p>)}
+        {row.currentRelations.map(relation => <p className="directory-search-context" key={relation.id}>{relation.positionTitle ?? 'Cargo sin registrar'} · <ActionLink to={'/organizations/' + relation.organization.id}>{relation.organization.name}</ActionLink>{!relation.organization.isActive && ' (inactiva)'}</p>)}
         {row.currentRelationsTotal > row.currentRelations.length && <p>Otros vínculos vigentes disponibles en la ficha.</p>}
       </DataListItem>)}</DataList></Surface>
     {data.email && <Surface aria-label="Correo encontrado">
-      <h2 className="directory-result-title">Correo</h2><Link appearance="list" to={'/contact-methods/' + data.email.id}>{data.email.value}</Link>
+      <h2 className="directory-result-title">Correo</h2><ActionLink appearance="list" to={'/contact-methods/' + data.email.id}>{data.email.value}</ActionLink>
       <p>Condición del medio: {data.email.condition === 'USABLE' ? 'Utilizable' : 'No utilizable'}</p>
       <p>Este correo está registrado en el Directorio. Sus asociaciones no acreditan comunicaciones realizadas.</p>
       <h3 className="font-semibold">Asociaciones a personas · {data.email.people.total}</h3>
-      {data.email.people.items.map(row => <div key={row.id}><Link appearance="context" to={'/people/' + row.person.id}>{row.person.displayName}</Link>
+      {data.email.people.items.map(row => <div key={row.id}><ActionLink appearance="context" to={'/people/' + row.person.id}>{row.person.displayName}</ActionLink>
         <p>Asociación {row.isActive ? 'activa' : 'histórica/inactiva'}</p><ActorState isActive={row.person.isActive} duplicateOf={row.person.duplicateOf} kind="people" /></div>)}
       <h3 className="font-semibold">Asociaciones a organizaciones · {data.email.organizations.total}</h3>
-      {data.email.organizations.items.map(row => <div key={row.id}><Link appearance="context" to={'/organizations/' + row.organization.id}>{row.organization.name}</Link>
+      {data.email.organizations.items.map(row => <div key={row.id}><ActionLink appearance="context" to={'/organizations/' + row.organization.id}>{row.organization.name}</ActionLink>
         <p>Asociación {row.isActive ? 'activa' : 'histórica/inactiva'}</p><ActorState isActive={row.organization.isActive} duplicateOf={row.organization.duplicateOf} kind="organizations" /></div>)}
       {(data.email.people.total > data.email.people.items.length || data.email.organizations.total > data.email.organizations.items.length) && <p>Se muestran hasta 10 asociaciones por tipo. Abre el correo para consultar todas con paginación.</p>}
       <p>Para reutilizarlo, abre la ficha de la persona u organización y utiliza su formulario de contactos.</p>
@@ -84,8 +84,8 @@ function SearchResults({ data }: { data: DirectorySearchResponse }) {
         <DataList>{data.emailHistory.importedRecords.items.map(item => <DataListItem key={item.id} className="min-w-0 space-y-3 rounded border border-amber-600 p-3">
           <p className="font-semibold">Antecedente histórico importado · {item.kind === 'SENT' ? 'envío indicado' : item.kind === 'RECEIVED' ? 'respuesta indicada' : item.kind === 'OTHER' ? 'otro antecedente' : 'tipo no especificado'}</p>
           <p>Fecha: {item.occurredOn ?? 'Sin fecha conocida en el archivo'} · Correo: {data.emailHistory!.address}</p>
-          {item.organization && <p>Organización: <Link className="underline" to={'/organizations/' + item.organization.id}>{item.organization.name}</Link></p>}
-          {item.person && <p>Persona: <Link className="underline" to={'/people/' + item.person.id}>{item.person.displayName}</Link></p>}
+          {item.organization && <p>Organización: <ActionLink to={'/organizations/' + item.organization.id}>{item.organization.name}</ActionLink></p>}
+          {item.person && <p>Persona: <ActionLink to={'/people/' + item.person.id}>{item.person.displayName}</ActionLink></p>}
           <p>Asunto: {item.subject ?? 'Sin dato en el archivo'}</p><p className="whitespace-pre-wrap">Cuerpo: {item.body ?? 'Sin cuerpo conservado en el archivo'}</p>
           {item.originalObservation && <p className="whitespace-pre-wrap">Observación original: {item.originalObservation}</p>}
           <p>Origen: {item.batch.originalFilename} · lote {item.batch.id}</p>

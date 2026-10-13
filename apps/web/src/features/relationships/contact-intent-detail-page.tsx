@@ -1,5 +1,6 @@
+import { ActionLink } from '../../components/ui/actions';
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSession, type AuthIdentity } from '../auth/session';
 import { buttonClass, MutationError, QueryState } from '../directory/directory-ui';
@@ -23,11 +24,11 @@ function IntentDetail({ identity, id }: { identity: AuthIdentity; id: string }) 
   const allowed = !!intent?.canCancel && identity.permissions.includes('relationships.intent.cancel');
   const canConvert = intent?.state === 'ACTIVE' && intent.canConvert && identity.permissions.includes('relationships.intent.convert') && !restriction.data?.items.length;
   const pending = mutation.isPending || conversion.isPending, error = mutation.error ?? conversion.error;
-  return <section className="ui-detail-page"><PageHeader eyebrow="Relaciones / Intenciones" title="Intención de contacto" actions={<Link className={buttonClass} to="/contact-intents">Volver al listado</Link>} />
+  return <section className="ui-detail-page"><PageHeader eyebrow="Relaciones / Intenciones" title="Intención de contacto" back={<ActionLink appearance="back" to="/contact-intents">Volver al listado</ActionLink>} />
     <QueryState pending={detail.isPending} error={detail.isError} retry={detail.refetch} />
     {intent && <><Surface heading="Propósito y contexto"><p className="whitespace-pre-wrap break-words">{intent.purpose}</p><IntentContext intent={intent} /></Surface>
       <ContactRestrictionNotice restriction={restriction.data?.items[0]} />
-      {intent.processId && identity.permissions.includes('relationships.process.read') && <Link className={buttonClass} to={'/relationship-processes/' + intent.processId}>Ver proceso de relación</Link>}
+      {intent.processId && identity.permissions.includes('relationships.process.read') && <ActionLink appearance="context" to={'/relationship-processes/' + intent.processId}>Ver proceso de relación</ActionLink>}
       {canConvert && !confirm && <button className={buttonClass} disabled={identity.permissions.includes('relationships.restriction.read') && restriction.isPending} onClick={() => setConfirm('convert')}>Convertir en proceso</button>}
       {canConvert && confirm === 'convert' && <ConfirmationPanel aria-label="Confirmar conversión" title="Confirmar conversión">
         <p>Se creará un proceso en preparación con este propósito y objetivo. Tú serás su creador y participante inicial; se conservará la autoría de la intención.</p>

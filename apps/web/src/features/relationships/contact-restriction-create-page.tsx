@@ -24,7 +24,7 @@ function RestrictionForm({ identity }: { identity: AuthIdentity }) {
   const [target, setTarget] = useState<PickedDirectoryTarget | null>(null), [confirmation, setConfirmation] = useState<z.infer<typeof restrictionCreateSchema> | null>(null);
   const form = useForm<z.infer<typeof restrictionCreateSchema>>({ resolver: zodResolver(restrictionCreateSchema), defaultValues: { reason: '', targetId: '', targetKind: 'ORGANIZATION' } });
   function select(value: PickedDirectoryTarget | null) { setTarget(value); setConfirmation(null); form.setValue('targetId', value?.id ?? '', { shouldValidate: true }); form.setValue('targetKind', value?.kind ?? 'ORGANIZATION'); }
-  return <section className="relationships-page relationships-restriction-create"><PageHeader eyebrow="Relaciones / Restricciones" title="Registrar restricción de no contacto" actions={<ActionLink appearance="context" to="/contact-restrictions">Volver al listado</ActionLink>} />
+  return <section className="relationships-page relationships-restriction-create"><PageHeader eyebrow="Relaciones / Restricciones" title="Registrar restricción de no contacto" back={<ActionLink appearance="back" to="/contact-restrictions">Volver al listado</ActionLink>} />
     <Alert role="alert" tone="warning">Esta decisión institucional impedirá nuevas intenciones, su conversión y nuevos procesos para el objetivo seleccionado. Regístrala solo ante una solicitud explícita de no contacto.</Alert>
     <Surface><form className="space-y-4" onSubmit={form.handleSubmit(values => setConfirmation(values))}>
       <DirectoryTargetPicker identity={identity} selected={target} onSelect={select} />

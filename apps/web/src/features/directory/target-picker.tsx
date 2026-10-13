@@ -3,7 +3,10 @@ import { useQuery } from '@tanstack/react-query';
 import type { AuthIdentity } from '../auth/session';
 import { apiRequest } from '../../lib/api/client';
 import { searchResponseSchema, validSearchQuery } from './search.contracts';
-import { buttonClass, Field, inputClass, Pagination, QueryState } from './directory-ui';
+import { Field, inputClass, Pagination, QueryState } from './directory-ui';
+import { Button } from '../../components/ui/actions';
+import { DataList, DataListItem } from '../../components/ui/lists';
+import { iconCatalog } from '../../components/ui/icons';
 export interface PickedDirectoryTarget { kind: 'ORGANIZATION' | 'PERSON'; id: string; label: string }
 /** Selector acotado: utiliza la búsqueda existente, sus contratos y paginación. */
 export function DirectoryTargetPicker({ identity, selected, onSelect, organizationsOnly = false, referralKind, referenceDescription }: { referenceDescription?: string; referralKind?: 'PERSON' | 'ORGANIZATION'; organizationsOnly?: boolean; identity: AuthIdentity; selected: PickedDirectoryTarget | null; onSelect: (target: PickedDirectoryTarget | null) => void }) {
@@ -24,17 +27,17 @@ export function DirectoryTargetPicker({ identity, selected, onSelect, organizati
     {!identity.permissions.includes('directory.read') && <p role="alert">No tienes permiso para seleccionar fichas del Directorio.</p>}
     {!!q && !validSearchQuery(q) && <p>Escribe al menos dos caracteres de un nombre válido.</p>}
     {ready && <QueryState pending={results.isPending} error={results.isError} retry={results.refetch} />}
-    {data && <><ul className="space-y-2">
-      {organizations.map(row => <li key={row.id}><button type="button" className={buttonClass}
-        onClick={() => onSelect({ kind: 'ORGANIZATION', id: row.id, label: row.name })}>Seleccionar organización: {row.name}</button></li>)}
-      {!organizationsOnly && referralKind !== 'ORGANIZATION' && people.map(row => <li key={row.id}><button type="button" className={buttonClass}
-        onClick={() => onSelect({ kind: 'PERSON', id: row.id, label: row.displayName })}>Seleccionar persona: {row.displayName}</button></li>)}
-    </ul><p>{referralKind ? 'Incluye fichas inactivas como referencias históricas; excluye registros consolidados.' : 'Se muestran fichas activas sin consolidar y personas sin vínculos vigentes.'}</p>
+    {data && <><DataList variant="compact" className="ui-option-list">
+      {organizations.map(row => <DataListItem key={row.id}><Button variant="ghost" className="ui-record-option" endIcon={<iconCatalog.action.open/>} aria-pressed={selected?.id===row.id && selected.kind==='ORGANIZATION'}
+        onClick={() => onSelect({ kind: 'ORGANIZATION', id: row.id, label: row.name })}>Seleccionar organización: {row.name}</Button></DataListItem>)}
+      {!organizationsOnly && referralKind !== 'ORGANIZATION' && people.map(row => <DataListItem key={row.id}><Button variant="ghost" className="ui-record-option" endIcon={<iconCatalog.action.open/>} aria-pressed={selected?.id===row.id && selected.kind==='PERSON'}
+        onClick={() => onSelect({ kind: 'PERSON', id: row.id, label: row.displayName })}>Seleccionar persona: {row.displayName}</Button></DataListItem>)}
+    </DataList><p>{referralKind ? 'Incluye fichas inactivas como referencias históricas; excluye registros consolidados.' : 'Se muestran fichas activas sin consolidar y personas sin vínculos vigentes.'}</p>
       {!data.organizations.total && !data.people.total && <p>No se encontraron objetivos.</p>}
       {!!(data.organizations.total + data.people.total) && !organizations.length && !people.length && <p>{referralKind ? 'No hay fichas seleccionables de este tipo en esta página.' : 'No hay objetivos seleccionables en esta página. Para una persona con vínculo vigente, busca su organización.'}</p>}
       {total > 25 && <Pagination page={page} total={total} onPage={setPage} />}
     </>}
-    {selected && <p>{referralKind ? 'Ficha vinculada: ' : 'Objetivo seleccionado: '}<strong>{selected.label}</strong> · {selected.kind === 'ORGANIZATION' ? 'Organización' : referralKind ? 'Persona' : 'Persona independiente'}{' '}
-      <button type="button" className={buttonClass} onClick={() => onSelect(null)}>Quitar objetivo</button></p>}
+    {selected && <div className="ui-selection-summary"><p>{referralKind ? 'Ficha vinculada: ' : 'Objetivo seleccionado: '}<strong>{selected.label}</strong> · {selected.kind === 'ORGANIZATION' ? 'Organización' : referralKind ? 'Persona' : 'Persona independiente'}</p>
+      <Button variant="ghost" onClick={() => onSelect(null)}>Quitar objetivo</Button></div>}
   </section>;
 }

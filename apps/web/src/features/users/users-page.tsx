@@ -37,7 +37,7 @@ function AuthorizedUsers({ identity }: { identity: AuthIdentity }) {
   const selectedUser = screen.type === 'user' ? users.data?.find(user => user.id === screen.userId) : undefined;
   if (screen.type === 'create') return <section className="users-page users-create-view">
     <PageHeader title="Crear usuario" eyebrow="Administración" description="Registra una cuenta y define su acceso inicial."
-      actions={<Button variant="ghost" onClick={() => setScreen({ type: 'list' })}>Volver al listado</Button>} />
+      back={<Button variant="ghost" className="ui-link-back" startIcon={<iconCatalog.action.back />} onClick={() => setScreen({ type: 'list' })}>Volver al listado</Button>} />
     {can('users.create') && <UserCreationForm actorId={identity.id} onCancel={() => setScreen({ type: 'list' })}
       onCreated={() => setScreen({ type: 'list' })} />}
   </section>;

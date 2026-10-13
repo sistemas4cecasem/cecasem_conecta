@@ -1,11 +1,13 @@
+import { FormSection, FormActions } from '../../components/ui/forms';
+import { ActionLink, Button } from '../../components/ui/actions';
 import { useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Link } from 'react-router';
+
 import type { AuthIdentity } from '../auth/session';
 import { organizationFormSchema, organizationSchema, type Category, type Organization, type OrganizationFormValues } from './contracts';
 import { useCategories, useDirectoryMutation } from './queries';
-import { buttonClass, Field, inputClass, MutationError, Pagination, QueryState } from './directory-ui';
+import { Field, inputClass, MutationError, Pagination, QueryState } from './directory-ui';
 
 function mergeById<T extends { id: string }>(current: T[], incoming: T[]): T[] {
   const values = new Map(current.map(item => [item.id, item]));
@@ -47,8 +49,7 @@ export function OrganizationForm({ identity, initial, branchOfId, saved, cancel,
 
   return <form onSubmit={form.handleSubmit(submit)} className="organization-form">
     <input type="hidden" {...form.register('branchOfId')} />
-    <fieldset className="organization-form-group">
-      <legend>Datos institucionales</legend>
+    <FormSection className="organization-form-group" heading="Datos institucionales">
       <div className="organization-basic-fields">
         <Field label="Nombre" error={form.formState.errors.name?.message}><input {...form.register('name')} className={inputClass} maxLength={250} /></Field>
         <Field label="País (opcional)" error={form.formState.errors.country?.message}><input {...form.register('country')} className={inputClass} maxLength={150} /></Field>
@@ -56,11 +57,10 @@ export function OrganizationForm({ identity, initial, branchOfId, saved, cancel,
         <Field label="Descripción (opcional)" error={form.formState.errors.description?.message}><textarea {...form.register('description')} className={inputClass} maxLength={5000} /></Field>
         <Field label="Sitio oficial (opcional)" error={form.formState.errors.officialWebsite?.message}><input {...form.register('officialWebsite')} className={inputClass} maxLength={2048} placeholder="https://…" /></Field>
       </div>
-    </fieldset>
+    </FormSection>
 
-    <fieldset className="organization-form-group">
-      <legend>Categorías múltiples (opcional)</legend>
-      <Link to="/organizations/categories" className="inline-flex min-h-11 items-center underline">Mantener categorías</Link>
+    <FormSection className="organization-form-group" heading="Categorías múltiples (opcional)">
+      <ActionLink to="/organizations/categories" className="inline-flex min-h-11 items-center">Mantener categorías</ActionLink>
       <Field label="Filtrar categorías por nombre"><input value={categoryName} onChange={e => { setKnownCategories(current => mergeById(current, categories.data?.items ?? [])); setCategoryName(e.target.value); setCategoryPage(1); }} className={inputClass} /></Field>
       <QueryState pending={categories.isPending} error={categories.isError} retry={categories.refetch} />
       <p className="organization-selection-summary" aria-live="polite">{selectedIds.length} categorías seleccionadas.</p>
@@ -75,10 +75,10 @@ export function OrganizationForm({ identity, initial, branchOfId, saved, cancel,
       </div>
       {categories.data?.total === 0 && <p>No hay categorías activas. Puedes crear el catálogo sin completar otros datos de la organización.</p>}
       {categories.data && categories.data.total > 0 && <Pagination page={categoryPage} total={categories.data.total} onPage={nextPage => { setKnownCategories(current => mergeById(current, categories.data?.items ?? [])); setCategoryPage(nextPage); }} />}
-    </fieldset>
+    </FormSection>
 
     <MutationError error={mutation.error} reload={reload ? reloadForm : undefined} />
-    <div className="organization-form-actions"><button className={buttonClass} disabled={mutation.isPending}>{mutation.isPending ? 'Guardando…' : branchOfId || initial?.branchOfId ? 'Guardar sede' : 'Guardar organización'}</button>
-      <button type="button" className={buttonClass} disabled={mutation.isPending} onClick={cancel}>Cancelar</button></div>
+    <FormActions className="organization-form-actions"><Button type="submit" variant="primary" pending={mutation.isPending} disabled={mutation.isPending}>{mutation.isPending ? 'Guardando…' : branchOfId || initial?.branchOfId ? 'Guardar sede' : 'Guardar organización'}</Button>
+      <Button disabled={mutation.isPending} onClick={cancel}>Cancelar</Button></FormActions>
   </form>;
 }

@@ -5,13 +5,39 @@ import { MemoryRouter } from 'react-router';
 import { Plus } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { describe, expect, it, vi } from 'vitest';
-import { ActionLink, Button, IconButton } from './actions';
+import { ActionLink, Button, ExternalLink, IconButton } from './actions';
 import { FormField, FormSection, Input, Select, Textarea } from './forms';
 import { PageHeader, Surface } from './layout';
 import { Alert, ConfirmationPanel, EmptyState, QueryFeedback, StatusBadge } from './feedback';
 import { DataList, DataListItem, LoadMore, Metadata, Pagination } from './lists';
 
 describe('Primitivas visuales compartidas', () => {
+  it('el campo compatible conserva id, ref y descripción externa al asociar errores', () => {
+    const ref = createRef<HTMLInputElement>();
+    const field = (error?: string) => <><p id="source-context">Fuente institucional</p><FormField label="Origen" error={error} help="Conserva el dato original">
+      <><Input id="source-value" ref={ref} aria-describedby="source-context" name="source"/><p>Información complementaria</p></>
+    </FormField></>;
+    const { rerender } = render(field('Revisa el origen'));
+    const input = screen.getByLabelText('Origen');
+    expect(ref.current).toBe(input); expect(input).toHaveAttribute('id', 'source-value');
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(input).toHaveAccessibleDescription('Fuente institucional Conserva el dato original Revisa el origen');
+    rerender(field());
+    expect(input).not.toHaveAttribute('aria-invalid');
+    expect(input).toHaveAccessibleDescription('Fuente institucional Conserva el dato original');
+  });
+  it('el retorno contextual conserva su destino y aparece una sola vez', () => {
+    render(<MemoryRouter><PageHeader title="Crear proceso" back={<ActionLink appearance="back" to="/relationship-processes">Volver al listado</ActionLink>} /></MemoryRouter>);
+    expect(screen.getAllByRole('link', { name: 'Volver al listado' })).toHaveLength(1);
+    expect(screen.getByRole('navigation', { name: 'Navegación contextual' })).toContainElement(screen.getByRole('link'));
+    expect(screen.getByRole('link')).toHaveAttribute('href', '/relationship-processes');
+  });
+  it('el enlace externo informa la nueva pestaña sin cambiar su nombre accesible', () => {
+    render(<ExternalLink href="https://example.test" target="_blank" rel="noreferrer">Convocatoria</ExternalLink>);
+    const link = screen.getByRole('link', { name: 'Convocatoria' });
+    expect(link).toHaveAttribute('href', 'https://example.test');
+    expect(link).toHaveAccessibleDescription('Abre en otra pestaña');
+  });
   it('el botón auxiliar no envía formularios y el submit conserva su función', async () => {
     const submit = vi.fn();
     render(<form onSubmit={event => { event.preventDefault(); submit(); }}><Button>Consultar</Button><Button type="submit">Guardar</Button></form>);

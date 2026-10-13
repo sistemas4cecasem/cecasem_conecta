@@ -1,3 +1,4 @@
+import { iconCatalog } from '../../components/ui/icons';
 import { Metadata } from '../../components/ui/lists';
 import { StatusBadge, Alert, ConfirmationPanel } from '../../components/ui/feedback';
 import { FormField, Select, FormActions } from '../../components/ui/forms';
@@ -43,7 +44,7 @@ export function UserCard({ user, identity, protectsLastAdministrator = false, on
         { label: 'Rol', value: roleLabels[user.role] },
         { label: 'Estado', value: <StatusBadge tone={user.isActive ? 'success' : 'neutral'}>{user.isActive ? 'Activo' : 'Inactivo'}</StatusBadge> },
         { label: 'Acceso', value: <StatusBadge tone={user.credentialStatus !== 'ESTABLISHED' ? 'warning' : 'neutral'}>{accessStatus}</StatusBadge> },
-      ]} />} actions={<Button variant="ghost" onClick={onBack}>Volver al listado</Button>} />
+      ]} />} back={<Button variant="ghost" className="ui-link-back" startIcon={<iconCatalog.action.back />} onClick={onBack}>Volver al listado</Button>} />
 
     <div className={`user-admin-grid${canEditProfile && canManageAccess ? '' : ' user-admin-grid-single'}`}>
       <Surface className="user-profile-panel" heading="Información personal">

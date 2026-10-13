@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Link, NavLink, Outlet, useParams } from 'react-router';
+import { NavLink, Outlet, useParams } from 'react-router';
 import { useSession } from '../auth/session';
 import { organizationSchema, type Organization } from './contracts';
 import { useDirectoryMutation, useOrganization } from './queries';
@@ -31,7 +31,7 @@ export function OrganizationDetailPage() {
   const [confirmStatusChange, setConfirmStatusChange] = useState(false);
 
   if (!identity?.permissions.includes('directory.read')) return <p role="alert">No tienes permiso para consultar el directorio.</p>;
-  if (!detail.data) return <section className="space-y-4"><ActionLink appearance="list" to="/organizations">Volver al directorio</ActionLink>
+  if (!detail.data) return <section className="space-y-4"><ActionLink appearance="back" to="/organizations">Volver al directorio</ActionLink>
     <QueryState pending={detail.isPending} error={detail.isError} failure={detail.error} retry={detail.refetch} /></section>;
 
   const organization = detail.data;
@@ -44,8 +44,7 @@ export function OrganizationDetailPage() {
   }
 
   return <section className="directory-detail organization-detail organization-workspace">
-    <ActionLink appearance="list" to="/organizations">Volver a Organizaciones</ActionLink>
-    <PageHeader eyebrow="Directorio / Organizaciones" title={organization.name}
+    <PageHeader back={<ActionLink appearance="back" to="/organizations">Volver a Organizaciones</ActionLink>} eyebrow="Directorio / Organizaciones" title={organization.name}
       metadata={<div className="organization-header-metadata">
         <StatusBadge tone={organization.isActive ? 'success' : 'neutral'}>{organization.isActive ? 'Activa' : 'Inactiva'}</StatusBadge>
         {organization.country && <span>{organization.country}</span>}
@@ -55,13 +54,13 @@ export function OrganizationDetailPage() {
           onClick={() => { mutation.reset(); setConfirmStatusChange(true); }}>{organization.isActive ? 'Desactivar organización' : 'Reactivar organización'}</Button>}</>} />
 
     {organization.dataImportBatch && <Alert role="status" tone="info">Dato importado desde Excel · lote {organization.dataImportBatch.id} · {organization.dataImportBatch.originalFilename}</Alert>}
-    {organization.duplicateOf && <Alert role="status" tone="warning">Este registro fue consolidado en: <Link className="underline" to={'/organizations/' + organization.duplicateOf.id}>{organization.duplicateOf.name}</Link>. Su historial permanece disponible.</Alert>}
-    {!!organization.consolidatedRecords?.length && <p>Fichas consolidadas: {organization.consolidatedRecords.map(item => <Link key={item.id} className="inline-flex min-h-11 items-center px-2 underline" to={'/organizations/' + item.id}>{item.name}</Link>)}</p>}
+    {organization.duplicateOf && <Alert role="status" tone="warning">Este registro fue consolidado en: <ActionLink appearance="normal" to={'/organizations/' + organization.duplicateOf.id}>{organization.duplicateOf.name}</ActionLink>. Su historial permanece disponible.</Alert>}
+    {!!organization.consolidatedRecords?.length && <p>Fichas consolidadas: {organization.consolidatedRecords.map(item => <ActionLink key={item.id} className="inline-flex min-h-11 items-center px-2" to={'/organizations/' + item.id}>{item.name}</ActionLink>)}</p>}
 
     {!organization.duplicateOfId && identity.permissions.includes('directory.status.update') && confirmStatusChange && <ConfirmationPanel role="group"
       title={organization.isActive ? 'Confirmar desactivación de organización' : 'Confirmar reactivación de organización'}>
       <p>{organization.isActive ? 'La ficha quedará inactiva. Sus datos y gestiones históricas se conservarán; podrás reactivarla después.' : 'La ficha volverá a estar activa para nuevas gestiones. Su historial se conservará.'}</p>
-      <div className="flex flex-wrap gap-3"><Button disabled={mutation.isPending || !!mutation.error} onClick={() => void changeStatus()}>
+      <div className="ui-actions"><Button variant={organization.isActive ? 'danger' : 'secondary'} disabled={mutation.isPending || !!mutation.error} onClick={() => void changeStatus()}>
         {mutation.isPending ? 'Actualizando…' : organization.isActive ? 'Confirmar desactivación' : 'Confirmar reactivación'}</Button>
         <Button disabled={mutation.isPending} onClick={() => { setConfirmStatusChange(false); statusAction.current?.focus(); }}>Volver sin cambiar estado</Button></div>
     </ConfirmationPanel>}

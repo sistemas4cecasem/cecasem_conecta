@@ -1,11 +1,11 @@
 import { PageHeader, Surface, FilterBar } from '../../components/ui/layout';
 import { FormField, Select } from '../../components/ui/forms';
-import { Button } from '../../components/ui/actions';
+import { ActionLink, Button } from '../../components/ui/actions';
 import { Alert, StatusBadge, QueryFeedback, EmptyState } from '../../components/ui/feedback';
 import { DataList, DataListItem, Metadata, LoadMore } from '../../components/ui/lists';
 import './notifications.css';
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { AUTH_QUERY_KEY, useSession, type AuthIdentity } from '../auth/session';
 import { notificationIdentityKey, useNotificationCount, useNotifications, useReadNotification } from './queries';
@@ -22,12 +22,12 @@ const notificationLabels: Record<Notification['type'], string> = {
 export function NotificationIndicator({ identity }: { identity: AuthIdentity }) {
   const count = useNotificationCount(identity);
   if (!identity.permissions.includes('notifications.read')) return null;
-  return <Link to="/notifications" className="shell-notifications-link">
+  return <ActionLink appearance="normal" to="/notifications" className="shell-notifications-link">
     <iconCatalog.notification size={18} aria-hidden="true" /> Notificaciones
     {count.data && count.data.count > 0 && <span aria-label={`${count.data.count} notificaciones no leídas`}
       className="shell-notifications-count">{count.data.count}</span>}
     {count.isError && <span aria-label="No se pudo actualizar el contador">·</span>}
-  </Link>;
+  </ActionLink>;
 }
 
 export function NotificationsPage() {

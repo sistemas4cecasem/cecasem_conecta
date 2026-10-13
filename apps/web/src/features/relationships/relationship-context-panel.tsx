@@ -1,4 +1,5 @@
-import { Link } from 'react-router';
+import { ActionLink } from '../../components/ui/actions';
+
 import type { AuthIdentity } from '../auth/session';
 import type { PickedDirectoryTarget } from '../directory/target-picker';
 import { buttonClass } from '../directory/directory-ui';
@@ -26,10 +27,10 @@ export function RelationshipContextPanel({ identity, target, showRestriction = t
 }
 function ActorContextContent({ context, showRestriction }: { context: ActorContext; showRestriction: boolean }) {
   const { target } = context;
-  return <><h3 className="font-semibold"><Link className="underline" to={'/' + (target.kind === 'ORGANIZATION' ? 'organizations/' : 'people/') + target.id}>{target.label}</Link>{!target.isActive && ' (ficha inactiva)'}</h3>
+  return <><h3 className="font-semibold"><ActionLink to={'/' + (target.kind === 'ORGANIZATION' ? 'organizations/' : 'people/') + target.id}>{target.label}</ActionLink>{!target.isActive && ' (ficha inactiva)'}</h3>
     {showRestriction && context.restriction && <aside role="alert" className="space-y-2 rounded border-2 border-red-800 bg-red-50 p-4 text-red-950">
       <p className="font-bold">RESTRICCIÓN ACTIVA — NO CONTACTAR</p><p>Aplica a {target.label}.</p><p className="whitespace-pre-wrap">{context.restriction.reason}</p>
-      <Link className={buttonClass} to={'/contact-restrictions/' + context.restriction.id}>Consultar restricción</Link>
+      <ActionLink appearance="context" to={'/contact-restrictions/' + context.restriction.id}>Consultar restricción</ActionLink>
     </aside>}
     {!!context.activeProcesses.total && <section className="space-y-2 rounded border border-amber-600 p-3" aria-label={'Procesos activos de ' + target.label}>
       <h4 className="font-semibold">Advertencia: {context.activeProcesses.total} procesos activos</h4><p>Revisa el contexto antes de continuar. Pueden existir procesos paralelos con objetivos diferentes.</p>
@@ -37,7 +38,7 @@ function ActorContextContent({ context, showRestriction }: { context: ActorConte
       <ProcessList context={context} closed={false} /></section>}
     {!!context.activeIntents.total && <section className="space-y-2 rounded border border-amber-600 p-3" aria-label={'Intenciones activas de ' + target.label}>
       <h4 className="font-semibold">Advertencia: {context.activeIntents.total} intenciones activas</h4><p>Hay acercamientos planeados; una intención no demuestra comunicación real. Esta advertencia no impide una nueva gestión.</p>
-      <ul className="space-y-2">{context.activeIntents.items.map(intent => <li key={intent.id}><Link className="underline whitespace-pre-wrap" to={'/contact-intents/' + intent.id}>{intent.purpose}</Link>
+      <ul className="space-y-2">{context.activeIntents.items.map(intent => <li key={intent.id}><ActionLink className="whitespace-pre-wrap" to={'/contact-intents/' + intent.id}>{intent.purpose}</ActionLink>
         <p>Autor: {intent.author.displayName}{!intent.author.isActive && ' (cuenta inactiva)'} · Creación: {date(intent.createdAt)} · Última actividad: {date(intent.lastActivityAt)}</p></li>)}</ul>
       <Limited items={context.activeIntents.items.length} total={context.activeIntents.total} />
     </section>}
@@ -57,11 +58,11 @@ function CommunicationHistory({ context }: { context: ActorContext }) {
       <p>Última comunicación: {summary.lastDirection === 'SENT' ? 'Enviada' : 'Recibida'} — {summary.lastOccurredAt && date(summary.lastOccurredAt)}</p>
       <ul className="space-y-3">{context.recentCommunications.map(item => <li key={item.id}>
         <p>{item.direction === 'SENT' ? 'Enviada' : 'Recibida'} · Fecha real: {date(item.occurredAt)}</p>
-        <Link className="underline whitespace-pre-wrap" to={'/communications/' + item.id}>{item.subject}</Link>
+        <ActionLink className="whitespace-pre-wrap" to={'/communications/' + item.id}>{item.subject}</ActionLink>
         <p>Remitente: {item.sender}</p>
         <p>Destinatarios: {item.recipients.map(recipient => (recipient.type === 'TO' ? 'Para' : recipient.type) + ': ' + recipient.addressOriginal).join(' · ')}</p>
         {item.recipientTotal > item.recipients.length && <p>Se muestran {item.recipients.length} de {item.recipientTotal} destinatarios. Consulta el detalle para ver todos.</p>}
-        <p>Proceso: <Link className="underline whitespace-pre-wrap" to={'/relationship-processes/' + item.process.id}>{item.process.purpose}</Link></p>
+        <p>Proceso: <ActionLink className="whitespace-pre-wrap" to={'/relationship-processes/' + item.process.id}>{item.process.purpose}</ActionLink></p>
       </li>)}</ul>
       {summary.total > context.recentCommunications.length && <p>Se muestran {context.recentCommunications.length} de {summary.total} comunicaciones.</p>}
     </>}
@@ -71,7 +72,7 @@ function date(value: string) { return new Date(value).toLocaleString('es-BO'); }
 function Limited({ items, total }: { items: number; total: number }) { return total > items ? <p>Se muestran {items} de {total} gestiones.</p> : null; }
 function ProcessList({ context, closed }: { context: ActorContext; closed: boolean }) {
   const processes = closed ? context.recentClosedProcesses : context.activeProcesses;
-  return <><ul className="space-y-2">{processes.items.map(process => <li key={process.id}><Link className="underline whitespace-pre-wrap" to={'/relationship-processes/' + process.id}>{process.purpose}</Link>
+  return <><ul className="space-y-2">{processes.items.map(process => <li key={process.id}><ActionLink className="whitespace-pre-wrap" to={'/relationship-processes/' + process.id}>{process.purpose}</ActionLink>
     <p>{PROCESS_STATE_LABELS[process.state]} · Creador: {process.createdBy.displayName}{!process.createdBy.isActive && ' (cuenta inactiva)'} · Creación: {date(process.createdAt)} · Última actividad formal: {date(process.lastActivityAt)}</p>
     {closed && <p>Resultado: {process.result ? PROCESS_RESULT_LABELS[process.result] : 'Sin resultado'} · Cierre: {process.closedAt ? date(process.closedAt) : 'Sin fecha'}</p>}
   </li>)}</ul><Limited items={processes.items.length} total={processes.total} /></>;

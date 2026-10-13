@@ -1,7 +1,8 @@
+import { ActionLink } from '../../components/ui/actions';
 import { useRef, useState, type FormEvent } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Link } from 'react-router';
+
 import type { AuthIdentity } from '../auth/session';
 import { ApiError } from '../../lib/api/client';
 import {
@@ -129,12 +130,12 @@ export function OrganizationPersonForm({ identity, organizationId, saved, cancel
                   <span>{[person.givenNames, person.familyNames].filter(Boolean).join(' ') || 'Nombres y apellidos no registrados'}</span>
                   <span>{person.isActive ? 'Ficha activa' : 'Ficha inactiva'} · {person.currentRelationsCount} vínculos vigentes</span>
                   <span>{institutionalStatusLabel(person)}</span>
-                  {person.duplicateOf && <span>Ficha consolidada con <Link to={'/people/' + person.duplicateOf.id}>{person.duplicateOf.displayName}</Link>.</span>}
+                  {person.duplicateOf && <span>Ficha consolidada con <ActionLink to={'/people/' + person.duplicateOf.id}>{person.duplicateOf.displayName}</ActionLink>.</span>}
                   {!person.isActive && <span>La ficha está inactiva. Debe reactivarse antes de añadir un nuevo vínculo institucional.</span>}
                 </span>
               </label>
               {!person.isActive && identity.permissions.includes('directory.read') &&
-                <Link className="mt-2 inline-block underline" to={'/people/' + person.id} target="_blank" rel="noreferrer">Consultar ficha personal</Link>}
+                <ActionLink className="mt-2 inline-block" to={'/people/' + person.id} target="_blank" rel="noreferrer">Consultar ficha personal</ActionLink>}
             </li>;
           })}
         </ul> : candidates.data && <p>No hay personas que coincidan. Prueba con otro nombre.</p>}
@@ -188,7 +189,7 @@ export function OrganizationPersonForm({ identity, organizationId, saved, cancel
 
     <MutationError error={mutation.error} />
     {mutation.error instanceof ApiError && mutation.error.code === 'PERSON_INACTIVE' && selectedPerson &&
-      <p><Link className="underline" to={'/people/' + selectedPerson.id} target="_blank" rel="noreferrer">Consultar ficha personal para reactivarla explícitamente</Link></p>}
+      <p><ActionLink to={'/people/' + selectedPerson.id} target="_blank" rel="noreferrer">Consultar ficha personal para reactivarla explícitamente</ActionLink></p>}
     <div className="organization-person-actions">
       <button className={buttonClass} disabled={mutation.isPending || form.formState.isSubmitting || cannotConfirmExistingLink || (mode === 'existing' && !selectedPerson)}>
         {mutation.isPending ? 'Guardando…' : mode === 'existing' ? 'Vincular persona' : 'Registrar persona y vincular'}

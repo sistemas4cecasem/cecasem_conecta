@@ -13,11 +13,6 @@
   .directory-detail h4 { font-size: 0.875rem; font-weight: 600; }
   .directory-detail p, .directory-detail li { font-size: 0.875rem; line-height: 1.6; }
   .directory-detail ul, .directory-detail ol { min-width: 0; }
-  .directory-detail .directory-contact-list > li,
-  .directory-detail .directory-episode-list > li { border: 0; border-radius: 0; padding: 1rem 0; margin-top: 0; }
-  .directory-detail .directory-contact-list > li + li,
-  .directory-detail .directory-episode-list > li + li { border-top: 1px solid var(--color-app-border); }
-  .directory-detail .directory-contact-list, .directory-detail .directory-episode-list { border-top: 1px solid var(--color-app-border); }
   .directory-detail .directory-contact-context > a:first-child { display: inline-flex; align-items: center; min-height: 2.75rem; font-size: 0.8125rem; color: var(--color-app-muted); }
   .directory-detail .directory-contact-context > p:first-of-type a { font-weight: 600; }
   .directory-detail .directory-episode-context > a:first-child { display: inline-flex; align-items: center; min-height: 2.75rem; color: var(--color-brand-primary); font-weight: 600; }

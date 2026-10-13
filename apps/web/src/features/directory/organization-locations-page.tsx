@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Link } from 'react-router';
-import { Button } from '../../components/ui/actions';
+
+import { ActionLink, Button } from '../../components/ui/actions';
 import { Surface } from '../../components/ui/layout';
 import { StatusBadge } from '../../components/ui/feedback';
 import { DataList, DataListItem } from '../../components/ui/lists';
@@ -17,7 +17,7 @@ export function OrganizationLocationsPage() {
   const owner=organization.branchOf;
   return <div className="organization-locations-layout">
     <Surface heading="Organización referente" className="organization-section-surface">
-      {owner?<p><Link className="underline" to={'/organizations/'+owner.id}>{owner.name}</Link>{!owner.isActive&&<> · <StatusBadge>Inactiva</StatusBadge></>}</p>
+      {owner?<p><ActionLink to={'/organizations/'+owner.id}>{owner.name}</ActionLink>{!owner.isActive&&<> · <StatusBadge>Inactiva</StatusBadge></>}</p>
         :<p>Esta organización no tiene una organización referente registrada.</p>}
     </Surface>
     <Surface className="organization-section-surface">
@@ -27,7 +27,7 @@ export function OrganizationLocationsPage() {
       <QueryState pending={branches.isPending} error={branches.isError} failure={branches.error} retry={branches.refetch}/>
       {branches.data?.total===0&&<p>No hay sedes o representaciones registradas.</p>}
       <DataList className="organization-location-list">{branches.data?.items.map(branch=><DataListItem key={branch.id} className="organization-location-row">
-        <div className="organization-location-primary"><Link className="organization-location-name" to={'/organizations/'+branch.id}>{branch.name}</Link>
+        <div className="organization-location-primary"><ActionLink className="organization-location-name" to={'/organizations/'+branch.id}>{branch.name}</ActionLink>
           <span>{branch.country??'País sin registrar'}</span></div>
         <div className="organization-location-status">{branch.isActive?<StatusBadge tone="success">Activa</StatusBadge>:<StatusBadge>Inactiva</StatusBadge>}
           <span>Sede o representación de {organization.name}</span></div>

@@ -1,5 +1,6 @@
+import { ActionLink } from '../../components/ui/actions';
 import { useState } from 'react';
-import { Link,useParams } from 'react-router';
+import { useParams } from 'react-router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useSession,type AuthIdentity } from '../auth/session';
@@ -32,7 +33,7 @@ export function ContactDetailPage() {
   if(!identity?.permissions.includes('directory.read'))return <p role="alert">No tienes permiso para consultar medios de contacto.</p>;
   if(!query.data)return <QueryState pending={query.isPending} error={query.isError} retry={query.refetch}/>;
   const row=query.data;
-  return <section className="ui-detail-page"><PageHeader eyebrow="Directorio / Medios de contacto" title={'Medio de contacto: ' + row.value} description={`${contactLabels[row.type]} · ${conditionLabels[row.condition]}`} actions={<Link className={buttonClass} to="/organizations">Volver al directorio</Link>} />
+  return <section className="ui-detail-page"><PageHeader eyebrow="Directorio / Medios de contacto" title={'Medio de contacto: ' + row.value} description={`${contactLabels[row.type]} · ${conditionLabels[row.condition]}`} back={<ActionLink appearance="back" to="/organizations">Volver al directorio</ActionLink>} />
     <Surface heading="Información del medio">{row.label&&<p>Etiqueta: {row.label}</p>}
     <p>{row.associationCount>1?'Medio compartido':'Medio canónico'} · {row.associationCount} asociaciones.</p></Surface>
     {editing?<ContactCorrectionForm identity={identity} initial={editing} saved={()=>{setEditing(null);setReplacementId(undefined);}} cancel={()=>setEditing(null)} onExisting={setReplacementId}/>:
@@ -41,7 +42,7 @@ export function ContactDetailPage() {
     <MutationError error={mutation.error} reload={async()=>{const fresh=await query.refetch();if(fresh.isSuccess)mutation.reset();}}/>
     {replacementId&&<><QueryState pending={replacement.isPending} error={replacement.isError} retry={replacement.refetch}/>{replacement.data&&<Alert tone="warning">
       <p>El correo ya existe como {replacement.data.value}. Elige explícitamente abajo qué asociación sustituir. Los actores y el otro medio conservan sus identidades.</p>
-      <Link className="inline-flex min-h-11 underline" to={'/contact-methods/'+replacementId}>Ver ficha del correo existente</Link><ContactMethodAssociations identity={identity} methodId={replacementId} readOnly/>
+      <ActionLink className="inline-flex min-h-11" to={'/contact-methods/'+replacementId}>Ver ficha del correo existente</ActionLink><ContactMethodAssociations identity={identity} methodId={replacementId} readOnly/>
       <button className={buttonClass} onClick={()=>setReplacementId(undefined)}>Cancelar reutilización para corrección</button></Alert>}</>}
     <Surface heading="Asociaciones del medio"><ContactMethodAssociations key={id} identity={identity} methodId={id} replacement={replacement.data}/></Surface>
     {identity.permissions.includes('directory.history.read')&&<DirectoryHistory key={'history-'+id} identity={identity} path={'contact-methods/'+id+'/history'}/>}</section>;

@@ -1,4 +1,5 @@
-import { Link } from 'react-router';
+import { ActionLink, ExternalLink } from '../../components/ui/actions';
+
 import { Surface } from '../../components/ui/layout';
 import { Metadata } from '../../components/ui/lists';
 import { dateLabel } from './date-label';
@@ -8,10 +9,10 @@ import { useOrganizationWorkspace } from './organization-workspace-context';
 import { useOrganizations, usePersonRelations } from './queries';
 
 function Metric({ label, value, loading, error, to }: { label: string; value?: number; loading: boolean; error: boolean; to: string }) {
-  return <Link className="organization-summary-metric" to={to}>
+  return <ActionLink appearance="normal" className="organization-summary-metric" to={to}>
     <span>{label}</span><strong>{loading ? 'Cargando…' : error || value === undefined ? 'No disponible' : value.toLocaleString('es-BO')}</strong>
     <span aria-hidden="true">Ver sección →</span>
-  </Link>;
+  </ActionLink>;
 }
 
 export function OrganizationSummary() {
@@ -21,14 +22,14 @@ export function OrganizationSummary() {
   const branches = useOrganizations(identity, `organizations/${organization.id}/branches?status=all&page=1&pageSize=1`);
   return <div className="organization-summary-layout">
     <Surface heading="Información institucional" className="organization-detail-summary">
-      <Metadata items={[
+      <Metadata layout="grid" items={[
         { label: 'Sigla o nombre alternativo', value: organization.alias ?? 'Sin dato' },
         { label: 'País', value: organization.country ?? 'Sin dato' },
-        { label: 'Descripción', value: organization.description ?? 'Sin dato' },
-        { label: 'Sitio web oficial', value: organization.officialWebsite
-          ? <a className="underline" href={organization.officialWebsite} target="_blank" rel="noreferrer">{organization.officialWebsite}</a> : 'Sin dato' },
-        ...(organization.branchOf ? [{ label: 'Organización referente', value: <Link className="underline" to={'/organizations/' + organization.branchOf.id}>{organization.branchOf.name}</Link> }] : []),
-        { label: 'Categorías', value: organization.categories.map(category => category.name + (category.isActive ? '' : ' (inactiva)')).join(', ') || 'Sin categorías' },
+        { label: 'Descripción', value: organization.description ?? 'Sin dato', wide: true },
+        { label: 'Sitio web oficial', wide: true, value: organization.officialWebsite
+          ? <ExternalLink href={organization.officialWebsite} target="_blank" rel="noreferrer">{organization.officialWebsite}</ExternalLink> : 'Sin dato' },
+        ...(organization.branchOf ? [{ label: 'Organización referente', value: <ActionLink to={'/organizations/' + organization.branchOf.id}>{organization.branchOf.name}</ActionLink> }] : []),
+        { label: 'Categorías', wide: true, value: organization.categories.map(category => category.name + (category.isActive ? '' : ' (inactiva)')).join(', ') || 'Sin categorías' },
         { label: 'Creación', value: <time dateTime={organization.createdAt}>{dateLabel(organization.createdAt)}</time> },
         { label: 'Última modificación', value: <time dateTime={organization.updatedAt}>{dateLabel(organization.updatedAt)}</time> },
       ]} />

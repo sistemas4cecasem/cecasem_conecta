@@ -1,5 +1,6 @@
+import { ActionLink } from '../../components/ui/actions';
 import { useState } from 'react';
-import { Link } from 'react-router';
+
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { AuthIdentity } from '../auth/session';
@@ -41,7 +42,7 @@ export function ContactCreateForm({identity,actorPath,saved,cancel,organizationP
     {lookup.isError&&<QueryState pending={false} error retry={lookup.refetch}/>}
     {conflictId&&<QueryState pending={conflict.isPending} error={conflict.isError} retry={conflict.refetch}/>}
     {existing&&<section className={`space-y-3 rounded border border-amber-500 p-3 ${organizationPresentation?'organization-contact-existing':''}`}><h3 className="font-semibold">{existing.type==='EMAIL'?'Este correo ya está registrado.':'Este medio ya está registrado.'}</h3>
-      <p>{contactLabels[existing.type]}: {existing.value} · {conditionLabels[existing.condition]}</p><Link className="inline-flex min-h-11 underline" to={'/contact-methods/'+existing.id}>Ver ficha del medio existente</Link>
+      <p>{contactLabels[existing.type]}: {existing.value} · {conditionLabels[existing.condition]}</p><ActionLink className="inline-flex min-h-11" to={'/contact-methods/'+existing.id}>Ver ficha del medio existente</ActionLink>
       <ContactMethodAssociations identity={identity} methodId={existing.id} readOnly/>
       <p>La fuente y las observaciones escritas abajo se aplicarán a la asociación nueva solo si confirmas. Si la asociación ya existe, se conserva su contexto.</p>
       <button type="button" className={buttonClass} disabled={mutation.isPending||existing.condition==='UNUSABLE'} onClick={()=>{void form.handleSubmit(input=>submit(input,existing.id))();}}>Asociar este contacto</button>

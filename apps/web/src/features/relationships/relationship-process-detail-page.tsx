@@ -84,12 +84,12 @@ function ProcessDetailView({ identity, id }: { identity: AuthIdentity; id: strin
   return <section className="process-detail">
     <PageHeader eyebrow="Relaciones / Procesos" title={process?.purpose ?? 'Proceso de relación'}
       metadata={process && <StatusBadge tone={process.state === 'CLOSED' ? 'neutral' : process.state === 'WAITING_RESPONSE' ? 'warning' : 'info'}>{PROCESS_STATE_LABELS[process.state]}</StatusBadge>}
-      actions={<ActionLink appearance="context" to="/relationship-processes">Volver al listado</ActionLink>} />
+      back={<ActionLink appearance="back" to="/relationship-processes">Volver al listado</ActionLink>} />
     <QueryFeedback pending={detail.isPending} error={detail.isError} retry={detail.refetch} />
     {process && <>
       {identity.permissions.includes('relationships.restriction.read') && <QueryFeedback pending={restriction.isPending} error={restriction.isError} retry={restriction.refetch} />}
       <ContactRestrictionNotice restriction={restriction.data?.items[0]} context="process" />
-      <Surface className="process-summary" heading="Información del proceso"><Metadata items={[
+      <Surface className="process-summary" heading="Información del proceso"><Metadata layout="grid" items={[
         { label: 'Actor principal', value: <ActionLink to={'/' + (process.target.kind === 'ORGANIZATION' ? 'organizations/' : 'people/') + process.target.id}>{process.target.label}{!process.target.isActive && ' (inactivo)'}</ActionLink> },
         { label: 'Creador', value: process.createdBy.displayName + (!process.createdBy.isActive ? ' (cuenta inactiva)' : '') },
         { label: 'Creación', value: <time dateTime={process.createdAt}>{new Date(process.createdAt).toLocaleString('es-BO')}</time> },

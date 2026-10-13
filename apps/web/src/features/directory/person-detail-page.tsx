@@ -6,7 +6,7 @@ import { type Person } from './contracts';
 import { usePerson,useDirectoryMutation } from './queries';
 import { MutationError,QueryState } from './directory-ui';
 import { dateLabel } from './date-label';
-import { ActionLink as Link, Button } from '../../components/ui/actions';
+import { ActionLink, Button } from '../../components/ui/actions';
 import { PageHeader, Surface } from '../../components/ui/layout';
 import { Alert, ConfirmationPanel, StatusBadge } from '../../components/ui/feedback';
 import { Metadata } from '../../components/ui/lists';
@@ -25,19 +25,19 @@ export function PersonDetailPage() {
   const eyebrow=organization?`Directorio / Organizaciones / ${organization.name} / Personas`:'Directorio / Personas externas';
   const [editing,setEditing]=useState<Person|null>(null);const [confirmStatusChange,setConfirmStatusChange]=useState(false);
   if(!identity?.permissions.includes('directory.read')) return <p role="alert">No tienes permiso para consultar personas.</p>;
-  if(!detail.data) return <section className="space-y-4"><Link className="inline-flex min-h-11 items-center underline" to={backTo}>{backLabel}</Link>
+  if(!detail.data) return <section className="space-y-4"><ActionLink appearance="back" to={backTo}>{backLabel}</ActionLink>
     <QueryState pending={detail.isPending} error={detail.isError} failure={detail.error} retry={detail.refetch}/></section>;
   const row=detail.data;
-  if(editing) return <section className="ui-editor-page"><PageHeader eyebrow={eyebrow} title="Editar persona" /><Surface><PersonForm identity={identity} initial={editing} saved={()=>setEditing(null)} cancel={()=>setEditing(null)}
+  if(editing) return <section className="ui-editor-page"><PageHeader eyebrow={eyebrow} title="Editar persona" back={<ActionLink appearance="back" to={backTo}>{backLabel}</ActionLink>} /><Surface><PersonForm identity={identity} initial={editing} saved={()=>setEditing(null)} cancel={()=>setEditing(null)}
     reload={async()=>{const response=await detail.refetch();if(!response.isSuccess)return;setEditing(response.data);return response.data;}}/></Surface></section>;
-  return <section className="directory-detail"><Link className="inline-flex min-h-11 underline" to={backTo}>{backLabel}</Link>
-    <PageHeader eyebrow={eyebrow} title={row.displayName} description={row.currentRelationsCount ? `Vínculos vigentes: ${row.currentRelationsCount}. Consulta los episodios institucionales.` : undefined}
+  return <section className="directory-detail">
+    <PageHeader back={<ActionLink appearance="back" to={backTo}>{backLabel}</ActionLink>} eyebrow={eyebrow} title={row.displayName} description={row.currentRelationsCount ? `Vínculos vigentes: ${row.currentRelationsCount}. Consulta los episodios institucionales.` : undefined}
       metadata={<StatusBadge tone={row.isActive?'success':'neutral'}>{row.isActive?'Activa':'Inactiva'}</StatusBadge>}
       actions={<>{!row.duplicateOfId&&identity.permissions.includes('directory.write')&&<Button onClick={()=>setEditing(row)}>Editar persona</Button>}
       {!row.duplicateOfId&&identity.permissions.includes('directory.status.update')&&<Button variant="ghost" disabled={mutation.isPending} onClick={()=>{mutation.reset();setConfirmStatusChange(true);}}>{row.isActive?'Desactivar persona':'Reactivar persona'}</Button>}</>} />
     {row.dataImportBatch&&<Alert role="status" tone="info">Dato importado desde Excel · lote {row.dataImportBatch.id} · {row.dataImportBatch.originalFilename}</Alert>}
-    {row.duplicateOf&&<Alert role="status" tone="warning">Este registro fue consolidado en: <Link className="underline" to={'/people/'+row.duplicateOf.id}>{row.duplicateOf.displayName}</Link>. Su historial permanece disponible.</Alert>}
-    {!!row.consolidatedRecords?.length&&<p>Fichas consolidadas: {row.consolidatedRecords.map(item=><Link key={item.id} className="inline-flex min-h-11 items-center px-2 underline" to={'/people/'+item.id}>{item.displayName}</Link>)}</p>}
+    {row.duplicateOf&&<Alert role="status" tone="warning">Este registro fue consolidado en: <ActionLink appearance="normal" to={'/people/'+row.duplicateOf.id}>{row.duplicateOf.displayName}</ActionLink>. Su historial permanece disponible.</Alert>}
+    {!!row.consolidatedRecords?.length&&<p>Fichas consolidadas: {row.consolidatedRecords.map(item=><ActionLink key={item.id} className="inline-flex min-h-11 items-center px-2" to={'/people/'+item.id}>{item.displayName}</ActionLink>)}</p>}
 
     {!row.currentRelationsCount&&<p>Sin vínculos vigentes: persona independiente o institución aún no identificada. Los episodios históricos se conservan abajo.</p>}
     {!row.duplicateOfId&&identity.permissions.includes('directory.status.update')&&confirmStatusChange&&<ConfirmationPanel role="group" title={row.isActive?'Confirmar desactivación de persona':'Confirmar reactivación de persona'}>
@@ -47,7 +47,7 @@ export function PersonDetailPage() {
     </ConfirmationPanel>}
     <MutationError modern error={mutation.error} reload={async()=>{await detail.refetch();mutation.reset();}}/>
     <div className="directory-detail-main">
-      <Surface heading="Información personal" className="directory-detail-summary"><Metadata items={[
+      <Surface heading="Información personal" className="directory-detail-summary"><Metadata layout="grid" items={[
         {label:'Nombres',value:row.givenNames??'Sin dato'}, {label:'Apellidos',value:row.familyNames??'Sin dato'},
         {label:'Creación',value:<time dateTime={row.createdAt}>{dateLabel(row.createdAt)}</time>},
         {label:'Modificación',value:<time dateTime={row.updatedAt}>{dateLabel(row.updatedAt)}</time>}

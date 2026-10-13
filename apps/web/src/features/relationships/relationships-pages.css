@@ -10,15 +10,11 @@
   .relationships-page .ui-metadata > div { min-width: 0; }
   .relationships-page .ui-metadata dd { color: var(--color-app-text); }
   .relationships-page .ui-link-context { font-weight: 400; }
-  .relationships-page .ui-button-ghost { font-weight: 400; text-decoration: underline; text-underline-offset: 0.2em; }
   .relationships-closure { font-size: 0.875rem; line-height: 1.6; padding-left: 0.75rem; border-left: 2px solid var(--color-app-border); }
   .relationships-restriction-reason { white-space: pre-wrap; font-size: 0.875rem; line-height: 1.6; }
   .processes-page .ui-filter-bar { padding-block: 1rem; }
-  .processes-page .process-list-item { padding: 1.25rem 0.75rem; }
-  .processes-page .process-list-item + .process-list-item { border-top-color: var(--color-app-border-strong); }
+  .processes-page .process-list-item { padding: 1rem 1.125rem; }
   .process-list-title { min-width: 0; flex: 1 1 24rem; margin: 0; font-size: 1.125rem; line-height: 1.4; font-weight: 650; }
-  .processes-page .process-list-title .ui-link-list { display: inline; min-height: 0; font: inherit; color: var(--color-brand-primary); text-decoration: none; }
-  .processes-page .process-list-title .ui-link-list:hover { text-decoration: underline; text-underline-offset: 0.2em; }
   .processes-page .relationships-row-heading .ui-badge { margin-top: 0.125rem; font-size: 0.8125rem; }
   .processes-page .ui-metadata { margin-top: 0.625rem; font-size: 0.875rem; line-height: 1.55; }
   .processes-page .ui-metadata dt { color: var(--color-app-muted); }
