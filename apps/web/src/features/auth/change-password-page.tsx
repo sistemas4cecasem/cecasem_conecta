@@ -68,10 +68,10 @@ export function ChangePasswordPage() {
     description="Por seguridad, debes reemplazar la contraseña inicial antes de continuar.">
     <form onSubmit={event => void handleSubmit(submit)(event)} noValidate>
       <FieldHelp id="new-password-help">Elige una contraseña que no hayas usado como contraseña inicial.</FieldHelp>
-      <PasswordRequirements password={password}/>
       <FormField id="required-new-password" label="Contraseña nueva" error={errors.password?.message}
         describedBy="new-password-help" required>{control => <Input {...control} type="password" autoComplete="new-password"
           {...register('password')} disabled={pending}/>}</FormField>
+      <PasswordRequirements password={password}/>
       <FormField id="required-confirm-password" label="Confirmar contraseña" error={errors.confirmPassword?.message} required>
         {control => <Input {...control} type="password" autoComplete="new-password" {...register('confirmPassword')} disabled={pending}/>}</FormField>
       <FormActions><Button type="submit" variant="primary" className="auth-submit" pending={pending} disabled={pending}>
