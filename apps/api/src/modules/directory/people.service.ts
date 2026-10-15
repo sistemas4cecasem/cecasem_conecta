@@ -1,3 +1,4 @@
+import type { PersonProfileEditDto } from './person-profile.dto';
 import { provenanceContract, relationOrigins } from './consolidation-provenance';
 import { DirectoryActorPolicy } from './directory-actor.policy';
 import { Injectable } from '@nestjs/common';
@@ -11,7 +12,7 @@ import { DirectoryHistoryService, type FieldChange, type HistoryValue } from './
 import { DirectoryService } from './directory.service';
 import { ContactsService } from './contacts.service';
 import { DirectoryError } from './directory.errors';
-import { assertVersion } from './directory.rules';
+import { assertVersion, institutionalText } from './directory.rules';
 import { calendarDate, classifyPersonInstitutionalStatus, personFields, relationFields } from './people.rules';
 import type { DirectoryStatusDto, PageQueryDto } from './directory.dto';
 import type { PeopleQueryDto, PersonEditDto, PersonInputDto, RelationCreateDto, RelationEditDto, RelationEndDto, RelationsQueryDto, OrganizationPersonCreateDto } from './people.dto';
@@ -68,6 +69,54 @@ export class PeopleService {
     return {items:rows.map(personContract),total,page:query.page,pageSize:query.pageSize};
   }
   async get(id:string) {return personContract(await this.person(id));}
+  async profile(id: string, organizationId?: string) {
+    return this.prisma.$transaction(async tx => {
+      if (!this.contacts) throw new Error('ContactsService is required for person profiles.');
+      const person = personContract(await this.person(id, tx));
+      const contacts = await this.contacts.personProfileContacts(id, tx);
+      const relations = await tx.personOrganizationRelation.findMany({ where: { personId: id, ...(organizationId ? { organizationId } : {}) }, select: relationSelect,
+        orderBy: [{ isCurrent: 'desc' }, { createdAt: 'desc' }, { id: 'asc' }] });
+      return { person, contacts, relations: relations.map(relationContract) };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+  }
+  async editProfile(id: string, input: PersonProfileEditDto, actorId: string) {
+    const fields = personFields(input);
+    return this.prisma.$transaction(async tx => {
+      await this.authorize(actorId, PERMISSIONS.DIRECTORY_WRITE, tx);
+      await tx.$queryRaw`SELECT id FROM "Person" WHERE id=${id}::uuid FOR UPDATE`;
+      await this.actors.writable('person', id, tx);
+      const current = await this.person(id, tx); assertVersion(current.version, input.expectedVersion);
+      const changes: FieldChange[] = [];
+      for (const field of ['displayName','givenNames','familyNames'] as const) if (current[field] !== fields[field]) changes.push({ field, previousValue: current[field], newValue: fields[field] });
+      if (new Set(input.relations.map(row => row.id)).size !== input.relations.length) throw new DirectoryError('INVALID_DIRECTORY');
+      let relationChanged = false;
+      for (const update of [...input.relations].sort((a,b) => a.id.localeCompare(b.id))) {
+        await this.lockRelation(update.id, tx);
+        const relation = await this.relation(update.id, tx);
+        if (relation.personId !== id || input.organizationId && relation.organizationId !== input.organizationId) throw new DirectoryError('INVALID_DIRECTORY');
+        await this.actors.writable('organization', relation.organizationId, tx); assertVersion(relation.version, update.expectedVersion);
+        const next = { positionTitle: institutionalText(update.positionTitle, 250), area: institutionalText(update.area, 250) };
+        const relationChanges: FieldChange[] = [];
+        for (const field of ['positionTitle','area'] as const) if (relation[field] !== next[field]) relationChanges.push({ field, previousValue: relation[field], newValue: next[field] });
+        if (relationChanges.length) {
+          await tx.personOrganizationRelation.update({ where: { id: relation.id }, data: { ...next, version: { increment: 1 } } });
+          const operationId = await this.history.record({ personRelationId: relation.id }, actorId, relationChanges, tx);
+          await this.audit.recordDirectory(AuditAction.PERSON_RELATION_UPDATED, { personRelationId: relation.id }, actorId, operationId, tx);
+          relationChanged = true;
+        }
+      }
+      if (!this.contacts) throw new Error('ContactsService is required for person profiles.');
+      const contactsChanged = await this.contacts.reconcilePersonProfile(id, input.expectedContacts, input.contacts, actorId, tx);
+      if (changes.length || relationChanged || contactsChanged) {
+        await tx.person.update({ where: { id }, data: { ...fields, version: { increment: 1 } } });
+        if (changes.length) {
+          const operationId = await this.history.record({ personId: id }, actorId, changes, tx);
+          await this.audit.recordDirectory(AuditAction.PERSON_UPDATED, { personId: id }, actorId, operationId, tx);
+        }
+      }
+      return personContract(await this.person(id, tx));
+    }, { timeout: 15000 });
+  }
   async create(input:PersonInputDto,actorId:string) {
     const fields=personFields(input);
     return this.prisma.$transaction(async tx=>{await this.authorize(actorId,PERMISSIONS.DIRECTORY_WRITE,tx);

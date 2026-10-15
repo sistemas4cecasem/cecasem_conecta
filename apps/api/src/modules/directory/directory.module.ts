@@ -1,3 +1,4 @@
+import { OrganizationBranchesService } from './organization-branches.service';
 import { DirectoryReferralsService } from './directory-referrals.service';
 import { OrganizationFilterService } from './organization-filter.service';
 import { DirectoryImportService } from './directory-import.service';
@@ -15,14 +16,14 @@ import { UsersModule } from '../users/users.module';
 import { AuditModule } from '../audit/audit.module';
 import { DirectoryService } from './directory.service';
 import { DirectoryHistoryService } from './directory-history.service';
-import { OrganizationsController, CategoriesController } from './directory.controller';
+import { OrganizationsController } from './directory.controller';
 import { PeopleService } from './people.service';
 import { PeopleController, PersonRelationsController, OrganizationPeopleController } from './people.controller';
 import { ContactsService } from './contacts.service';
 import { ContactMethodsController, PersonContactsController, OrganizationContactsController, PersonContactsActionsController, OrganizationContactsActionsController } from './contacts.controller';
 @Module({ imports: [DatabaseModule, AuthModule, UsersModule, AuditModule],
-  controllers: [DuplicateCandidatesController, OrganizationDuplicatesController, PersonDuplicatesController, OrganizationsController, CategoriesController, PeopleController, PersonRelationsController, OrganizationPeopleController,
+  controllers: [DuplicateCandidatesController, OrganizationDuplicatesController, PersonDuplicatesController, OrganizationsController, PeopleController, PersonRelationsController, OrganizationPeopleController,
     ContactMethodsController, PersonContactsController, OrganizationContactsController, PersonContactsActionsController, OrganizationContactsActionsController],
-  providers: [OrganizationFilterService, DirectoryExportService, DirectoryImportService, DirectoryReferralsService, DirectoryTargetService, DirectorySearchService, DuplicateDetectionService, ConsolidationService, DirectoryActorPolicy, DirectoryService, DirectoryHistoryService, PeopleService, ContactsService],
+  providers: [OrganizationBranchesService, OrganizationFilterService, DirectoryExportService, DirectoryImportService, DirectoryReferralsService, DirectoryTargetService, DirectorySearchService, DuplicateDetectionService, ConsolidationService, DirectoryActorPolicy, DirectoryService, DirectoryHistoryService, PeopleService, ContactsService],
   exports: [DirectoryExportService, DirectoryImportService, DirectoryReferralsService, DirectorySearchService, DirectoryTargetService] })
 export class DirectoryModule {}

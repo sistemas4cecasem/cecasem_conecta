@@ -4,23 +4,10 @@ import { Button } from '../../components/ui/actions';
 import { Alert } from '../../components/ui/feedback';
 import './data-exchange.css';
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { ApiError, apiRequest } from '../../lib/api/client';
 import { useSession } from '../auth/session';
 import type { ExportFilters, ExportType, ExportPreview } from './exports-contracts';
 import { exportFileName, exportTypes, filterSummary } from './exports-contracts';
-
-type CategoriesPage = { items: { id: string; name: string }[]; total: number; page: number; pageSize: number };
-
-async function activeCategories(signal?: AbortSignal) {
-  const result: { id: string; name: string }[] = [];
-  for (let page = 1; ; page++) {
-    const data = await apiRequest<CategoriesPage>(`categories?page=${page}&pageSize=100&status=active`, { signal });
-    if (!data) return result;
-    result.push(...data.items);
-    if (result.length >= data.total || data.items.length === 0) return result;
-  }
-}
 
 function defaultFilters(type: ExportType): ExportFilters {
   if (type === 'organizations') return { organizationStatus: 'active' };
@@ -39,7 +26,6 @@ export function ExportsPage() {
   const permissions = identity?.permissions ?? [];
   const available = exportTypes.filter(item => permissions.includes(item.requiredPermission));
   const filters = type ? filtersByType[type] ?? defaultFilters(type) : {};
-  const categories = useQuery({ queryKey: ['data-exchange', identity?.id, 'export-categories'], enabled: type === 'organizations' && permissions.includes('directory.read'), queryFn: ({ signal }) => activeCategories(signal), retry: false });
 
   function updateFilters(next: ExportFilters) {
     if (!type) return;
@@ -89,7 +75,6 @@ export function ExportsPage() {
         </Select>}</FormField>
         {type === 'organizations' && <FormSection heading="Filtros de exportación" className="exchange-fields">
           {input('Nombre contiene', 'name')}{input('País', 'country')}
-          <FormField label="Categoría">{control => <Select {...control} value={filters.categoryId ?? ''} onChange={event => update('categoryId', event.target.value)}><option value="">Todas</option>{(categories.data ?? []).map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</Select>}</FormField>
           {select('Estado', 'organizationStatus', [['active', 'Activas'], ['inactive', 'Inactivas'], ['all', 'Todas']])}
           {select('Comunicaciones registradas', 'withCommunications', [['true', 'Con comunicaciones'], ['false', 'Sin comunicaciones']])}
         </FormSection>}

@@ -206,7 +206,7 @@ describe('Personas PostgreSQL y HTTP',()=>{
     const episode=relation.body as {id:string};
     await request(app.getHttpServer()).put('/api/v1/person-organization-relations/'+episode.id).set('Cookie',auth).send({positionTitle:'Coordinadora',isCurrent:true,expectedVersion:1}).expect(200);
     await request(app.getHttpServer()).patch('/api/v1/person-organization-relations/'+episode.id+'/end').set('Cookie',auth).send({expectedVersion:2}).expect(200);
-    for(const path of ['people','people/'+row.id,'people/'+row.id+'/history','people/'+row.id+'/relations','organizations/'+organization.id+'/people','person-organization-relations/'+episode.id,'person-organization-relations/'+episode.id+'/history']) await request(app.getHttpServer()).get('/api/v1/'+path).set('Cookie',auth).expect(200);
+    for(const path of ['people','people/'+row.id,'people/'+row.id+'/history','people/'+row.id+'/relations','organizations/'+organization.id+'/people','person-organization-relations/'+episode.id,'person-organization-relations/'+episode.id+'/history']) await request(app.getHttpServer()).get('/api/v1/'+path).set('Cookie',auth).expect(path.endsWith('/history') && role !== UserRole.ADMINISTRATOR ? 403 : 200);
     await request(app.getHttpServer()).patch('/api/v1/people/'+row.id+'/status').set('Cookie',auth).send({isActive:false,expectedVersion:2}).expect(role===UserRole.ADMINISTRATOR?200:403);
     expect(await people.get(row.id)).not.toHaveProperty('lastVerifiedAt');
   });
@@ -347,4 +347,49 @@ describe('Personas PostgreSQL y HTTP',()=>{
     const actor=await fixture(),auth=await cookie(actor),row=await person(actor.id);jest.spyOn(Logger.prototype,'error').mockImplementation(()=>undefined);jest.spyOn(history,'record').mockRejectedValueOnce(new Error('private fixture'));
     const result=await request(app.getHttpServer()).put('/api/v1/people/'+row.id).set('Cookie',auth).send({displayName:'No',expectedVersion:1}).expect(500);expect(JSON.stringify(result.body)).not.toContain('fixture');expect(await people.get(row.id)).toEqual(row);
   });
+  function profileInput(profile: Awaited<ReturnType<PeopleService['profile']>>) {
+    return {displayName:profile.person.displayName,givenNames:profile.person.givenNames,familyNames:profile.person.familyNames,expectedVersion:profile.person.version,
+      expectedContacts:profile.contacts.map(row=>({id:row.id,version:row.version,methodVersion:row.contactMethod.version})),
+      contacts:profile.contacts.map(row=>({id:row.id,type:row.contactMethod.type,value:row.contactMethod.value,label:row.contactMethod.label})),
+      relations:profile.relations.map(row=>({id:row.id,expectedVersion:row.version,positionTitle:row.positionTitle,area:row.area}))};
+  }
+  it('guarda nombres, medios y cargo juntos; conserva el correo previo y los contactos compartidos',async()=>{
+    const actor=await fixture(),first=await person(actor.id),second=await person(actor.id),organization=await org(actor.id);
+    const old=await contacts.createAndAssociate({personId:first.id},{type:ContactType.EMAIL,value:randomUUID()+'@example.test',notes:'Fuente conservada'},actor.id);
+    contactMethodIds.push(old.association.contactMethodId);
+    // Legacy shared email retained before the single-owner rule.
+    await prisma.personContact.create({data:{personId:second.id,contactMethodId:old.association.contactMethodId}});
+    await people.createRelation(first.id,{organizationId:organization.id,positionTitle:'Asesora',isCurrent:true},actor.id);
+    const profile=await people.profile(first.id,organization.id),input=profileInput(profile);
+    input.displayName='Ana corregida';input.contacts[0].value=randomUUID()+'@example.test';input.relations[0].positionTitle='Directora';input.relations[0].area='Cooperación';
+    const result=await people.editProfile(first.id,{...input,organizationId:organization.id},actor.id);
+    const fresh=await people.profile(first.id);contactMethodIds.push(...fresh.contacts.map(row=>row.contactMethodId));
+    expect(result).toMatchObject({displayName:'Ana corregida',version:2});expect(fresh.relations[0]).toMatchObject({positionTitle:'Directora',area:'Cooperación',isCurrent:true});
+    expect(fresh.contacts[0].contactMethod.value).toBe(input.contacts[0].value);
+    expect(await prisma.personContact.findUnique({where:{id:old.association.id}})).toMatchObject({isActive:false,notes:'Fuente conservada'});
+    expect((await people.profile(second.id)).contacts[0].contactMethod.value).toBe(old.association.contactMethod.value);
+    const noOp=await people.editProfile(first.id,profileInput(fresh),actor.id);expect(noOp.version).toBe(result.version);
+  });
+  it('un conflicto en contactos revierte también nombres, cargo e historial',async()=>{
+    const actor=await fixture(),target=await person(actor.id),organization=await org(actor.id);
+    const contact=await contacts.createAndAssociate({personId:target.id},{type:ContactType.EMAIL,value:randomUUID()+'@example.test'},actor.id);contactMethodIds.push(contact.association.contactMethodId);
+    await people.createRelation(target.id,{organizationId:organization.id,positionTitle:'Original',isCurrent:true},actor.id);
+    const before=await people.profile(target.id),input=profileInput(before);input.displayName='No persistir';input.relations[0].positionTitle='No persistir';input.expectedContacts[0].version+=1;
+    const historyCount=await prisma.directoryChange.count();
+    await expect(people.editProfile(target.id,input,actor.id)).rejects.toMatchObject({code:'VERSION_CONFLICT'});
+    expect(await people.profile(target.id)).toEqual(before);expect(await prisma.directoryChange.count()).toBe(historyCount);
+  });
+  it('el editor rechaza vínculos de otra persona y protege sus rutas HTTP',async()=>{
+    const actor=await fixture(),target=await person(actor.id),other=await person(actor.id),organization=await org(actor.id);
+    const foreign=await people.createRelation(other.id,{organizationId:organization.id,isCurrent:true},actor.id);
+    const input=profileInput(await people.profile(target.id));input.relations=[{id:foreign.id,expectedVersion:foreign.version,positionTitle:'Inválido',area:null}];
+    await expect(people.editProfile(target.id,input,actor.id)).rejects.toMatchObject({code:'INVALID_DIRECTORY'});
+    await request(app.getHttpServer()).get('/api/v1/people/'+target.id+'/profile').expect(401);
+    await request(app.getHttpServer()).put('/api/v1/people/'+target.id+'/profile').send(input).expect(401);
+    const auth=await cookie(actor);
+    await request(app.getHttpServer()).get('/api/v1/people/'+target.id+'/profile').set('Cookie',auth).expect(200);
+    await request(app.getHttpServer()).put('/api/v1/people/'+target.id+'/profile').set('Cookie',auth).send(profileInput(await people.profile(target.id))).expect(200);
+    await request(app.getHttpServer()).put('/api/v1/people/'+target.id+'/profile').set('Cookie',auth).send({...input,contacts:[{type:'EMAIL',value:'incorrecto'}]}).expect(400);
+  });
+
 });

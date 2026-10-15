@@ -6,16 +6,16 @@ import { ContactCreateForm } from './contact-create-form';
 import { Pagination,QueryState } from './directory-ui';
 import { Button } from '../../components/ui/actions';
 import { DataList } from '../../components/ui/lists';
-export function ContactSection({identity,actorPath,readOnly=false,presentation='default'}:{identity:AuthIdentity;actorPath:string;readOnly?:boolean;presentation?:'default'|'organization'}) {
+export function ContactSection({identity,actorPath,readOnly=false,presentation='default',hideActor=false,contactDetailsPath}:{identity:AuthIdentity;actorPath:string;readOnly?:boolean;presentation?:'default'|'organization';hideActor?:boolean;contactDetailsPath?:string}) {
   const pageSize=10;const [page,setPage]=useState(1),[creating,setCreating]=useState(false);const query=useContactAssociations(identity,actorPath+'/contacts?page='+page+'&pageSize='+pageSize);
   const organizationPresentation=presentation==='organization';
   return <section className={`min-w-0 space-y-4 break-words ${organizationPresentation?'organization-contact-section':''}`} aria-label={organizationPresentation?'Contactos':'Medios de contacto'}>
     <div className="organization-people-heading"><div><h2 className="text-xl font-semibold">{organizationPresentation?'Contactos':'Medios de contacto'}</h2>
-      {query.data&&<p>{query.data.total.toLocaleString('es-BO')} {query.data.total===1?'medio asociado':'medios asociados'}</p>}</div>
+      {query.data&&<p>{query.data.total.toLocaleString('es-BO')} {organizationPresentation?(query.data.total===1?'medio de contacto':'medios de contacto'):(query.data.total===1?'medio asociado':'medios asociados')}</p>}</div>
     {!readOnly&&identity.permissions.includes('directory.write')&&<Button onClick={()=>setCreating(true)}>{organizationPresentation?'Añadir medio de contacto':'Registrar medio de contacto'}</Button>}
     </div>
     {creating&&<ContactCreateForm identity={identity} actorPath={actorPath} organizationPresentation={organizationPresentation} saved={()=>setCreating(false)} cancel={()=>setCreating(false)}/>}
-    <QueryState pending={query.isPending} error={query.isError} retry={query.refetch}/>{query.data?.total===0&&<p>No hay medios de contacto asociados.</p>}
-    <DataList className="directory-contact-list">{query.data?.items.map(row=><ContactAssociationCard modern key={row.id} identity={identity} row={row} readOnly={readOnly} organizationPresentation={organizationPresentation} hideEmptyHistoryPagination={organizationPresentation}/>)}</DataList>
+    <QueryState pending={query.isPending} error={query.isError} retry={query.refetch}/>{query.data?.total===0&&<p>{organizationPresentation?'No hay medios de contacto registrados.':'No hay medios de contacto asociados.'}</p>}
+    <DataList className="directory-contact-list">{query.data?.items.map(row=><ContactAssociationCard modern contactDetailsPath={contactDetailsPath} key={row.id} identity={identity} row={row} readOnly={readOnly} hideActor={hideActor} organizationPresentation={organizationPresentation} hideEmptyHistoryPagination={organizationPresentation}/>)}</DataList>
     {query.data&&(!organizationPresentation||query.data.total>0)&&<Pagination page={page} total={query.data.total} pageSize={pageSize} onPage={setPage}/>}</section>;
 }

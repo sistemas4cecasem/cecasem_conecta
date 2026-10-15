@@ -32,7 +32,6 @@ function selectedOrganizationFilters(params: URLSearchParams) {
   const communications = params.get('withCommunications')?.trim();
   if (communications) selected.push({ key: 'withCommunications', label: communications === 'true' ? 'Con comunicaciones históricas' : communications === 'false' ? 'Sin comunicaciones históricas' : `Comunicaciones: ${communications}` });
 
-  if (params.get('categoryId')?.trim()) selected.push({ key: 'categoryId', label: 'Categoría aplicada' });
   return selected;
 }
 
@@ -54,7 +53,7 @@ function OrganizationsList({ identity }: { identity: AuthIdentity }) {
   const page = Number.isInteger(requestedPage) && requestedPage > 0 && requestedPage <= 1000000 ? requestedPage : 1;
   const name = params.get('name') ?? '';
   const query = new URLSearchParams();
-  for (const key of ['name', 'status', 'country', 'branchOfId', 'categoryId', 'withCommunications', 'pageSize']) {
+  for (const key of ['name', 'status', 'country', 'withCommunications', 'pageSize']) {
     const value = params.get(key);
     if (value !== null) query.set(key, value);
   }
@@ -73,6 +72,7 @@ function OrganizationsList({ identity }: { identity: AuthIdentity }) {
   function change(values: Record<string, string>) {
     const next = new URLSearchParams(params);
     next.delete('verificationStatus');
+    next.delete('categoryId');
     for (const [key, value] of Object.entries(values)) { if (value.trim()) next.set(key, value); else next.delete(key); }
     setParams(next);
   }
@@ -81,6 +81,7 @@ function OrganizationsList({ identity }: { identity: AuthIdentity }) {
     const next = new URLSearchParams(params);
     for (const key of organizationFilterKeys) next.delete(key);
     next.delete('verificationStatus');
+    next.delete('categoryId');
     next.set('page', '1');
     setParams(next);
   }
@@ -132,10 +133,9 @@ function OrganizationsList({ identity }: { identity: AuthIdentity }) {
             </div>
             <dl className="organization-row-metadata">
               <div className="organization-row-country"><dt>País</dt><dd>{row.country ?? 'País sin registrar'}</dd></div>
-              <div className="organization-row-categories"><dt>Categorías</dt><dd>{row.categories.length ? <ul aria-label={`Categorías de ${row.name}`}>
-                {row.categories.map(category => <li key={category.id}>{category.name}</li>)}
-              </ul> : <span>Sin categorías</span>}</dd></div>
-              {row.branchOf && <div className="organization-row-branch"><dt>Sede de</dt><dd>{row.branchOf.name}</dd></div>}
+              <div className="organization-row-interest-areas"><dt>Áreas de interés</dt><dd>{row.interestAreas.length ? <ul aria-label={`Áreas de interés de ${row.name}`}>
+                {row.interestAreas.map(area => <li key={area}>{area}</li>)}
+              </ul> : <span>Sin áreas de interés</span>}</dd></div>
             </dl>
           </div>
         </div>
@@ -149,7 +149,7 @@ export function OrganizationCreationPage() {
   const session = useSession(); const navigate = useNavigate();
   if (!session.data?.permissions.includes('directory.write')) return <p role="alert">No tienes permiso para crear organizaciones.</p>;
   return <section className="organization-form-page">
-    <PageHeader eyebrow="Directorio / Organizaciones" title="Crear organización" back={<ActionLink appearance="back" to="/organizations">Volver a organizaciones</ActionLink>} />
+    <PageHeader title="Crear organización" back={<ActionLink appearance="back" to="/organizations">Volver a organizaciones</ActionLink>} />
     <Surface className="organization-form-surface"><OrganizationForm identity={session.data} saved={row => navigate('/organizations/' + row.id)} cancel={() => navigate('/organizations')} /></Surface>
   </section>;
 }

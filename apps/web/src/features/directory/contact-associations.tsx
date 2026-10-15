@@ -1,3 +1,6 @@
+import { StatusBadge } from '../../components/ui/feedback';
+import { dateLabel } from './date-label';
+import { canReadDirectoryHistory } from './directory-permissions';
 import { ActionLink } from '../../components/ui/actions';
 import { ConsolidationProvenance } from './consolidation-provenance';
 import { useState } from 'react';
@@ -27,19 +30,20 @@ export function ContactReplacementForm({identity,row,target,done,cancel}:{identi
     <div className="flex flex-wrap gap-3"><button className={buttonClass} disabled={mutation.isPending}>Confirmar sustitución</button><button type="button" className={buttonClass} onClick={cancel}>Cancelar sustitución</button></div></form>;
 }
 
-export function ContactAssociationCard({identity,row,readOnly=false,replacement,modern=false,organizationPresentation=false,hideEmptyHistoryPagination=false}:{identity:AuthIdentity;row:ContactAssociation;readOnly?:boolean;replacement?:ContactMethod;modern?:boolean;organizationPresentation?:boolean;hideEmptyHistoryPagination?:boolean}) {
+export function ContactAssociationCard({identity,row,readOnly=false,replacement,modern=false,organizationPresentation=false,hideEmptyHistoryPagination=false,hideActor=false,contactDetailsPath}:{identity:AuthIdentity;row:ContactAssociation;readOnly?:boolean;replacement?:ContactMethod;modern?:boolean;organizationPresentation?:boolean;hideEmptyHistoryPagination?:boolean;hideActor?:boolean;contactDetailsPath?:string}) {
   const [editing,setEditing]=useState<ContactAssociation|null>(null),[ending,setEnding]=useState<ContactAssociation|null>(null),[confirmed,setConfirmed]=useState(false),[history,setHistory]=useState(false),[replacing,setReplacing]=useState(false),[reloadFailed,setReloadFailed]=useState(false),[detailsOpen,setDetailsOpen]=useState(false),[detailsVisited,setDetailsVisited]=useState(false);
   const mutation=useDirectoryMutation(identity);readOnly=readOnly||!!('person' in row?row.person.duplicateOfId:row.organization.duplicateOfId);const actorName='person' in row?row.person.displayName:row.organization.name;
+  const lastUpdatedAt = Date.parse(row.updatedAt) >= Date.parse(row.contactMethod.updatedAt) ? row.updatedAt : row.contactMethod.updatedAt;
   const contextDetails=<div className="organization-contact-details">{!('person' in row?row.person.isActive:row.organization.isActive)&&<p>Ficha del actor inactiva; asociación conservada.</p>}
     {row.sourceDescription&&<p>Fuente: {row.sourceDescription}</p>}{row.sourceUrl&&<p>URL de fuente: {row.sourceUrl}</p>}{row.notes&&<p>Observaciones: {row.notes}</p>}
     {!row.sourceDescription&&!row.sourceUrl&&!row.notes&&<p>No hay fuente ni observaciones adicionales.</p>}
   </div>;
-  const associationActions=(!readOnly&&identity.permissions.includes('directory.write')||identity.permissions.includes('directory.history.read'))&&<div className={`flex flex-wrap gap-3 ${organizationPresentation?'organization-contact-actions':''}`}>
+  const associationActions=(!readOnly&&identity.permissions.includes('directory.write')||canReadDirectoryHistory(identity))&&<div className={`flex flex-wrap gap-3 ${organizationPresentation?'organization-contact-actions':''}`}>
     {!readOnly&&identity.permissions.includes('directory.write')&&<><button className={buttonClass} onClick={()=>{setEditing(row);setEnding(null);}}>{organizationPresentation?'Editar fuente y observaciones':'Editar contexto'}</button>
       {row.isActive&&!ending&&<button className={buttonClass} onClick={()=>{setEnding(row);setConfirmed(false);mutation.reset();}}>{organizationPresentation?'Desvincular de esta organización':'Finalizar asociación'}</button>}
       {replacement&&row.isActive&&<button className={buttonClass} onClick={()=>setReplacing(true)}>Usar el medio existente para {actorName}</button>}</>}
     {!readOnly&&!row.isActive&&identity.permissions.includes('directory.write')&&<button className={buttonClass} disabled={mutation.isPending} onClick={()=>{void mutation.mutateAsync({path:associationPath(row)+'/status',method:'PATCH',body:{isActive:true,expectedVersion:row.version}}).catch(()=>undefined);}}>{organizationPresentation?'Volver a vincular con esta organización':'Reactivar asociación'}</button>}
-    {identity.permissions.includes('directory.history.read')&&<button className={buttonClass} onClick={()=>setHistory(!history)}>{history?(organizationPresentation?'Ocultar historial del vínculo':'Ocultar historial de asociación'):(organizationPresentation?'Ver historial del vínculo':'Ver historial de asociación')}</button>}
+    {canReadDirectoryHistory(identity)&&<button className={buttonClass} onClick={()=>setHistory(!history)}>{history?(organizationPresentation?'Ocultar historial del vínculo':'Ocultar historial de asociación'):(organizationPresentation?'Ver historial del vínculo':'Ver historial de asociación')}</button>}
   </div>;
   const endingForm=ending&&<form className="space-y-3" onSubmit={event=>{event.preventDefault();if(!confirmed)return;void mutation.mutateAsync({path:associationPath(row)+'/end',method:'PATCH',body:{expectedVersion:ending.version}}).then(()=>setEnding(null)).catch(()=>undefined);}}>
     <p>Finalizar esta asociación conserva el medio y los antecedentes; no cambia las asociaciones de otros actores.</p>
@@ -49,9 +53,14 @@ export function ContactAssociationCard({identity,row,readOnly=false,replacement,
     {reloadFailed&&<p role="alert">No se pudo recargar la asociación. Los datos se conservan.</p>}
     {replacing&&replacement&&<ContactReplacementForm identity={identity} row={row} target={replacement} done={()=>setReplacing(false)} cancel={()=>setReplacing(false)}/>}<ConsolidationProvenance origins={row.consolidationOrigins}/></>;
   const modificationHistory=history&&<DirectoryHistory modern={modern} headingLevel={modern?3:2} hideEmptyPagination={hideEmptyHistoryPagination} identity={identity} path={associationPath(row)+'/history'}/>;
-  const primary=<div className="organization-contact-primary"><p>{contactLabels[row.contactMethod.type]}: <ActionLink to={'/contact-methods/'+row.contactMethodId}>{row.contactMethod.value}</ActionLink></p>
-    <p>Asociación {row.isActive?'activa':'inactiva / antecedente'} · Medio: {conditionLabels[row.contactMethod.condition]}</p>
-    <p>{row.contactMethod.associationCount>1?'Medio compartido entre '+row.contactMethod.associationCount+' asociaciones.':'Medio con una asociación.'}</p></div>;
+  const primary=<div className="organization-contact-primary">
+    <div className="organization-contact-heading"><span className="organization-contact-type">{contactLabels[row.contactMethod.type]}</span>
+      <StatusBadge tone={row.isActive&&row.contactMethod.condition==='USABLE'?'success':'neutral'}>{!row.isActive?'Retirado':conditionLabels[row.contactMethod.condition]}</StatusBadge>
+    </div>
+    <ActionLink appearance="normal" className="organization-contact-value" to={contactDetailsPath?`${contactDetailsPath}/${row.contactMethodId}`:'organizationId' in row?`/organizations/${row.organizationId}/contacts/${row.contactMethodId}`:'/contact-methods/'+row.contactMethodId}>{row.contactMethod.value}</ActionLink>
+    {row.contactMethod.label&&<p className="organization-contact-label">{row.contactMethod.label}</p>}
+    <p className="organization-contact-updated">Última actualización: <time dateTime={lastUpdatedAt}>{dateLabel(lastUpdatedAt)}</time></p>
+  </div>;
   return <li className={`${modern?'ui-data-list-item':'min-w-0 space-y-3 rounded border p-3 break-words'} ${organizationPresentation?'organization-contact-row':''}`}>
     {organizationPresentation ? <>
       {primary}
@@ -61,12 +70,13 @@ export function ContactAssociationCard({identity,row,readOnly=false,replacement,
           {associationActions}{endingForm}{errors}{modificationHistory}</div>}
       </details>
     </> : <>
-      <div className={modern?'directory-contact-context space-y-3':'space-y-3'}><ActionLink className="inline-flex min-h-11" to={'personId' in row?'/people/'+row.personId:'/organizations/'+row.organizationId}>{actorName}</ActionLink>
+      <div className={modern?'directory-contact-context space-y-3':'space-y-3'}>{!hideActor&&<ActionLink className="inline-flex min-h-11" to={'personId' in row?'/people/'+row.personId:'/organizations/'+row.organizationId}>{actorName}</ActionLink>}
         <p>{contactLabels[row.contactMethod.type]}: <ActionLink to={'/contact-methods/'+row.contactMethodId}>{row.contactMethod.value}</ActionLink></p>
         <p>Asociación {row.isActive?'activa':'inactiva / antecedente'} · Medio: {conditionLabels[row.contactMethod.condition]}</p>
         <p>{row.contactMethod.associationCount>1?'Medio compartido entre '+row.contactMethod.associationCount+' asociaciones.':'Medio con una asociación.'}</p>
         {!('person' in row?row.person.isActive:row.organization.isActive)&&<p>Ficha del actor inactiva; asociación conservada.</p>}
         {row.sourceDescription&&<p>Fuente: {row.sourceDescription}</p>}{row.sourceUrl&&<p>URL de fuente: {row.sourceUrl}</p>}{row.notes&&<p>Observaciones: {row.notes}</p>}
+        {hideActor&&<p>Última actualización: <time dateTime={lastUpdatedAt}>{dateLabel(lastUpdatedAt)}</time></p>}
         {editing?<ContactContextForm identity={identity} initial={editing} saved={()=>setEditing(null)} cancel={()=>setEditing(null)}/>:associationActions}
         {endingForm}{errors}
       </div>{modificationHistory}

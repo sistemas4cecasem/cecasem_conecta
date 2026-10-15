@@ -14,7 +14,7 @@ function ActorPreview({ row, title }: { row: ConsolidationPreview['principal']; 
         <div><dt className="font-semibold">Apellidos</dt><dd>{row.familyNames ?? 'Sin dato'}</dd></div></> : <>
         <div><dt className="font-semibold">País / sigla / sitio</dt><dd>{row.country ?? 'Sin dato'} · {row.alias ?? 'Sin dato'} · {row.officialWebsite ?? 'Sin dato'}</dd></div>
         <div><dt className="font-semibold">Organización asociada / sedes</dt><dd>{row.branchOf?.name ?? 'Sin asociación a sede'} · {row.branches?.map(item => item.name).join(', ') || 'Sin sedes'}</dd></div>
-        <div><dt className="font-semibold">Categorías</dt><dd>{row.categories?.map(item => item.category.name).join(', ') || 'Sin categorías'}</dd></div></>}
+        <div><dt className="font-semibold">Áreas de interés</dt><dd>{row.interestAreas?.join(', ') || 'Sin áreas de interés'}</dd></div></>}
     </dl>
     <h5 className="font-semibold">Contactos y evidencias conservadas</h5><ul className="space-y-2">{row.contacts.map(item => <li key={item.id}>
       {item.contactMethod.value} · {item.isActive ? 'Asociación activa' : 'Asociación inactiva'} · {item.contactMethod.condition === 'USABLE' ? 'Utilizable' : 'No utilizable'}.
@@ -61,7 +61,7 @@ export function ConsolidationReview({ identity, candidate, completed }: { identi
     {principalId && <QueryState pending={preview.isPending} error={preview.isError} retry={preview.refetch} />}
     {row && <><div className="grid gap-3 lg:grid-cols-2"><ActorPreview row={row.principal} title="Principal" /><ActorPreview row={row.duplicate} title="Duplicado" /></div>
       <h4 className="font-semibold">Efectos que debes revisar</h4><ul className="list-inside list-disc space-y-2">{row.effects.map(effect => <li key={effect}>{effect}</li>)}</ul>
-      <p>Categorías añadidas: {row.categories.map(item => item.name).join(', ') || 'Ninguna'}.</p>
+      <p>Áreas de interés añadidas: {row.addedInterestAreas.join(', ') || 'Ninguna'}.</p>
       <ul className="space-y-2">{row.contacts.map(contact => <li key={contact.sourceId}>{contact.value}: {contact.outcome === 'CREATED' ? 'añadir asociación' : 'reutilizar asociación existente'}.
         {contact.contextConflict && ' Conflicto de contexto: se conserva el del principal; el otro permanece como evidencia histórica.'}
         {contact.reactivate && ' Se reactivará la asociación del principal.'}</li>)}</ul>

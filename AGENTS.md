@@ -812,7 +812,7 @@ Editable master data includes concepts such as:
 - institutional links;
 - positions;
 - contact methods;
-- categories.
+- organization interest areas.
 
 Authorized users may correct this information.
 

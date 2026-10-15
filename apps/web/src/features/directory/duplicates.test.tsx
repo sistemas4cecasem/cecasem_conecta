@@ -21,7 +21,7 @@ const actor = { id: aId, name: 'Fundación Esperanza', alias: null, country: 'Bo
 const candidate: DuplicateCandidate = { id, kind: 'organization', a: actor, b: { ...actor, id: bId, name: 'Fundacion Esperanza' }, score: 1,
   signals: ['SIMILAR_ORGANIZATION_NAMES', 'REVIEW_BRANCH_CONTEXT'], state: 'PENDING', version: 1, examinedVersionA: 1, examinedVersionB: 1,
   detectedAt: stamp, stale: false, resolvedAt: null, resolvedBy: null, principalId: null };
-const previewActor = { ...actor, label: actor.name, officialWebsite: 'https://example.test', branches: [], categories: [], contacts: [], relations: [] };
+const previewActor = { ...actor, label: actor.name, officialWebsite: 'https://example.test', branches: [], interestAreas: [], contacts: [], relations: [] };
 describe('Revisión humana de candidatos y consolidación', () => {
   let client = createQueryClient(), identity = reader, candidates: DuplicateCandidate[] = [], mode = 'ok', principal = '', loggedOut = false;
   let preview: ConsolidationPreview;
@@ -29,7 +29,7 @@ describe('Revisión humana de candidatos y consolidación', () => {
   beforeEach(() => {
     client = createQueryClient(); identity = { ...reader }; candidates = [{ ...candidate }]; mode = 'ok'; principal = ''; loggedOut = false;
     preview = { candidate, principal: previewActor, duplicate: { ...previewActor, id: bId, name: candidate.b.name, label: candidate.b.name! },
-      previewToken: 'a'.repeat(64), blockers: [], effects: ['Se conservan fichas, fuentes e historial.'], contacts: [], relations: [], categories: [] };
+      previewToken: 'a'.repeat(64), blockers: [], effects: ['Se conservan fichas, fuentes e historial.'], contacts: [], relations: [], addedInterestAreas: [] };
     fetchMock.mockReset(); fetchMock.mockImplementation((url) => {
       const path = url.replace('/api/v1/', ''), route = path.split('?')[0];
       if (route === 'auth/me') return Promise.resolve(Response.json(loggedOut ? {} : identity, { status: loggedOut ? 401 : 200 }));
@@ -58,7 +58,7 @@ describe('Revisión humana de candidatos y consolidación', () => {
         return Promise.resolve(Response.json({ principalId: principal }));
       }
       if (route === 'organizations/' + bId) return Promise.resolve(Response.json({ ...candidate.b, description: null, officialWebsite: null,
-        createdAt: stamp, updatedAt: stamp, categories: [], duplicateOfId: aId, duplicateOf: { id: aId, name: actor.name }, consolidatedRecords: [] }));
+        createdAt: stamp, updatedAt: stamp, interestAreas: [], duplicateOfId: aId, duplicateOf: { id: aId, name: actor.name }, consolidatedRecords: [] }));
       if (/\/(history|children|contacts|people)$/.test(route ?? '')) return Promise.resolve(Response.json({ items: [], total: 0, page: 1, pageSize: 25 }));
       return Promise.resolve(new Response(null, { status: 404 }));
     }); vi.stubGlobal('fetch', fetchMock);
@@ -101,7 +101,7 @@ describe('Revisión humana de candidatos y consolidación', () => {
       replacement: { previous: { id: bId, kind: 'organization', label: 'Fundacion Esperanza' }, next: { id: aId, kind: 'organization', label: 'Fundación Esperanza' } },
       changes: [{ field: 'duplicateOfOrganizationId', label: 'Consolidado en organización', previousValue: null, newValue: aId,
         previousReferences: [], newReferences: [{ id: aId, kind: 'organization', label: 'Fundación Esperanza' }], added: [], removed: [] }] }] }));
-    render(<QueryClientProvider client={client}><DirectoryHistory identity={reader} path={'organizations/' + bId + '/history'} /></QueryClientProvider>);
+    render(<QueryClientProvider client={client}><DirectoryHistory identity={{...reader,role:'ADMINISTRATOR'}} path={'organizations/' + bId + '/history'} /></QueryClientProvider>);
     expect(await screen.findByRole('heading', { name: /Consolidación de fichas/ })).toBeInTheDocument();
     expect(screen.getByText('Ficha original: Fundacion Esperanza · Principal: Fundación Esperanza')).toBeInTheDocument();
     expect(screen.queryByText(/Canal anterior:/)).not.toBeInTheDocument();
@@ -206,7 +206,7 @@ describe('Revisión humana de candidatos y consolidación', () => {
     expect(await screen.findByText(/Efectos que debes revisar/)).toBeInTheDocument();
   });
   it('ficha consolidada mantiene historial y enlace al principal, sin escrituras ordinarias', async () => {
-    candidates = [{ ...candidate, state: 'CONSOLIDATED', principalId: aId, resolvedAt: stamp }]; view(true, '/organizations/' + bId + '/control');
+    identity = {...reader,role:'ADMINISTRATOR'}; candidates = [{ ...candidate, state: 'CONSOLIDATED', principalId: aId, resolvedAt: stamp }]; view(true, '/organizations/' + bId + '/control');
     const banner = await screen.findByText(/Este registro fue consolidado en:/);
     expect(within(banner).getByRole('link', { name: actor.name })).toHaveAttribute('href', '/organizations/' + aId);
     expect(screen.queryByRole('button', { name: 'Editar ficha' })).not.toBeInTheDocument();

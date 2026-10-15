@@ -7,7 +7,6 @@ import { organizationCommunicationExists } from '../communications/communication
 
 export interface OrganizationFilters {
   country?: string;
-  categoryId?: string;
   status?: 'active' | 'inactive' | 'all';
   withCommunications?: boolean;
 }
@@ -23,7 +22,6 @@ export class OrganizationFilterService {
       conditions.push(filters.withCommunications ? exists : Prisma.sql`NOT (${exists})`);
     }
     if (filters.country !== undefined) conditions.push(Prisma.sql`lower(o.country) = lower(${filters.country})`);
-    if (filters.categoryId !== undefined) conditions.push(Prisma.sql`EXISTS (SELECT 1 FROM "OrganizationCategory" oc WHERE oc."organizationId" = o.id AND oc."categoryId" = ${filters.categoryId}::uuid)`);
     if (filters.status && filters.status !== 'all') conditions.push(Prisma.sql`o."isActive" = ${filters.status === 'active'}`);
     return conditions.length ? Prisma.join(conditions, ' AND ') : Prisma.sql`TRUE`;
   }

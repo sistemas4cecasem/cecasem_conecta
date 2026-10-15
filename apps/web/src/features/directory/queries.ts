@@ -1,7 +1,8 @@
+import { canReadDirectoryHistory } from './directory-permissions';
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { apiRequest } from '../../lib/api/client';
 import type { AuthIdentity } from '../auth/session';
-import { categorySchema, historyPageSchema, organizationSchema, pageSchema, personSchema, relationSchema } from './contracts';
+import { historyPageSchema, organizationSchema, pageSchema, personSchema, relationSchema } from './contracts';
 import { searchPermissionKey } from './search.contracts';
 import { invalidateDashboard } from '../home/dashboard-queries';
 
@@ -14,12 +15,8 @@ export function useOrganization(identity: AuthIdentity | null | undefined, id: s
   return useQuery({ queryKey: ['directory', identity?.id, 'organization', id], enabled: !!identity?.permissions.includes('directory.read'),
     queryFn: async ({ signal }) => organizationSchema.parse(await apiRequest('organizations/' + id, { signal })), retry: false });
 }
-export function useCategories(identity: AuthIdentity | null | undefined, path: string) {
-  return useQuery({ queryKey: ['directory', identity?.id, 'categories', path], enabled: !!identity?.permissions.includes('directory.read'),
-    queryFn: async ({ signal }) => pageSchema(categorySchema).parse(await apiRequest(path, { signal })), retry: false });
-}
 export function useHistory(identity: AuthIdentity | null | undefined, path: string) {
-  return useQuery({ queryKey: ['directory', identity?.id, 'history', path], enabled: !!identity?.permissions.includes('directory.history.read'),
+  return useQuery({ queryKey: ['directory', identity?.id, 'history', path, identity?.role], enabled: canReadDirectoryHistory(identity),
     queryFn: async ({ signal }) => historyPageSchema.parse(await apiRequest(path, { signal })), retry: false });
 }
 export function usePeople(identity:AuthIdentity|null|undefined,path:string,active=true) {
@@ -42,7 +39,7 @@ export function useDirectoryMutation(identity: AuthIdentity | null | undefined) 
 }
 export async function clearForbiddenDirectory(client: QueryClient, identity: AuthIdentity | null): Promise<void> {
   const predicate = (query: { queryKey: readonly unknown[] }) => query.queryKey[0] === 'directory' &&
-    (!identity || query.queryKey[1] !== identity.id || (['search', 'organizations'].includes(String(query.queryKey[2])) && (query.queryKey[4] !== identity.role || query.queryKey[5] !== searchPermissionKey(identity))) || !identity.permissions.includes(query.queryKey[2] === 'duplicate-preview' ? 'directory.duplicates.manage'
+    (!identity || query.queryKey[1] !== identity.id || (['search', 'organizations'].includes(String(query.queryKey[2])) && (query.queryKey[4] !== identity.role || query.queryKey[5] !== searchPermissionKey(identity))) || (query.queryKey[2] === 'history' && !canReadDirectoryHistory(identity)) || !identity.permissions.includes(query.queryKey[2] === 'duplicate-preview' ? 'directory.duplicates.manage'
       : String(query.queryKey[2]) === 'history' ? 'directory.history.read' : 'directory.read'));
   await client.cancelQueries({ predicate });
   client.removeQueries({ predicate });

@@ -1,5 +1,5 @@
 import { Transform, Type } from 'class-transformer';
-import { ArrayMaxSize, ArrayUnique, IsArray, IsBoolean, IsIn, IsInt, IsString, IsUUID, Length, Max, MaxLength, Min, ValidateIf } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsString, IsUUID, Length, Max, MaxLength, Min, ValidateIf } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 const trim = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim().replace(/\s+/gu, ' ') : value;
@@ -10,15 +10,11 @@ export class OrganizationInputDto {
   @ApiPropertyOptional({ nullable: true }) @Transform(trim) @ValidateIf((_o, v) => v != null) @IsString() @MaxLength(5000) description?: string | null;
   @ApiPropertyOptional({ nullable: true }) @Transform(trim) @ValidateIf((_o, v) => v != null) @IsString() @MaxLength(2048) officialWebsite?: string | null;
   @ApiPropertyOptional({ nullable: true, format: 'uuid' }) @ValidateIf((_o, v) => v != null) @IsUUID() branchOfId?: string | null;
-  @ApiPropertyOptional({ type: [String] }) @ValidateIf((_o, v) => v !== undefined) @IsArray() @ArrayUnique() @ArrayMaxSize(100) @IsUUID(undefined, { each: true }) categoryIds?: string[];
+  @ApiPropertyOptional({ type: [String], maxItems: 100, description: 'Áreas de interés libres, de 1 a 150 caracteres cada una.' })
+  @ValidateIf((_o, v) => v !== undefined) @IsArray() @ArrayMaxSize(100)
+  @IsString({ each: true }) @Length(1, 150, { each: true }) interestAreas?: string[];
 }
 export class OrganizationEditDto extends OrganizationInputDto {
-  @ApiProperty({ minimum: 1 }) @IsInt() @Min(1) expectedVersion!: number;
-}
-export class CategoryInputDto {
-  @ApiProperty({ maxLength: 150 }) @Transform(trim) @IsString() @Length(1, 150) name!: string;
-}
-export class CategoryEditDto extends CategoryInputDto {
   @ApiProperty({ minimum: 1 }) @IsInt() @Min(1) expectedVersion!: number;
 }
 export class DirectoryStatusDto {
@@ -40,6 +36,4 @@ export class OrganizationQueryDto extends DirectoryQueryDto {
   @ApiPropertyOptional({ description: 'Antecedentes externos enviados/recibidos, incluidas invalidaciones; excluye notas.' })
   @Transform(({ value }: { value: unknown }) => value === 'true' ? true : value === 'false' ? false : value)
   @ValidateIf((_o, v) => v !== undefined) @IsBoolean() withCommunications?: boolean;
-  @ApiPropertyOptional({ format: 'uuid', description: 'Una categoría asociada; sin coincidencias devuelve una lista vacía.' })
-  @ValidateIf((_o, v) => v !== undefined) @IsUUID() categoryId?: string;
 }

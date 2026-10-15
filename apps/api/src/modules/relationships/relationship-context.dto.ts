@@ -1,9 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsUUID, ValidateIf } from 'class-validator';
+import { IsIn, IsUUID, ValidateIf } from 'class-validator';
 import { ProcessResult, ProcessState } from '../../generated/prisma/client';
 import type { TargetSummary } from '../directory/directory-target.service';
 import { CommunicationHistoryItemDto, CommunicationHistorySummaryDto } from '../communications/communication-history.dto';
 export class RelationshipContextQueryDto {
+  @ApiPropertyOptional({ enum: ['person-profile'], description: 'Perfil personal: procesos por correo y sin contexto de organizaciones vinculadas.' })
+  @ValidateIf((_o, v) => v !== undefined) @IsIn(['person-profile']) view?: 'person-profile';
   @ApiPropertyOptional({ format: 'uuid' }) @ValidateIf((_o, v) => v !== undefined) @IsUUID() organizationId?: string;
   @ApiPropertyOptional({ format: 'uuid' }) @ValidateIf((_o, v) => v !== undefined) @IsUUID() personId?: string;
 }
@@ -60,6 +62,12 @@ export class RelatedOrganizationContextDto {
   @ApiProperty({ type: [ActorContextDto] }) items!: ActorContextDto[];
   @ApiProperty() total!: number;
 }
+export class EmailProcessesDto {
+  @ApiProperty({ type: [String] }) addresses!: string[];
+  @ApiProperty({ type: [Object], description: 'Procesos distintos con coincidencia exacta de remitente o destinatario, incluidas comunicaciones invalidadas.' }) items!: { id: string; purpose: string; state: ProcessState }[];
+  @ApiProperty() total!: number;
+}
 export class RelationshipContextDto extends ActorContextDto {
+  @ApiPropertyOptional({ type: EmailProcessesDto }) emailProcesses?: EmailProcessesDto;
   @ApiProperty({ type: RelatedOrganizationContextDto }) relatedOrganizationContext!: RelatedOrganizationContextDto;
 }

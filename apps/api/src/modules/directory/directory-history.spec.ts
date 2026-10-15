@@ -8,7 +8,7 @@ describe('Contrato y operaciones de historial del directorio', () => {
   const snapshot = { previous: [], next: [reference], related: [], replacement: null };
   it('representa una relación añadida con su etiqueta histórica, sin resolver el nombre actual', () => {
     const change = changeContract({ field: 'categoryIds', previousValue: [], newValue: ['category'], referenceSnapshot: snapshot });
-    expect(change).toMatchObject({ label: 'Categorías', previousReferences: [], newReferences: [reference], added: [reference], removed: [] });
+    expect(change).toMatchObject({ label: 'Categorías (histórico)', previousReferences: [], newReferences: [reference], added: [reference], removed: [] });
   });
   it('distingue retiradas y conservadas aunque las etiquetas hayan cambiado', () => {
     const other = { id: 'other', kind: 'category' as const, label: 'Educación' };

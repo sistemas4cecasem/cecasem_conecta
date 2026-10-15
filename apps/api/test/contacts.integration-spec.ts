@@ -50,15 +50,13 @@ describe('Medios de contacto PostgreSQL y HTTP',()=>{
     const exact=await request(app.getHttpServer()).get('/api/v1/contact-methods/email?email='+encodeURIComponent(' CONTACTO@FUNDACION.ORG ')).set('Cookie',auth).expect(200);
     const exactContact=(exact.body as {contact:{version:number}}).contact;
     expect(exactContact).toMatchObject({id:association.contactMethodId,type:'EMAIL',value:'contacto@fundacion.org',associationCount:1});expect(exactContact).not.toHaveProperty('normalizedValue');expect(exactContact).not.toHaveProperty('_count');
-    const reused=await request(app.getHttpServer()).post('/api/v1/people/'+p.id+'/contacts/existing').set('Cookie',auth).send({contactMethodId:association.contactMethodId,expectedMethodVersion:exactContact.version,notes:'Información personal'}).expect(200);
-    const reusedBody=reused.body as {outcome:string;association:{id:string}};
-    expect(reusedBody.outcome).toBe('created');expect(await prisma.contactMethod.count()).toBe(1);
+    await request(app.getHttpServer()).post('/api/v1/people/'+p.id+'/contacts/existing').set('Cookie',auth).send({contactMethodId:association.contactMethodId,expectedMethodVersion:exactContact.version,notes:'Información personal'}).expect(409);
+    expect(await prisma.personContact.count()).toBe(0);
     await request(app.getHttpServer()).put('/api/v1/organization-contacts/'+association.id).set('Cookie',auth).send({expectedVersion:1,sourceDescription:'Fuente corregida'}).expect(200);
-    expect((await contacts.getAssociation('person',reusedBody.association.id)).notes).toBe('Información personal');
     const current=await contacts.get(association.contactMethodId);
     await request(app.getHttpServer()).put('/api/v1/contact-methods/'+current.id).set('Cookie',auth).send({value:'contacto.corregido@fundacion.org',expectedVersion:current.version,confirmShared:true}).expect(200);
     await request(app.getHttpServer()).patch('/api/v1/organization-contacts/'+association.id+'/end').set('Cookie',auth).send({expectedVersion:2}).expect(200);
-    for(const path of ['contact-methods','contact-methods/'+current.id,'contact-methods/'+current.id+'/people','contact-methods/'+current.id+'/organizations','contact-methods/'+current.id+'/history','organization-contacts/'+association.id,'organization-contacts/'+association.id+'/history','people/'+p.id+'/contacts','organizations/'+o.id+'/contacts'])await request(app.getHttpServer()).get('/api/v1/'+path).set('Cookie',auth).expect(200);
+    for(const path of ['contact-methods','contact-methods/'+current.id,'contact-methods/'+current.id+'/people','contact-methods/'+current.id+'/organizations','contact-methods/'+current.id+'/history','organization-contacts/'+association.id,'organization-contacts/'+association.id+'/history','people/'+p.id+'/contacts','organizations/'+o.id+'/contacts'])await request(app.getHttpServer()).get('/api/v1/'+path).set('Cookie',auth).expect(path.endsWith('/history') && role !== UserRole.ADMINISTRATOR ? 403 : 200);
     const reactivated=await request(app.getHttpServer()).patch('/api/v1/organization-contacts/'+association.id+'/status').set('Cookie',auth).send({isActive:true,expectedVersion:3}).expect(200);
     expect(reactivated.body).toMatchObject({id:association.id,isActive:true,version:4});
     expect(await prisma.auditEvent.findFirst({where:{action:AuditAction.CONTACT_ASSOCIATION_STATUS_CHANGED,actorUserId:actor.id,organizationContactId:association.id}})).not.toBeNull();
@@ -72,8 +70,8 @@ describe('Medios de contacto PostgreSQL y HTTP',()=>{
     const first=await contacts.createAndAssociate({organizationId:o.id},{type:ContactType.EMAIL,value:'contacto@fundacion.org'},actor.id);methodIds.push(first.association.contactMethodId);
     const duplicate=await request(app.getHttpServer()).post('/api/v1/people/'+p.id+'/contacts').set('Cookie',auth).send({type:'EMAIL',value:' CONTACTO@FUNDACION.ORG ',notes:'Borrador'}).expect(409);
     expect(duplicate.body).toMatchObject({code:'CONTACT_EMAIL_EXISTS',details:{contactMethodId:first.association.contactMethodId}});expect(await prisma.personContact.count()).toBe(0);
-    const current=await contacts.get(first.association.contactMethodId);await contacts.associate({personId:p.id},current.id,{expectedMethodVersion:current.version,notes:'Borrador'},actor.id);
-    expect(await prisma.contactMethod.count()).toBe(1);expect(await prisma.personContact.count()).toBe(1);expect(await prisma.organizationContact.count()).toBe(1);
+    const current=await contacts.get(first.association.contactMethodId);await expect(contacts.associate({personId:p.id},current.id,{expectedMethodVersion:current.version,notes:'Borrador'},actor.id)).rejects.toMatchObject({code:'CONTACT_EMAIL_EXISTS'});
+    expect(await prisma.contactMethod.count()).toBe(1);expect(await prisma.personContact.count()).toBe(0);expect(await prisma.organizationContact.count()).toBe(1);
   });
   it('asociación repetida es 200 no-op: conserva fuente, estado, versión e historial',async()=>{
     const actor=await fixture(),auth=await cookie(actor),p=await person(actor.id),m=await method(actor.id);
@@ -102,14 +100,14 @@ describe('Medios de contacto PostgreSQL y HTTP',()=>{
   });
   it('compartido exige confirmación; sumar otro actor invalida una corrección anterior',async()=>{
     const actor=await fixture(),p=await person(actor.id),o=await org(actor.id),m=await method(actor.id);await contacts.associate({personId:p.id},m.id,{expectedMethodVersion:1},actor.id);const old=await contacts.get(m.id);
-    await contacts.associate({organizationId:o.id},m.id,{expectedMethodVersion:old.version},actor.id);
+    await prisma.organizationContact.create({data:{organizationId:o.id,contactMethodId:m.id}});await prisma.contactMethod.update({where:{id:m.id},data:{version:{increment:1}}});
     await expect(contacts.correct(m.id,{value:'new@example.test',expectedVersion:old.version,confirmShared:true},actor.id)).rejects.toMatchObject({code:'VERSION_CONFLICT'});
     const current=await contacts.get(m.id);await expect(contacts.correct(m.id,{value:'new@example.test',expectedVersion:current.version,confirmShared:false},actor.id)).rejects.toMatchObject({code:'SHARED_CONTACT_CONFIRMATION_REQUIRED'});
     await contacts.correct(m.id,{value:'new@example.test',expectedVersion:current.version,confirmShared:true},actor.id);expect((await contacts.listActor({personId:p.id},{page:1,pageSize:25})).items[0].contactMethod.value).toBe('new@example.test');expect((await contacts.listActor({organizationId:o.id},{page:1,pageSize:25})).items[0].contactMethod.value).toBe('new@example.test');
   });
   it('corrección hacia email existente no fusiona; sustitución explícita conserva A y B',async()=>{
     const actor=await fixture(),p=await person(actor.id),o=await org(actor.id),a=await method(actor.id,'mal@example.test'),b=await method(actor.id,'bien@example.test');const ap=await contacts.associate({personId:p.id},a.id,{expectedMethodVersion:1,notes:'Antecedente'},actor.id);
-    await contacts.associate({organizationId:o.id},a.id,{expectedMethodVersion:2},actor.id);
+    await prisma.organizationContact.create({data:{organizationId:o.id,contactMethodId:a.id}});await prisma.contactMethod.update({where:{id:a.id},data:{version:{increment:1}}});
     await expect(contacts.correct(a.id,{value:b.value,expectedVersion:3,confirmShared:true},actor.id)).rejects.toMatchObject({code:'CONTACT_VALUE_EXISTS',details:{contactMethodId:b.id}});
     const result=await contacts.replace('person',ap.association.id,{contactMethodId:b.id,expectedMethodVersion:1,expectedVersion:1,confirmed:true,notes:'Revisado para nuevo canal'},actor.id);
     expect(result.previous.isActive).toBe(false);expect(result.association.contactMethodId).toBe(b.id);expect(result.association.notes).toBe('Revisado para nuevo canal');expect(await prisma.contactMethod.count()).toBe(2);expect((await contacts.listActor({organizationId:o.id},{page:1,pageSize:25})).items[0].isActive).toBe(true);expect((await contacts.get(a.id)).value).toBe('mal@example.test');
@@ -125,7 +123,7 @@ describe('Medios de contacto PostgreSQL y HTTP',()=>{
     await both.promise;release.release();const results=await Promise.all(pending);expect(results.map(result=>result.status).sort()).toEqual([201,409]);
     const success=results.find(result=>result.status===201)!;const id=(success.body as {association:{contactMethodId:string}}).association.contactMethodId;methodIds.push(id);
     expect(results.find(result=>result.status===409)!.body).toMatchObject({code:'CONTACT_EMAIL_EXISTS',details:{contactMethodId:id}});expect(await prisma.contactMethod.count()).toBe(1);expect(await prisma.personContact.count()+await prisma.organizationContact.count()).toBe(1);
-    const current=await contacts.get(id);await contacts.associate(results[0].status===409?{personId:p.id}:{organizationId:o.id},id,{expectedMethodVersion:current.version},actor.id);expect(await prisma.personContact.count()).toBe(1);expect(await prisma.organizationContact.count()).toBe(1);
+    const current=await contacts.get(id);await expect(contacts.associate(results[0].status===409?{personId:p.id}:{organizationId:o.id},id,{expectedMethodVersion:current.version},actor.id)).rejects.toMatchObject({code:'CONTACT_EMAIL_EXISTS'});expect(await prisma.personContact.count()+await prisma.organizationContact.count()).toBe(1);
   });
   it('asociación simultánea conserva un par y un único historial de creación',async()=>{
     const actor=await fixture(),p=await person(actor.id),m=await method(actor.id);const both=barrier(),release=barrier();let calls=0;const lock=contacts.lockMethod.bind(contacts);
@@ -138,7 +136,7 @@ describe('Medios de contacto PostgreSQL y HTTP',()=>{
     const a=contacts.correct(m.id,{value:'first@example.test',expectedVersion:1,confirmShared:false},actor.id);await entered.promise;const b=contacts.correct(m.id,{value:'second@example.test',expectedVersion:1,confirmShared:false},actor.id);await queued.promise;release.release();const results=await Promise.allSettled([a,b]);expect(results[0].status).toBe('fulfilled');expect(results[1]).toMatchObject({status:'rejected',reason:{code:'VERSION_CONFLICT'}});expect((await contacts.get(m.id)).value).toBe('first@example.test');
   });
   it('SQL protege EMAIL normalizado, pares y FK; PHONE no recibe unicidad global',async()=>{
-    const actor=await fixture(),p=await person(actor.id),o=await org(actor.id),m=await method(actor.id,'nombre.apellido+proyecto@gmail.com');const pc=await contacts.associate({personId:p.id},m.id,{expectedMethodVersion:1},actor.id);const oc=await contacts.associate({organizationId:o.id},m.id,{expectedMethodVersion:2},actor.id);
+    const actor=await fixture(),p=await person(actor.id),o=await org(actor.id),m=await method(actor.id,'nombre.apellido+proyecto@gmail.com');const pc=await contacts.associate({personId:p.id},m.id,{expectedMethodVersion:1},actor.id);const oc={association:await prisma.organizationContact.create({data:{organizationId:o.id,contactMethodId:m.id}})};
     await contacts.end('person',pc.association.id,{expectedVersion:1},actor.id);
     for(const data of [{type:ContactType.EMAIL,value:m.value,normalizedValue:m.value},{type:ContactType.EMAIL,value:'UPPER@example.test',normalizedValue:'UPPER@example.test'},{type:ContactType.EMAIL,value:'x@example.test',normalizedValue:null}])await expect(prisma.contactMethod.create({data})).rejects.toThrow();
     for(const data of [{personId:p.id,contactMethodId:m.id},{personId:randomUUID(),contactMethodId:m.id},{personId:p.id,contactMethodId:randomUUID()}])await expect(prisma.personContact.create({data})).rejects.toThrow();
@@ -178,4 +176,28 @@ describe('Medios de contacto PostgreSQL y HTTP',()=>{
     const actor=await fixture(),auth=await cookie(actor),p=await person(actor.id);jest.spyOn(Logger.prototype,'error').mockImplementation(()=>undefined);jest.spyOn(history,'record').mockRejectedValueOnce(new Error('private fixture'));
     const response=await request(app.getHttpServer()).post('/api/v1/people/'+p.id+'/contacts').set('Cookie',auth).send({type:'EMAIL',value:'rollback@example.test'}).expect(500);expect(JSON.stringify(response.body)).not.toContain('fixture');expect(await prisma.contactMethod.count()).toBe(0);expect(await prisma.personContact.count()).toBe(0);
   });
+  it('un correo no se puede vincular a otra organización ni a otra persona, aun retirado',async()=>{
+    const actor=await fixture(),first=await org(actor.id),second=await org(actor.id),p=await person(actor.id),m=await method(actor.id);
+    const initial=await contacts.associate({organizationId:first.id},m.id,{expectedMethodVersion:1},actor.id);
+    for(const target of [{organizationId:second.id},{personId:p.id}])await expect(contacts.associate(target,m.id,{expectedMethodVersion:2},actor.id)).rejects.toMatchObject({code:'CONTACT_EMAIL_EXISTS'});
+    await contacts.end('organization',initial.association.id,{expectedVersion:1},actor.id);
+    await expect(contacts.associate({personId:p.id},m.id,{expectedMethodVersion:2},actor.id)).rejects.toMatchObject({code:'CONTACT_EMAIL_EXISTS'});
+    expect(await prisma.personContact.count()).toBe(0);expect(await prisma.organizationContact.count()).toBe(1);
+  });
+  it('el alta contextual y la edición del perfil rechazan un correo ocupado sin guardar parcialmente',async()=>{
+    const actor=await fixture(),owner=await org(actor.id),destination=await org(actor.id),p=await person(actor.id),m=await method(actor.id);
+    await contacts.associate({organizationId:owner.id},m.id,{expectedMethodVersion:1},actor.id);
+    const count=await prisma.person.count();
+    await expect(people.createInOrganization(destination.id,{personMode:'new',person:{displayName:'No guardar'},isCurrent:true,contactMethods:[{type:ContactType.EMAIL,value:m.value}]},actor.id)).rejects.toMatchObject({code:'CONTACT_EMAIL_EXISTS'});
+    expect(await prisma.person.count()).toBe(count);
+    await expect(people.editProfile(p.id,{displayName:'No guardar',expectedVersion:1,expectedContacts:[],contacts:[{type:ContactType.EMAIL,value:m.value}],relations:[]},actor.id)).rejects.toMatchObject({code:'CONTACT_EMAIL_EXISTS'});
+    expect((await people.get(p.id)).displayName).toBe('Persona QA');expect(await prisma.personContact.count()).toBe(0);
+  });
+  it('dos destinos concurrentes no pueden apropiarse del mismo correo',async()=>{
+    const actor=await fixture(),p=await person(actor.id),o=await org(actor.id),m=await method(actor.id);
+    const result=await Promise.allSettled([contacts.associate({personId:p.id},m.id,{expectedMethodVersion:1},actor.id),contacts.associate({organizationId:o.id},m.id,{expectedMethodVersion:1},actor.id)]);
+    expect(result.filter(row=>row.status==='fulfilled')).toHaveLength(1);expect(result.filter(row=>row.status==='rejected')).toHaveLength(1);
+    expect(await prisma.personContact.count()+await prisma.organizationContact.count()).toBe(1);
+  });
+
 });

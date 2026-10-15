@@ -52,7 +52,7 @@ describe('Filtrado de navegación por capabilities recibidas', () => {
     expect(activeNavigationRoute(pathname)).toBe(expected);
   });
   it.each([
-    ['/directory/search', 'Búsqueda'], ['/organizations/categories', 'Categorías'], ['/organizations/fixture', 'Organizaciones'],
+    ['/directory/search', 'Búsqueda'], ['/organizations/fixture', 'Organizaciones'],
   ])('conserva el contexto de la ruta %s sin mostrarla como entrada del sidebar', (pathname, expected) => {
     expect(activeNavigationContext(pathname, ['directory.read'])).toBe(expected);
   });

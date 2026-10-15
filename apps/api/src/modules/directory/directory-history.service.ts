@@ -6,7 +6,7 @@ import type { PageQueryDto } from './directory.dto';
 import { changeContract, historyObjectTypes, readHistorySnapshot, referenceIds, type HistoryReference, type HistoryReplacement, type HistoryValue } from './directory-history.contract';
 export type { HistoryValue } from './directory-history.contract';
 export interface FieldChange { field: string; previousValue: HistoryValue; newValue: HistoryValue }
-export type DirectoryTarget = { organizationId: string } | { categoryId: string } | { personId: string } | { personRelationId: string } | { contactMethodId: string } | { personContactId: string } | { organizationContactId: string };
+export type DirectoryTarget = { organizationId: string } | { personId: string } | { personRelationId: string } | { contactMethodId: string } | { personContactId: string } | { organizationContactId: string };
 export interface HistoryRecordOptions { operationId: string; replacement: HistoryReplacement }
 @Injectable()
 export class DirectoryHistoryService {
@@ -39,14 +39,13 @@ export class DirectoryHistoryService {
     const related = await this.related(target, tx);
     const ids = (kind: HistoryReference['kind']) => [...new Set(effective.flatMap(change => [change.previousValue, change.newValue]
       .flatMap(value => { const ref = referenceIds(change.field, value); return ref?.kind === kind ? ref.ids : []; })))].sort();
-    const categoryIds = ids('category'), organizationIds = ids('organization'), contactIds = ids('contactMethod'), personIds = ids('person');
-    const [categories, organizations, contacts, people] = await Promise.all([
-      categoryIds.length ? tx.category.findMany({ where: { id: { in: categoryIds } }, select: { id: true, name: true } }) : [],
+    const organizationIds = ids('organization'), contactIds = ids('contactMethod'), personIds = ids('person');
+    const [organizations, contacts, people] = await Promise.all([
       organizationIds.length ? tx.organization.findMany({ where: { id: { in: organizationIds } }, select: { id: true, name: true } }) : [],
       contactIds.length ? tx.contactMethod.findMany({ where: { id: { in: contactIds } }, select: { id: true, value: true } }) : [],
       personIds.length ? tx.person.findMany({where:{id:{in:personIds}},select:{id:true,displayName:true}}) : [],
     ]);
-    const labels = new Map([...categories, ...organizations, ...contacts.map(row => ({ id: row.id, name: row.value })), ...people.map(row => ({id:row.id,name:row.displayName}))].map(row => [row.id, row.name]));
+    const labels = new Map([...organizations, ...contacts.map(row => ({ id: row.id, name: row.value })), ...people.map(row => ({id:row.id,name:row.displayName}))].map(row => [row.id, row.name]));
     const refs = (field: string, value: HistoryValue): HistoryReference[] => {
       const referenced = referenceIds(field, value);
       return referenced?.ids.map(id => ({ id, kind: referenced.kind, label: labels.get(id) ?? null })) ?? [];

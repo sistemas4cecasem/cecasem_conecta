@@ -23,6 +23,13 @@ export class DirectoryTargetService {
     ]);
   }
 
+  /** Correos asociados, incluidos los anteriores, para rastrear comunicaciones históricas exactas. */
+  async personEmailAddresses(personId: string, tx: Prisma.TransactionClient): Promise<string[]> {
+    const rows = await tx.personContact.findMany({ where: { personId, contactMethod: { type: 'EMAIL' } },
+      select: { contactMethod: { select: { normalizedValue: true } } } });
+    return [...new Set(rows.flatMap(row => row.contactMethod.normalizedValue ? [row.contactMethod.normalizedValue] : []))].sort();
+  }
+
   /** Organizaciones vigentes distintas, acotadas y sin los locks de validación de escritura. */
   async currentOrganizationContext(personId: string, limit: number, tx: Prisma.TransactionClient): Promise<{ items: TargetSummary[]; total: number }> {
     const where = { personRelations: { some: { personId, isCurrent: true } } };

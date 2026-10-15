@@ -161,7 +161,7 @@ export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'cr
         }
       } catch (failure) { if (failure instanceof ApiError) throw failure; }
     }
-    if (response.status === 409 && /^(duplicate-candidates(?:\/|$)|users(?:\/|$)|email-accounts(?:\/|$)|organizations(?:\/|$)|categories(?:\/|$)|people(?:\/|$)|person-organization-relations(?:\/|$)|contact-methods(?:\/|$)|person-contacts(?:\/|$)|organization-contacts(?:\/|$))/.test(path)) {
+    if (response.status === 409 && /^(duplicate-candidates(?:\/|$)|users(?:\/|$)|email-accounts(?:\/|$)|organizations(?:\/|$)|people(?:\/|$)|person-organization-relations(?:\/|$)|contact-methods(?:\/|$)|person-contacts(?:\/|$)|organization-contacts(?:\/|$))/.test(path)) {
       const conflicts: Record<string, string> = {
         DUPLICATE_CANDIDATE_STALE: 'Las fichas cambiaron. Reevalúa la coincidencia antes de decidir.',
         ACTOR_ALREADY_CONSOLIDATED: 'Esta ficha fue consolidada. Abre el registro principal.',
@@ -172,12 +172,10 @@ export async function apiRequest<T>(path: string, options: Omit<RequestInit, 'cr
         CONSOLIDATION_CONFIRMATION_REQUIRED: 'Revisa y confirma los efectos de consolidar.',
         VERSION_CONFLICT: 'La ficha cambió desde que la abriste. Recarga y revisa tus cambios.',
         INVALID_HIERARCHY: 'La asociación produciría un ciclo entre sedes. Elige otra organización.',
-        CATEGORY_EXISTS: 'Ya existe una categoría con ese nombre.',
-        CATEGORY_INACTIVE: 'No puedes asignar una categoría inactiva.',
         LAST_ADMINISTRATOR: 'Debe permanecer al menos un Administrador activo.',
         EMAIL_EXISTS: 'El correo ya está registrado.', ACCOUNT_EXISTS: 'El buzón ya está registrado.',
         ACCOUNT_INACTIVE: 'El buzón está inactivo.', USERNAME_EXHAUSTED: 'No se pudo generar un nombre de usuario disponible.',
-        CONTACT_EMAIL_EXISTS: 'Este correo ya está registrado. Revisa su ficha y confirma si deseas asociarlo.',
+        CONTACT_EMAIL_EXISTS: 'Este correo ya está registrado. Utiliza otro correo; no se puede compartir entre personas u organizaciones.',
         CONTACT_VALUE_EXISTS: 'Este correo pertenece a otro medio. Puedes sustituir explícitamente la asociación conservando el antecedente.',
         SHARED_CONTACT_CONFIRMATION_REQUIRED: 'Confirma la corrección global después de revisar las asociaciones afectadas.',
         CONTACT_UNUSABLE: 'El medio está marcado como no utilizable. Un Administrador puede cambiar su condición.',

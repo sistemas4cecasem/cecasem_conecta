@@ -47,7 +47,7 @@ describe('Exportación Excel', () => {
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();expect(fetchMock.mock.calls.some(([url])=>url.includes('/data-exchange/') || url.includes('/categories?'))).toBe(false);
   });
   it('UI 2.10 filtros conservan defaults por conjunto y no guardan al escribir',async()=>{
-    view();const type=screen.getByLabelText('Tipo de información');await userEvent.selectOptions(type,'organizations');await screen.findByLabelText('Categoría');
+    view();const type=screen.getByLabelText('Tipo de información');await userEvent.selectOptions(type,'organizations');expect(screen.queryByLabelText('Categoría')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Estado')).toHaveValue('active');await userEvent.type(screen.getByLabelText('País'),'Bolivia');
     await userEvent.selectOptions(type,'contacts');expect(screen.getByLabelText('Estado de persona')).toHaveValue('active');expect(screen.getByLabelText('Vínculos institucionales')).toHaveValue('all');
     await userEvent.selectOptions(type,'processes');expect(screen.getByLabelText('Estado del proceso')).toHaveValue('all');

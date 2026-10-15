@@ -12,9 +12,7 @@
   .organization-form-group > * + * { margin-top: 0.75rem; }
   .organization-basic-fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.875rem 1rem; }
   .organization-basic-fields > * { min-width: 0; }
-  .organization-selection-summary { color: var(--color-app-text); font-size: 0.875rem; }
-  .organization-option-list,
-  .organization-category-options {
+  .organization-option-list {
     max-height: 14rem;
     min-width: 0;
     overflow: auto;
@@ -25,10 +23,8 @@
     background: var(--color-app-background);
   }
   .organization-option-list > label + label { border-top: 1px solid var(--color-app-border); }
-  .organization-category-options { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.125rem 1rem; }
-  .organization-category-options > label { min-width: 0; }
-  .organization-selected-categories { display: flex; flex-wrap: wrap; gap: 0.375rem; min-width: 0; padding: 0; list-style: none; }
-  .organization-selected-categories li { max-width: 100%; border: 1px solid var(--color-app-border); border-radius: 999px; padding: 0.125rem 0.5rem; background: var(--color-brand-soft); color: var(--color-app-text); font-size: 0.75rem; line-height: 1.5; overflow-wrap: anywhere; }
+  .organization-interest-areas { display: flex; flex-wrap: wrap; gap: 0.375rem; min-width: 0; padding: 0; list-style: none; }
+  .organization-interest-areas li { display: flex; align-items: center; gap: 0.5rem; max-width: 100%; border: 1px solid var(--color-app-border); border-radius: 999px; padding: 0.125rem 0.5rem; background: var(--color-brand-soft); color: var(--color-app-text); font-size: 0.75rem; line-height: 1.5; overflow-wrap: anywhere; }
   .organization-form-note { color: var(--color-app-muted); font-size: 0.8125rem; }
   .organization-form-actions { display: flex; flex-wrap: wrap; gap: 0.625rem; }
 
@@ -46,28 +42,45 @@
   .organization-person-success { border-left: 3px solid var(--color-brand-accent); border-radius: var(--radius-control); padding: 0.625rem 0.75rem; background: var(--color-brand-soft); color: var(--color-app-text); }
   .organization-person-edit { min-width: 0; border: 1px solid var(--color-app-border); border-radius: var(--radius-control); padding: 1rem; background: var(--color-app-background); }
   .organization-person-success a { color: var(--color-brand-primary); font-weight: 600; text-decoration: none; }
+  .person-profile-form, .person-profile-fields { display: grid; gap: 1.5rem; min-width: 0; }
+  .person-profile-fields { border: 0; padding: 0; }
+  .person-profile-form .ui-form-section > * + * { margin-top: 0.75rem; }
+  .person-profile-form .organization-person-contact-method + .organization-person-contact-method { margin-top: 0.875rem; }
+  .person-profile-role { min-width: 0; padding: 0.75rem 0; border: 0; }
+  .person-profile-role legend, .person-profile-roles h3 { color: var(--color-brand-primary); font-weight: 600; font-size: 0.875rem; }
+  .person-profile-roles { display: grid; gap: 0.75rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--color-app-border); }
+  .person-profile-contact-list { display: grid; gap: 0.75rem; list-style: none; padding: 0; margin: 0; }
+  .person-profile-contact-list > li { min-width: 0; padding: 0.875rem; border: 1px solid var(--color-app-border); border-radius: var(--radius-control); overflow-wrap: anywhere; }
+  .person-profile-contact-type, .person-profile-contact-updated { color: var(--color-app-muted); font-size: 0.75rem; }
+  .person-profile-contact-value { color: var(--color-brand-primary); font-weight: 600; margin-block: 0.375rem; }
+  .person-profile-contact-updated { margin-top: 0.75rem; }
   .organization-person-form { display: grid; gap: 1rem; min-width: 0; border: 1px solid var(--color-app-border); border-radius: var(--radius-control); padding: 1rem; background: var(--color-app-background); }
   .organization-person-form fieldset { display: grid; gap: 0.75rem; min-width: 0; border: 0; border-top: 1px solid var(--color-app-border); padding: 0.875rem 0 0; }
   .organization-person-form legend { padding-right: 0.375rem; color: var(--color-brand-primary); font-size: 0.9375rem; font-weight: 600; }
-  .organization-person-current input { flex: 0 0 auto; margin-top: 0.25rem; accent-color: var(--color-brand-primary); }
   .organization-person-identity,
   .organization-person-contacts,
   .organization-person-episode { display: grid; gap: 0.75rem; min-width: 0; }
-  .organization-person-contact-method { display: grid; gap: 0.75rem; min-width: 0; border: 1px solid var(--color-app-border); border-radius: var(--radius-control); padding: 0.75rem; }
-  .organization-person-current { display: flex; align-items: flex-start; gap: 0.5rem; min-height: 2.75rem; }
+  .organization-person-contact-method { display: grid; gap: 0.75rem; min-width: 0; border: 2px solid color-mix(in srgb, var(--color-brand-primary) 35%, var(--color-app-border)); border-radius: var(--radius-control); padding: 1rem; background: var(--color-app-surface); }
+  .organization-person-contact-method + .organization-person-contact-method { margin-top: 0.375rem; }
+  .organization-person-contact-heading { color: var(--color-brand-primary); font-weight: 600; }
   .organization-person-actions { display: flex; flex-wrap: wrap; gap: 0.625rem; }
   .organization-person-actions > * { flex: 0 1 auto; max-width: 100%; }
   .organization-detail .directory-contact-context > *,
   .organization-detail .directory-episode-context > * { margin-top: 0; }
   .organization-detail .directory-contact-list > li,
   .organization-detail .directory-episode-list > li { padding-block: 0.75rem; }
-  .organization-detail .organization-episode-primary {
-    min-width: 0;
-    border-left: 3px solid var(--color-brand-accent);
-    border-radius: var(--radius-control);
-    padding: 0.625rem 0.75rem;
-    background: var(--color-brand-soft);
-  }
+  .organization-detail .organization-episode-row { display: block; padding: 1rem; background: var(--color-app-surface); }
+  .organization-episode-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem 1rem; }
+  .organization-episode-person { min-width: 0; overflow-wrap: anywhere; color: var(--color-brand-primary); font-size: 1rem; font-weight: 600; }
+  .organization-episode-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: 0.75rem 1.5rem; padding-block: 0.25rem 0.5rem; }
+  .organization-episode-fields > div { min-width: 0; }
+  .organization-episode-fields dt { color: var(--color-app-muted); font-size: 0.75rem; }
+  .organization-episode-fields dd { margin: 0.25rem 0 0; color: var(--color-app-text); font-size: 0.875rem; font-weight: 500; overflow-wrap: anywhere; }
+  .organization-detail .organization-contact-row { display: block; padding: 1rem; background: var(--color-app-surface); }
+  .organization-contact-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
+  .organization-contact-type, .organization-contact-updated { color: var(--color-app-muted); font-size: 0.75rem; }
+  .organization-contact-value { color: var(--color-brand-primary); font-size: 1rem; font-weight: 600; overflow-wrap: anywhere; }
+  .organization-contact-label { color: var(--color-app-text); font-size: 0.875rem; }
   .organization-detail .organization-contact-primary { display: grid; gap: 0.25rem; min-width: 0; }
   .organization-detail .organization-contact-primary > p:first-child { color: var(--color-brand-primary); font-weight: 600; }
   .organization-detail .organization-contact-details,
@@ -123,11 +136,9 @@
     border-radius: var(--radius-control);
     padding: 0.875rem 1rem;
     background: var(--color-app-surface);
-    text-decoration: none;
   }
-  .organization-summary-metric > span:first-child { color: var(--color-app-muted); font-size: 0.8125rem; }
-  .organization-summary-metric > strong { color: var(--color-brand-primary); font-size: 1.25rem; }
-  .organization-summary-metric > span:last-child { grid-column: 1 / -1; color: var(--color-brand-primary); font-size: 0.8125rem; text-decoration: none; }
+  .organization-summary-metric > dt { color: var(--color-app-muted); font-size: 0.8125rem; }
+  .organization-summary-metric > dd { margin: 0; color: var(--color-brand-primary); font-size: 1.25rem; font-weight: 700; }
   .organization-people-filters { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem 1rem; min-width: 0; }
   .organization-record-details { min-width: 0; border-top: 1px solid var(--color-app-border); padding-top: 0.5rem; }
   .organization-record-details > summary { display: flex; align-items: center; min-height: 2.75rem; color: var(--color-brand-primary); cursor: pointer; font-size: 0.875rem; font-weight: 600; text-decoration: none; }
@@ -188,4 +199,8 @@
     .organization-form-actions > *,
     .organization-contact-form-actions > * { flex: 1 1 auto; }
   }
+}
+
+@layer components {
+  .organization-detail .organization-branch-card { display: block; padding: 1rem; background: var(--color-app-surface); }
 }

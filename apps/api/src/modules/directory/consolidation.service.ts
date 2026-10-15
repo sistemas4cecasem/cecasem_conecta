@@ -38,7 +38,6 @@ export class ConsolidationService {
       const row = await tx.organization.findUniqueOrThrow({ where: { id }, include: {
         branchOf: { select: labelSelect }, branches: { select: labelSelect, orderBy: { id: 'asc' } },
         consolidatedRecords: { select: labelSelect, orderBy: { id: 'asc' } },
-        categories: { include: { category: { select: { id: true, name: true, isActive: true } } }, orderBy: { categoryId: 'asc' } },
         contacts: { include: contactInclude, orderBy: { id: 'asc' } },
         personRelations: { include: relationInclude, orderBy: { id: 'asc' } },
       } });
@@ -88,14 +87,15 @@ export class ConsolidationService {
         personId: targetActor.personId, organizationId: targetActor.organizationId, positionTitle: source.positionTitle,
         area: source.area, startDate: source.startDate, sourcePerson: source.person, sourceOrganization: source.organization };
     });
-    const categories = principal.kind === 'organization' && duplicate.kind === 'organization'
-      ? duplicate.categories.filter(item => !principal.categories.some(kept => kept.categoryId === item.categoryId)).map(item => item.category) : [];
-    const previewToken = createHash('sha256').update(JSON.stringify({ candidateVersion: row.version, principal, duplicate, contacts, relations, categories,
+    const addedInterestAreas = principal.kind === 'organization' && duplicate.kind === 'organization'
+      ? duplicate.interestAreas.filter(area => !principal.interestAreas.some(kept => kept.toLowerCase() === area.toLowerCase())) : [];
+    if (principal.kind === 'organization' && principal.interestAreas.length + addedInterestAreas.length > 100) blockers.push('INVALID_DIRECTORY');
+    const previewToken = createHash('sha256').update(JSON.stringify({ candidateVersion: row.version, principal, duplicate, contacts, relations, addedInterestAreas,
     })).digest('hex');
-    return { candidate: candidateContract(row), principal, duplicate, contacts, relations, categories,
+    return { candidate: candidateContract(row), principal, duplicate, contacts, relations, addedInterestAreas,
       blockers: [...new Set(blockers)], previewToken,
       effects: ['Se conservan ambas fichas, sus referencias, fuentes e historial.',
-        'Se mantienen los campos del principal y se añaden las categorías ausentes.',
+        'Se mantienen los campos del principal y se añaden las áreas de interés ausentes.',
         'Los contactos activos se añaden o reutilizan; los existentes inactivos se reactivan con confirmación.',
         'Los conflictos conservan el contexto del principal y la evidencia original en la ficha consolidada.',
         'Los vínculos vigentes se representan explícitamente en el principal; los episodios originales permanecen intactos.',
@@ -181,10 +181,10 @@ export class ConsolidationService {
       await this.reconcileRelations(kind, id, principal.id, duplicate.relations, actorId, tx);
       const principalChanges: FieldChange[] = [];
       if (principal.kind === 'organization' && duplicate.kind === 'organization') {
-        if (preview.categories.length) {
-          await tx.organizationCategory.createMany({ data: preview.categories.map(category => ({ organizationId: principal.id, categoryId: category.id })) });
-          principalChanges.push({ field: 'categoryIds', previousValue: principal.categories.map(item => item.categoryId).sort(),
-            newValue: [...principal.categories.map(item => item.categoryId), ...preview.categories.map(item => item.id)].sort() });
+        if (preview.addedInterestAreas.length) {
+          const merged = [...principal.interestAreas, ...preview.addedInterestAreas];
+          await tx.organization.update({ where: { id: principal.id }, data: { interestAreas: merged } });
+          principalChanges.push({ field: 'interestAreas', previousValue: principal.interestAreas, newValue: merged });
         }
         await tx.organization.update({ where: { id: duplicate.id }, data: { duplicateOfId: principal.id, version: { increment: 1 } } });
         await tx.organization.update({ where: { id: principal.id }, data: { version: { increment: 1 } } });

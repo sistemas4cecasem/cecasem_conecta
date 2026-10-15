@@ -14,7 +14,7 @@ const fieldLabels: Record<string, string> = {
   duplicateOfOrganizationId: 'Consolidado en organización', duplicateOfPersonId: 'Consolidado en persona',
   consolidatedOrganizationIds: 'Organizaciones consolidadas', consolidatedPersonIds: 'Personas consolidadas',
   name: 'Nombre', country: 'País', alias: 'Sigla o nombre alternativo', description: 'Descripción', officialWebsite: 'Sitio oficial',
-  branchOfId: 'Sede de organización', parentId: 'Sede de organización', categoryIds: 'Categorías', isActive: 'Estado', displayName: 'Nombre de presentación',
+  branchOfId: 'Sede de organización', parentId: 'Sede de organización', interestAreas: 'Áreas de interés', categoryIds: 'Categorías (histórico)', isActive: 'Estado', displayName: 'Nombre de presentación',
   givenNames: 'Nombres', familyNames: 'Apellidos', positionTitle: 'Cargo', area: 'Área o función', isCurrent: 'Vigencia',
   startDate: 'Fecha inicial', endDate: 'Fecha final', sourceDescription: 'Fuente', sourceUrl: 'URL de fuente', notes: 'Observaciones',
   value: 'Valor del medio', label: 'Etiqueta del medio', condition: 'Condición global del medio',

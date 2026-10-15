@@ -2,12 +2,11 @@ import { z } from 'zod';
 export const consolidationOriginSchema = z.object({ source: z.object({ id:z.string(),path:z.string(),label:z.string() }),
   outcome:z.enum(['CREATED','REUSED','KEPT_PRINCIPAL']),sourceVersion:z.number(),targetVersion:z.number(),resolvedAt:z.string().nullable(),
   resolvedBy:z.object({id:z.string(),givenNames:z.string(),familyNames:z.string(),isActive:z.boolean()}).nullable() });
-export const categorySchema = z.object({ id: z.string(), name: z.string(), isActive: z.boolean(), version: z.number().int().positive(), createdAt: z.string(), updatedAt: z.string() });
 export const importProvenanceSchema = z.object({ id: z.string(), originalFilename: z.string(), createdAt: z.string() }).nullable();
 export const organizationSchema = z.object({ duplicateOfId:z.string().nullable().optional(),duplicateOf:z.object({id:z.string(),name:z.string()}).nullable().optional(),consolidatedRecords:z.array(z.object({id:z.string(),name:z.string()})).optional(), id: z.string(), name: z.string(), country: z.string().nullable(), alias: z.string().nullable(),
   description: z.string().nullable(), officialWebsite: z.string().nullable(), isActive: z.boolean(), version: z.number().int().positive(),
   branchOfId: z.string().nullable(), branchOf: z.object({ id: z.string(), name: z.string(), isActive: z.boolean() }).nullable(),
-  categories: z.array(categorySchema), createdAt: z.string(), updatedAt: z.string(), dataImportBatchId:z.string().uuid().nullable().optional(), dataImportBatch:importProvenanceSchema.optional() });
+  interestAreas: z.array(z.string()), createdAt: z.string(), updatedAt: z.string(), dataImportBatchId:z.string().uuid().nullable().optional(), dataImportBatch:importProvenanceSchema.optional() });
 export const historyReferenceSchema = z.object({id:z.string(),kind:z.enum(['organization','category','person','contactMethod']),label:z.string().nullable()});
 const historyValueSchema=z.union([z.string(),z.boolean(),z.array(z.string()),z.null()]);
 export const historyChangeSchema=z.object({field:z.string(),label:z.string(),previousValue:historyValueSchema,newValue:historyValueSchema,
@@ -18,7 +17,6 @@ export const historySchema=z.object({operationId:z.string(),createdAt:z.string()
 export const pageSchema = <T extends z.ZodType>(item: T) => z.object({ items: z.array(item), total: z.number().int().nonnegative(), page: z.number().int().positive(), pageSize: z.number().int().positive() });
 export const historyPageSchema = pageSchema(historySchema);
 export type Organization = z.infer<typeof organizationSchema>;
-export type Category = z.infer<typeof categorySchema>;
 export type HistoryOperation = z.infer<typeof historySchema>;
 export type HistoryChange = z.infer<typeof historyChangeSchema>;
 export type HistoryReference = z.infer<typeof historyReferenceSchema>;
@@ -28,10 +26,9 @@ export const organizationFormSchema = z.object({
   officialWebsite: text(2048).refine(value => {
     if (!value) return true;
     try { const url = new URL(value); return ['http:', 'https:'].includes(url.protocol) && !!url.hostname && !url.username && !url.password; } catch { return false; }
-  }, 'Introduce un sitio http o https válido.'), branchOfId: z.string(), categoryIds: z.array(z.string()).max(100),
+  }, 'Introduce un sitio http o https válido.'), branchOfId: z.string(), interestAreas: z.array(text(150).pipe(z.string().min(1, 'El área no puede estar vacía.'))).max(100, 'Puedes añadir hasta 100 áreas de interés.'),
 });
 export type OrganizationFormValues = z.infer<typeof organizationFormSchema>;
-export const categoryFormSchema = z.object({ name: text(150).pipe(z.string().min(1, 'El nombre es obligatorio.')) });
 
 export const personInstitutionalStatusSchema = z.enum(['NO_KNOWN_LINKS','HISTORICAL_ONLY','CURRENT']);
 export const personSchema = z.object({ duplicateOfId:z.string().nullable().optional(),duplicateOf:z.object({id:z.string(),displayName:z.string()}).nullable().optional(),consolidatedRecords:z.array(z.object({id:z.string(),displayName:z.string()})).optional(), id:z.string(),displayName:z.string(),givenNames:z.string().nullable(),familyNames:z.string().nullable(),

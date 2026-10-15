@@ -1,12 +1,10 @@
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsIn, IsInt, IsString, IsUUID, Length, Max, Min, ValidateIf } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsString, Length, Max, Min, ValidateIf } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export class SearchQueryDto {
   @ApiPropertyOptional({ description: 'Solo organizaciones: país completo.', maxLength: 150 })
   @Transform(({ value }: { value: unknown }) => typeof value === 'string' ? value.trim().replace(/\s+/gu, ' ') : value)
   @ValidateIf((_o, v) => v !== undefined) @IsString() @Length(1, 150) organizationCountry?: string;
-  @ApiPropertyOptional({ format: 'uuid', description: 'Solo organizaciones.' })
-  @ValidateIf((_o, v) => v !== undefined) @IsUUID() organizationCategoryId?: string;
   @ApiPropertyOptional({ enum: ['active', 'inactive', 'all'], description: 'Solo organizaciones; intersección con includeInactive.' })
   @ValidateIf((_o, v) => v !== undefined) @IsIn(['active', 'inactive', 'all']) organizationStatus?: 'active' | 'inactive' | 'all';
   @ApiPropertyOptional({ description: 'Solo organizaciones: antecedentes externos, incluidas invalidaciones.' })

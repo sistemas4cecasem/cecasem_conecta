@@ -1,1 +1,1 @@
-export const organizationFilterKeys = ['country', 'categoryId', 'status', 'withCommunications'] as const;
+export const organizationFilterKeys = ['country', 'status', 'withCommunications'] as const;

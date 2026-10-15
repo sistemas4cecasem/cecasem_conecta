@@ -51,5 +51,5 @@ export function PeoplePage() {
 export function PersonCreationPage() {
   const identity=useSession().data;const navigate=useNavigate();
   if(!identity?.permissions.includes('directory.write')) return <p role="alert">No tienes permiso para crear personas.</p>;
-  return <section className="ui-editor-page"><PageHeader eyebrow="Directorio / Personas externas" title="Crear persona externa" back={<ActionLink appearance="back" to="/people">Volver a personas</ActionLink>} /><Surface><PersonForm identity={identity} saved={row=>navigate('/people/'+row.id)} cancel={()=>navigate('/people')}/></Surface></section>;
+  return <section className="ui-editor-page"><PageHeader title="Crear persona externa" back={<ActionLink appearance="back" to="/people">Volver a personas</ActionLink>} /><Surface><PersonForm identity={identity} saved={row=>navigate('/people/'+row.id)} cancel={()=>navigate('/people')}/></Surface></section>;
 }

@@ -10,7 +10,7 @@ import { personFormSchema,relationFormSchema,type Person,type PersonRelation } f
 const stamp='2026-10-02T00:00:00.000Z';
 const identity:AuthIdentity={id:'qa',givenNames:'QA',familyNames:'Personas',username:'qa',email:'qa@example.test',role:'RESEARCH',permissions:['directory.read','directory.write','directory.history.read']};
 const base:Person={id:'person',displayName:'Ana QA',givenNames:null,familyNames:null,isActive:true,version:1,createdAt:stamp,updatedAt:stamp,currentRelationsCount:0,institutionalStatus:'NO_KNOWN_LINKS'};
-const org={id:'org-a',name:'Organización A',country:null,alias:null,description:null,officialWebsite:null,branchOfId:null,branchOf:null,categories:[],isActive:true,version:1,createdAt:stamp,updatedAt:stamp,};
+const org={id:'org-a',name:'Organización A',country:null,alias:null,description:null,officialWebsite:null,branchOfId:null,branchOf:null,interestAreas:[],isActive:true,version:1,createdAt:stamp,updatedAt:stamp,};
 const episode:PersonRelation={id:'episode-a',personId:base.id,organizationId:org.id,positionTitle:'Coordinadora',area:null,isCurrent:true,startDate:null,endDate:null,sourceDescription:null,sourceUrl:null,notes:null,version:1,createdAt:stamp,updatedAt:stamp,person:{id:base.id,displayName:base.displayName,isActive:true},organization:{id:org.id,name:org.name,isActive:true}};
 const page=(items:unknown[],total=items.length)=>({items,total,page:1,pageSize:25});
 describe('Personas y episodios institucionales en UI',()=>{
@@ -48,7 +48,7 @@ describe('Personas y episodios institucionales en UI',()=>{
         if(contextualFailure)return Promise.resolve(Response.json({code:'PERSON_INACTIVE',message:'La persona está inactiva. Debe reactivarse antes de asociarla a una organización.'},{status:409}));
         const input=JSON.parse(String(options?.body)) as {personMode:'new'|'existing';person?:{displayName:string;givenNames:string;familyNames:string};personId?:string;positionTitle:string;area:string;isCurrent:boolean;startDate:string|null;endDate:string|null;sourceDescription:string;sourceUrl:string;notes:string};
         const person:Person=input.personMode==='new'?{...base,id:'context-person',...input.person,currentRelationsCount:0,institutionalStatus:'NO_KNOWN_LINKS'}:{...row};
-        const created:PersonRelation={...episode,id:'context-episode-'+relations.length,personId:person.id,organizationId:org.id,positionTitle:input.positionTitle||null,area:input.area||null,isCurrent:input.isCurrent,startDate:input.startDate,endDate:input.endDate,sourceDescription:input.sourceDescription||null,sourceUrl:input.sourceUrl||null,notes:input.notes||null,person:{id:person.id,displayName:person.displayName,isActive:person.isActive},organization:{id:org.id,name:org.name,isActive:true}};
+        const created:PersonRelation={...episode,id:'context-episode-'+relations.length,personId:person.id,organizationId:org.id,positionTitle:input.positionTitle||null,area:input.area||null,isCurrent:input.isCurrent,startDate:input.startDate??null,endDate:input.endDate??null,sourceDescription:input.sourceDescription||null,sourceUrl:input.sourceUrl||null,notes:input.notes||null,person:{id:person.id,displayName:person.displayName,isActive:person.isActive},organization:{id:org.id,name:org.name,isActive:true}};
         relations=[...relations,created];const currentRelationsCount=relations.filter(relation=>relation.personId===person.id&&relation.isCurrent).length;
         const result={person:{...person,currentRelationsCount,institutionalStatus:currentRelationsCount?'CURRENT':relations.some(relation=>relation.personId===person.id)?'HISTORICAL_ONLY':'NO_KNOWN_LINKS'},relation:created};
         if(contextualDeferred)return new Promise<Response>(resolve=>{contextualResolve=resolve;});
@@ -62,6 +62,16 @@ describe('Personas y episodios institucionales en UI',()=>{
       if(path==='organizations/org-a')return Promise.resolve(Response.json(org));
       if(path==='organizations/org-b')return Promise.resolve(Response.json({...org,id:'org-b',name:'Organización B'}));
       if(path==='people'&&method==='POST'){row={...base,...JSON.parse(String(options?.body)) as object};return Promise.resolve(Response.json(row,{status:201}));}
+      if(path.startsWith('people/person/profile')&&method==='GET'){
+        if(detailStatus!==200||state==='reload-error')return Promise.resolve(Response.json({message:'internal detail'},{status:detailStatus!==200?detailStatus:500}));
+        return Promise.resolve(Response.json({person:row,contacts:[],relations}));
+      }
+      if(path==='people/person/profile'&&method==='PUT'){
+        if(conflicting)return Promise.resolve(Response.json({code:'VERSION_CONFLICT'},{status:409}));
+        const input=JSON.parse(String(options?.body));row={...row,displayName:input.displayName,version:row.version+1};
+        relations=relations.map(relation=>({...relation,...input.relations.find((update:{id:string})=>update.id===relation.id)}));
+        return Promise.resolve(Response.json(row));
+      }
       if(path==='people/person'&&method==='PUT'){
         if(conflicting)return Promise.resolve(Response.json({code:'VERSION_CONFLICT'},{status:409}));
         row={...row,...JSON.parse(String(options?.body)) as object,version:row.version+1};return Promise.resolve(Response.json(row));
@@ -104,7 +114,7 @@ describe('Personas y episodios institucionales en UI',()=>{
     expect(within(screen.getByRole('main')).queryByRole('link',{name:'Organizaciones del directorio'})).not.toBeInTheDocument();
     expect(screen.getAllByRole('link',{name:'Organizaciones'}).every(link=>link.getAttribute('href')==='/organizations')).toBe(true);
     await user.click(screen.getByRole('link',{name:row.displayName}));expect(await screen.findByRole('heading',{name:row.displayName})).toBeVisible();
-    expect(screen.getByText('Directorio / Personas externas')).toBeVisible();
+    expect(screen.queryByText('Directorio / Personas externas')).not.toBeInTheDocument();
     await user.click(screen.getByRole('link',{name:'Volver a personas'}));
     expect(await screen.findByRole('heading',{name:'Personas externas'})).toBeVisible();
   });
@@ -162,13 +172,13 @@ describe('Personas y episodios institucionales en UI',()=>{
     app('/people/person');await screen.findByRole('heading',{name:'Ana QA'});
     expect(screen.getAllByRole('link',{name:'Personas externas'}).every(link=>link.getAttribute('aria-current')==='page')).toBe(true);
     expect(screen.getByRole('link',{name:'Volver a personas'})).toHaveAttribute('href','/people');
-    expect(screen.getByText('Directorio / Personas externas')).toBeVisible();
+    expect(screen.queryByText('Directorio / Personas externas')).not.toBeInTheDocument();
   });
   it('conserva el contexto de organización al abrir, recargar, volver y navegar con Atrás y Adelante',async()=>{
     relations=[episode];const user=userEvent.setup();appWithBrowserHistory('/organizations/org-a/people');
     const personLink=await screen.findByRole('link',{name:'Ana QA'});expect(personLink).toHaveAttribute('href','/organizations/org-a/people/person');
     await user.click(personLink);expect(await screen.findByRole('heading',{name:'Ana QA'})).toBeVisible();
-    expect(screen.getByText('Directorio / Organizaciones / Organización A / Personas')).toBeVisible();
+    expect(screen.queryByText('Directorio / Organizaciones / Organización A / Personas')).not.toBeInTheDocument();
     expect(screen.getByRole('link',{name:'Volver a Organización A · Personas'})).toHaveAttribute('href','/organizations/org-a/people');
     expect(screen.getAllByRole('link',{name:/^Organizaciones$/}).every(link=>link.getAttribute('aria-current')==='page')).toBe(true);
     expect(screen.getAllByRole('link',{name:'Personas externas'}).every(link=>link.getAttribute('aria-current')!=='page')).toBe(true);
@@ -176,7 +186,7 @@ describe('Personas y episodios institucionales en UI',()=>{
     window.history.back();expect(await screen.findByRole('heading',{name:'Organización A'})).toBeVisible();
     expect(screen.getByLabelText('URL actual')).toHaveTextContent('/organizations/org-a/people');
     window.history.forward();expect(await screen.findByRole('heading',{name:'Ana QA'})).toBeVisible();
-    expect(screen.getByText('Directorio / Organizaciones / Organización A / Personas')).toBeVisible();
+    expect(screen.queryByText('Directorio / Organizaciones / Organización A / Personas')).not.toBeInTheDocument();
     await user.click(screen.getByRole('link',{name:'Volver a Organización A · Personas'}));
     expect(await screen.findByRole('heading',{name:'Organización A'})).toBeVisible();
     expect(screen.getByLabelText('URL actual')).toHaveTextContent('/organizations/org-a/people');
@@ -184,7 +194,7 @@ describe('Personas y episodios institucionales en UI',()=>{
   it('restaura el contexto del enlace profundo tras recarga y usa la organización abierta como origen',async()=>{
     relations=[episode,{...episode,id:'episode-b',organizationId:'org-b',organization:{id:'org-b',name:'Organización B',isActive:true}}];
     app('/organizations/org-b/people/person');expect(await screen.findByRole('heading',{name:'Ana QA'})).toBeVisible();
-    expect(screen.getByText('Directorio / Organizaciones / Organización B / Personas')).toBeVisible();
+    expect(screen.queryByText('Directorio / Organizaciones / Organización B / Personas')).not.toBeInTheDocument();
     expect(screen.getByRole('link',{name:'Volver a Organización B · Personas'})).toHaveAttribute('href','/organizations/org-b/people');
     expect(screen.getAllByRole('link',{name:/^Organizaciones$/}).every(link=>link.getAttribute('aria-current')==='page')).toBe(true);
   });
@@ -200,158 +210,103 @@ describe('Personas y episodios institucionales en UI',()=>{
   });
   it('muestra dos organizaciones simultáneas y períodos desconocidos',async()=>{
     relations=[episode,{...episode,id:'episode-b',organizationId:'org-b',positionTitle:'Consultora',organization:{id:'org-b',name:'Organización B',isActive:true}}];app('/people/person');
-    expect(await screen.findByRole('link',{name:'Organización A'})).toBeVisible();expect(screen.getByRole('link',{name:'Organización B'})).toBeVisible();expect(screen.getAllByText('Período: Inicio desconocido → Actualidad')).toHaveLength(2);
+    expect(await screen.findByText('Organización A')).toBeVisible();expect(screen.getByText('Organización B')).toBeVisible();expect(screen.getByText('Coordinadora')).toBeVisible();expect(screen.getByText('Consultora')).toBeVisible();
   });
-  it('registra un episodio nuevo y mantiene el histórico',async()=>{
-    relations=[{...episode,isCurrent:false}];const user=userEvent.setup();app('/people/person');await user.click(await screen.findByRole('button',{name:'Registrar nuevo episodio'}));
-    await user.click(await screen.findByRole('radio',{name:'Organización A'}));await user.type(screen.getByLabelText('Cargo (opcional)'),'Directora');await user.click(screen.getByRole('button',{name:'Registrar episodio'}));
-    expect(await screen.findByText('Vigente · Cargo: Directora')).toBeVisible();expect(screen.getByText('Histórico / finalizado · Cargo: Coordinadora')).toBeVisible();
-    const call=fetchMock.mock.calls.find(([url,options])=>url.endsWith('/relations')&&options?.method==='POST');expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({organizationId:'org-a',startDate:null,endDate:null,isCurrent:true});
+  it('un solo editor corrige el cargo conservando su vínculo',async()=>{
+    relations=[episode];const user=userEvent.setup();app('/people/person');await user.click(await screen.findByRole('button',{name:'Editar datos de la persona'}));
+    await user.clear(screen.getByLabelText('Cargo institucional (opcional)'));await user.type(screen.getByLabelText('Cargo institucional (opcional)'),'Coordinadora de proyectos');
+    expect(screen.queryByRole('checkbox',{name:'Vínculo vigente'})).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button',{name:'Guardar cambios'}));expect(await screen.findByText('Coordinadora de proyectos')).toBeVisible();
+    expect(relations).toHaveLength(1);expect(relations[0]).toMatchObject({id:episode.id,isCurrent:true});
   });
-  it('corregir es distinto de nuevo episodio y conserva su identidad',async()=>{
-    relations=[episode];const user=userEvent.setup();app('/people/person');await user.click(await screen.findByRole('button',{name:'Corregir episodio'}));expect(screen.getByText(/Si hubo un cambio real de cargo/)).toBeVisible();
-    await user.clear(screen.getByLabelText('Cargo (opcional)'));await user.type(screen.getByLabelText('Cargo (opcional)'),'Coordinadora de proyectos');await user.click(screen.getByRole('button',{name:'Guardar corrección'}));
-    expect(await screen.findByText('Vigente · Cargo: Coordinadora de proyectos')).toBeVisible();expect(relations).toHaveLength(1);
-    const call=fetchMock.mock.calls.find(([,options])=>options?.method==='PUT');expect(call?.[0]).toContain('person-organization-relations/episode-a');expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({expectedVersion:1});
-  });
-  it('finaliza con confirmación, sin eliminar ni inventar fecha',async()=>{
-    relations=[episode];const user=userEvent.setup();app('/people/person');await user.click(await screen.findByRole('button',{name:'Finalizar vínculo'}));await user.click(screen.getByRole('button',{name:'Confirmar finalización'}));
-    expect(await screen.findByText('Confirma la finalización para continuar.')).toBeVisible();expect(fetchMock.mock.calls.some(([,options])=>options?.method==='PATCH')).toBe(false);
-    await user.click(screen.getByRole('checkbox',{name:'Confirmo la finalización de este vínculo'}));await user.click(screen.getByRole('button',{name:'Confirmar finalización'}));
-    expect(await screen.findByText('Histórico / finalizado · Cargo: Coordinadora')).toBeVisible();expect(screen.getByText('Período: Inicio desconocido → Fin desconocido')).toBeVisible();
-    const call=fetchMock.mock.calls.find(([,options])=>options?.method==='PATCH');expect(JSON.parse(String(call?.[1]?.body))).toEqual({expectedVersion:1,endDate:null});expect(relations).toHaveLength(1);
-  });
-  it('historial del episodio presenta valores y autor',async()=>{
-    relations=[episode];const user=userEvent.setup();app('/people/person');await user.click(await screen.findByRole('button',{name:'Ver historial del episodio'}));
-    expect(await screen.findAllByText('Antes: Anterior')).toHaveLength(2);expect(screen.getAllByText('Después: Corregido')).toHaveLength(2);expect(screen.queryByText('operation-test')).not.toBeInTheDocument();
+  it('perfil no ofrece edición individual ni finalización del vínculo',async()=>{
+    relations=[episode];app('/people/person');await screen.findByRole('heading',{name:base.displayName});
+    expect(screen.queryByRole('button',{name:'Finalizar vínculo'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:'Corregir episodio'})).not.toBeInTheDocument();
   });
   it.each(['person','relation'])('conflicto %s conserva borrador y versión hasta recarga explícita',async kind=>{
     relations=[episode];conflicting=true;const user=userEvent.setup();app('/people/person');
-    await user.click(await screen.findByRole('button',{name:kind==='person'?'Editar persona':'Corregir episodio'}));
-    const label=kind==='person'?'Nombre de presentación':'Cargo (opcional)',save=kind==='person'?'Guardar persona':'Guardar corrección';
+    await user.click(await screen.findByRole('button',{name:'Editar datos de la persona'}));
+    const label=kind==='person'?'Nombre de presentación':'Cargo institucional (opcional)',save='Guardar cambios';
     await user.clear(screen.getByLabelText(label));await user.type(screen.getByLabelText(label),'Mi borrador');
     if(kind==='person')row={...row,version:2,displayName:'Cambio ajeno'};else relations=[{...episode,version:2,positionTitle:'Cambio ajeno'}];
     await user.click(screen.getByRole('button',{name:save}));expect(await screen.findByRole('alert')).toHaveTextContent('Recargar descartará');expect(screen.getByLabelText(label)).toHaveValue('Mi borrador');
     expect(fetchMock.mock.calls.filter(([,options])=>options?.method==='PUT')).toHaveLength(1);await user.click(screen.getByRole('button',{name:'Recargar ficha y descartar cambios'}));
     await waitFor(()=>expect(screen.getByLabelText(label)).toHaveValue('Cambio ajeno'));conflicting=false;await user.click(screen.getByRole('button',{name:save}));
     await waitFor(()=>expect(fetchMock.mock.calls.filter(([,options])=>options?.method==='PUT')).toHaveLength(2));
-    const calls=fetchMock.mock.calls.filter(([,options])=>options?.method==='PUT');expect(JSON.parse(String(calls[1]?.[1]?.body))).toMatchObject({expectedVersion:2});
+    const calls=fetchMock.mock.calls.filter(([,options])=>options?.method==='PUT');expect(JSON.parse(String(calls[1]?.[1]?.body))).toMatchObject(kind==='person'?{expectedVersion:2}:{relations:[expect.objectContaining({expectedVersion:2})]});
   });
   it('organización muestra personas y distingue episodios actuales/históricos',async()=>{
     relations=[episode,{...episode,id:'old',isCurrent:false,positionTitle:'Consultora'}];app('/organizations/org-a');
-    await screen.findByRole('heading',{name:'Personas vinculadas'});expect(await screen.findAllByRole('link',{name:'Ana QA'})).toHaveLength(2);expect(screen.getByText('Vínculo histórico / finalizado · Cargo: Consultora')).toBeVisible();
-    expect(screen.getByText('Vínculo vigente · Cargo: Coordinadora')).toBeVisible();
+    await screen.findByRole('heading',{name:'Personas vinculadas'});expect(await screen.findAllByRole('link',{name:'Ana QA'})).toHaveLength(2);expect(screen.getByText('Consultora')).toBeVisible();
+    expect(screen.getByText('Coordinadora')).toBeVisible();
   });
   it('desde la organización edita la ficha personal y conserva cargo y vigencia del vínculo',async()=>{
     relations=[episode];const user=userEvent.setup();app('/organizations/org-a');
-    await user.click((await screen.findAllByText('Ver detalles del vínculo'))[0]!);
-    await user.click(await screen.findByRole('button',{name:'Editar persona'}));
+    expect(screen.queryByText('Ver detalles del vínculo')).not.toBeInTheDocument();
+    await user.click(await screen.findByRole('link',{name:'Ana QA'}));
+    await user.click(await screen.findByRole('button',{name:'Editar datos de la persona'}));
     const name=await screen.findByLabelText('Nombre de presentación');await user.clear(name);await user.type(name,'Ana Actualizada');
-    await user.click(screen.getByRole('button',{name:'Guardar persona'}));
-    await waitFor(()=>expect(fetchMock.mock.calls.map(([url,options])=>[url,options?.method])).toContainEqual(['/api/v1/people/person','PUT']));
-    const write=fetchMock.mock.calls.find(([url,options])=>url.endsWith('/people/person')&&options?.method==='PUT');
+    await user.click(screen.getByRole('button',{name:'Guardar cambios'}));
+    await waitFor(()=>expect(fetchMock.mock.calls.map(([url,options])=>[url,options?.method])).toContainEqual(['/api/v1/people/person/profile','PUT']));
+    const write=fetchMock.mock.calls.find(([url,options])=>url.endsWith('/people/person/profile')&&options?.method==='PUT');
     expect(JSON.parse(String(write?.[1]?.body))).toMatchObject({displayName:'Ana Actualizada',expectedVersion:1});
     expect(JSON.parse(String(write?.[1]?.body))).not.toHaveProperty('positionTitle');
     expect(relations).toMatchObject([{positionTitle:'Coordinadora',isCurrent:true,organizationId:'org-a'}]);
-    expect(await screen.findByText('Vínculo vigente · Cargo: Coordinadora')).toBeVisible();
+    expect(await screen.findByText('Coordinadora')).toBeVisible();
   });
-  it('organización registra persona nueva y su episodio con una única solicitud contextual',async()=>{
-    const user=userEvent.setup();app('/organizations/org-a');await user.click(await screen.findByRole('button',{name:'Añadir persona'}));
-    await user.type(screen.getByLabelText('Nombre de presentación'),'Lucía Contextual');await user.type(screen.getByLabelText('Nombres (opcional)'),'Lucía');
-    await user.type(screen.getByLabelText('Apellidos (opcional)'),'Paz');await user.type(screen.getByLabelText('Cargo institucional (opcional)'),'Directora');
+  it('organización registra una persona con vínculo vigente sin filtros del listado en el formulario',async()=>{
+    const user=userEvent.setup();app('/organizations/org-a');
+    await user.click(await screen.findByRole('button',{name:'Añadir persona'}));
+    expect(screen.queryByLabelText('El vínculo está vigente')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Buscar por nombre')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Vigencia del vínculo')).not.toBeInTheDocument();
+    expect(screen.queryByText('No hay vínculos en esta selección.')).not.toBeInTheDocument();
+    expect(screen.getByRole('group',{name:'Medio de contacto 1'})).toBeVisible();
+    await user.click(screen.getByRole('button',{name:'Agregar otro medio'}));
+    expect(screen.getByRole('group',{name:'Medio de contacto 2'})).toBeVisible();
+    await user.type(screen.getByLabelText('Nombres (opcional)'),'Lucía');
+    await user.type(screen.getByLabelText('Apellidos (opcional)'),'Paz');
+    await user.type(screen.getByLabelText('Cargo institucional (opcional)'),'Directora');
     await user.click(screen.getByRole('button',{name:'Registrar persona y vincular'}));
     expect(await screen.findByText('Persona vinculada correctamente.')).toBeVisible();
-    expect(screen.getByRole('link',{name:'Abrir ficha de Lucía Contextual'})).toHaveAttribute('href','/organizations/org-a/people/context-person');
-    expect(await screen.findByText('Vínculo vigente · Cargo: Directora')).toBeVisible();
+    expect(screen.getByRole('link',{name:'Abrir ficha de Lucía Paz'})).toHaveAttribute('href','/organizations/org-a/people/context-person');
+    expect(await screen.findByText('Directora')).toBeVisible();
+    expect(screen.getByLabelText('Buscar por nombre')).toBeVisible();
+    expect(screen.getByLabelText('Vigencia del vínculo')).toBeVisible();
     const calls=fetchMock.mock.calls.filter(([url,options])=>url.endsWith('/organizations/org-a/people')&&options?.method==='POST');
-    expect(calls).toHaveLength(1);const body=JSON.parse(String(calls[0]?.[1]?.body));
-    expect(body).toMatchObject({personMode:'new',person:{displayName:'Lucía Contextual',givenNames:'Lucía',familyNames:'Paz'},positionTitle:'Directora',isCurrent:true,startDate:null,endDate:null});
+    expect(calls).toHaveLength(1);
+    const body=JSON.parse(String(calls[0]?.[1]?.body));
+    expect(body).toMatchObject({personMode:'new',person:{displayName:'Lucía Paz',givenNames:'Lucía',familyNames:'Paz'},positionTitle:'Directora',isCurrent:true});
     expect(body).not.toHaveProperty('organizationId');expect(body).not.toHaveProperty('personId');
   });
-  it('retira del listado externo a la persona tras asociarla y conserva su ficha e historial',async()=>{
-    row={...base,institutionalStatus:'HISTORICAL_ONLY'};
-    const oldEpisode={...episode,id:'old-context',personId:row.id,isCurrent:false,positionTitle:'Asesora'};
-    relations=[oldEpisode];peopleRows=[row];
-    const externalPeoplePath='people?page=1&name=&status=active&institutionalStatus=without-current';
-    client.setQueryData(['directory',actor.id,'people',externalPeoplePath],page([row]));
-    const externalList=app('/people');
-    expect(await screen.findByRole('link',{name:row.displayName})).toBeVisible();
-    externalList.unmount();
-
-    const user=userEvent.setup(),organizationView=app('/organizations/org-a');
-    await user.click(await screen.findByRole('button',{name:'Añadir persona'}));
-    await user.click(screen.getByRole('radio',{name:'Seleccionar persona existente'}));
-    await user.click(await screen.findByRole('radio',{name:/Ana QA/}));
-    await user.type(screen.getByLabelText('Cargo institucional (opcional)'),'Directora');
-    await user.click(screen.getByRole('button',{name:'Vincular persona'}));
-    expect(await screen.findByText('Persona vinculada correctamente.')).toBeVisible();
-    expect(await screen.findByText('Vínculo vigente · Cargo: Directora')).toBeVisible();
-    expect(screen.getByText('Vínculo histórico / finalizado · Cargo: Asesora')).toBeVisible();
-    expect(relations).toHaveLength(2);expect(relations[0]).toMatchObject({id:oldEpisode.id,isCurrent:false,positionTitle:'Asesora'});
-    organizationView.unmount();
-
-    const listRequestCount=fetchMock.mock.calls.filter(([url])=>url.includes(externalPeoplePath)).length;
-    const externalListAfterAssociation=app('/people');expect(await screen.findByText('No hay personas externas que coincidan.')).toBeVisible();
-    await waitFor(()=>expect(fetchMock.mock.calls.filter(([url])=>url.includes(externalPeoplePath)).length).toBeGreaterThan(listRequestCount));
-    externalListAfterAssociation.unmount();
-    app('/people/person');
-    expect(await screen.findByRole('heading',{name:row.displayName})).toBeVisible();
-    expect(await screen.findByText('Vigente · Cargo: Directora')).toBeVisible();
-    expect(screen.getByText('Histórico / finalizado · Cargo: Asesora')).toBeVisible();
-  });
-  it('busca personas con todos los estados y añade episodio sin sobrescribir datos ni borrar históricos',async()=>{
-    row={...base,currentRelationsCount:1,institutionalStatus:'CURRENT'};relations=[episode,{...episode,id:'old-context',isCurrent:false,positionTitle:'Asesora'}];
+  it('el registro contextual pide nombres y contactos sin selector de episodios',async()=>{
     const user=userEvent.setup();app('/organizations/org-a');await user.click(await screen.findByRole('button',{name:'Añadir persona'}));
-    await user.click(screen.getByRole('radio',{name:'Seleccionar persona existente'}));await user.click(await screen.findByRole('radio',{name:/Ana QA/}));
-    expect(await screen.findByRole('status')).toHaveTextContent('Ya tiene un vínculo vigente con esta organización');
-    await user.type(screen.getByLabelText('Cargo institucional (opcional)'),'Directora');await user.click(screen.getByRole('button',{name:'Vincular persona'}));
-    await waitFor(()=>expect(fetchMock.mock.calls.filter(([url,options])=>url.endsWith('/organizations/org-a/people')&&options?.method==='POST')).toHaveLength(1));
-    expect(await screen.findByText('Persona vinculada correctamente.')).toBeVisible();
-    expect(await screen.findByText('Vínculo vigente · Cargo: Directora')).toBeVisible();expect(screen.getByText('Vínculo histórico / finalizado · Cargo: Asesora')).toBeVisible();
-    const search=fetchMock.mock.calls.find(([url])=>url.includes('people?page=1&pageSize=10&status=all&institutionalStatus=all'));
-    expect(search).toBeDefined();const calls=fetchMock.mock.calls.filter(([url,options])=>url.endsWith('/organizations/org-a/people')&&options?.method==='POST');
-    expect(calls).toHaveLength(1);const body=JSON.parse(String(calls[0]?.[1]?.body));
-    expect(body).toMatchObject({personMode:'existing',personId:'person',positionTitle:'Directora',isCurrent:true});
-    expect(body).not.toHaveProperty('person');expect(body).not.toHaveProperty('organizationId');
+    expect(screen.queryByRole('radio',{name:'Seleccionar persona existente'})).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Nombres (opcional)')).toBeVisible();expect(screen.getByLabelText('Dato de contacto')).toBeVisible();
+    expect(screen.queryByRole('checkbox',{name:/vigente/})).not.toBeInTheDocument();
   });
-  it('muestra personas inactivas sin permitir seleccionarlas e incluye acceso seguro a su ficha',async()=>{
-    row={...base,isActive:false};const user=userEvent.setup();app('/organizations/org-a');await user.click(await screen.findByRole('button',{name:'Añadir persona'}));
-    await user.click(screen.getByRole('radio',{name:'Seleccionar persona existente'}));
-    const candidate=await screen.findByRole('radio',{name:/Ana QA/});
-    expect(candidate).toBeDisabled();expect(screen.getByText('La ficha está inactiva. Debe reactivarse antes de añadir un nuevo vínculo institucional.')).toBeVisible();
-    expect(screen.getByRole('link',{name:'Consultar ficha personal'})).toHaveAttribute('href','/people/person');
-    expect(screen.getByRole('link',{name:'Consultar ficha personal'})).toHaveAttribute('target','_blank');
-    await user.click(candidate);
-    expect(screen.getByRole('button',{name:'Vincular persona'})).toBeDisabled();
-    expect(fetchMock.mock.calls.some(([url,options])=>url.endsWith('/organizations/org-a/people')&&options?.method==='POST')).toBe(false);
-  });
-  it.each([
-    ['solo vínculos históricos',{...base,institutionalStatus:'HISTORICAL_ONLY' as const},[{...episode,isCurrent:false}]],
-    ['sin vínculos institucionales',{...base,institutionalStatus:'NO_KNOWN_LINKS' as const},[]],
-  ])('permite seleccionar una persona activa %s',async(_label,candidate,episodes)=>{
-    row={...candidate};relations=episodes;
+  it('el registro contextual exige al menos un nombre y no envía el formulario vacío',async()=>{
     const user=userEvent.setup();app('/organizations/org-a');await user.click(await screen.findByRole('button',{name:'Añadir persona'}));
-    await user.click(screen.getByRole('radio',{name:'Seleccionar persona existente'}));
-    const selection=await screen.findByRole('radio',{name:/Ana QA/});
-    expect(selection).toBeEnabled();await user.click(selection);
-    await user.type(screen.getByLabelText('Cargo institucional (opcional)'),'Directora');
-    await user.click(screen.getByRole('button',{name:'Vincular persona'}));
-    expect(await screen.findByText('Persona vinculada correctamente.')).toBeVisible();
-    const call=fetchMock.mock.calls.find(([url,options])=>url.endsWith('/organizations/org-a/people')&&options?.method==='POST');
-    expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({personMode:'existing',personId:'person',positionTitle:'Directora'});
+    await user.click(screen.getByRole('button',{name:'Registrar persona y vincular'}));
+    expect(fetchMock.mock.calls.some(([,options])=>options?.method==='POST')).toBe(false);
+  });
+  it('cancelar el registro contextual devuelve al listado sin escribir',async()=>{
+    relations=[episode];const user=userEvent.setup();app('/organizations/org-a');await user.click(await screen.findByRole('button',{name:'Añadir persona'}));
+    await user.type(screen.getByLabelText('Nombres (opcional)'),'Borrador');await user.click(screen.getByRole('button',{name:'Cancelar'}));
+    expect(await screen.findByRole('link',{name:'Ana QA'})).toBeVisible();expect(fetchMock.mock.calls.some(([,options])=>options?.method==='POST')).toBe(false);
   });
   it('conserva el borrador al fallar el alta contextual',async()=>{
     row={...base};contextualFailure=true;const user=userEvent.setup();app('/organizations/org-a');await user.click(await screen.findByRole('button',{name:'Añadir persona'}));
-    await user.click(screen.getByRole('radio',{name:'Seleccionar persona existente'}));await user.click(await screen.findByRole('radio',{name:/Ana QA/}));
-    await user.type(screen.getByLabelText('Cargo institucional (opcional)'),'Borrador conservado');await user.click(screen.getByRole('button',{name:'Vincular persona'}));
+    await user.type(screen.getByLabelText('Nombres (opcional)'),'Ana');
+    await user.type(screen.getByLabelText('Cargo institucional (opcional)'),'Borrador conservado');await user.click(screen.getByRole('button',{name:'Registrar persona y vincular'}));
     expect(await screen.findByRole('alert')).toHaveTextContent('La persona está inactiva. Debe reactivarse antes de asociarla a una organización.');
     expect(screen.getByLabelText('Cargo institucional (opcional)')).toHaveValue('Borrador conservado');
-    expect(screen.getByRole('link',{name:'Consultar ficha personal para reactivarla explícitamente'})).toHaveAttribute('href','/people/person');
     expect(screen.queryByText('Persona vinculada correctamente.')).not.toBeInTheDocument();
   });
   it('impide duplicar el envío mientras el registro contextual está pendiente',async()=>{
     contextualDeferred=true;const user=userEvent.setup();app('/organizations/org-a');await user.click(await screen.findByRole('button',{name:'Añadir persona'}));
-    await user.type(screen.getByLabelText('Nombre de presentación'),'Lucía Pendiente');const submit=screen.getByRole('button',{name:'Registrar persona y vincular'});
+    await user.type(screen.getByLabelText('Nombres (opcional)'),'Lucía Pendiente');const submit=screen.getByRole('button',{name:'Registrar persona y vincular'});
     await user.click(submit);await waitFor(()=>expect(contextualResolve).toBeTypeOf('function'));expect(submit).toBeDisabled();await user.click(submit);
     expect(fetchMock.mock.calls.filter(([url,options])=>url.endsWith('/organizations/org-a/people')&&options?.method==='POST')).toHaveLength(1);
     const body=JSON.parse(String(fetchMock.mock.calls.find(([url,options])=>url.endsWith('/organizations/org-a/people')&&options?.method==='POST')?.[1]?.body));
@@ -368,10 +323,10 @@ describe('Personas y episodios institucionales en UI',()=>{
   it('sin permisos no consulta ni crea; status solo con capability',async()=>{
     actor={...actor,permissions:[]};app('/people');expect(await screen.findByRole('alert')).toHaveTextContent('No tienes permiso');expect(fetchMock.mock.calls.some(([url])=>url.includes('/people'))).toBe(false);
   });
-  it('operador edita pero no desactiva persona',async()=>{app('/people/person');expect(await screen.findByRole('button',{name:'Editar persona'})).toBeVisible();expect(screen.queryByRole('button',{name:'Desactivar persona'})).not.toBeInTheDocument();});
+  it('operador edita pero no desactiva persona',async()=>{app('/people/person');expect(await screen.findByRole('button',{name:'Editar datos de la persona'})).toBeVisible();expect(screen.queryByRole('button',{name:'Desactivar persona'})).not.toBeInTheDocument();});
   it('Admin ve control de estado; vínculos conservados en persona inactiva',async()=>{
     actor={...actor,role:'ADMINISTRATOR',permissions:[...actor.permissions,'directory.status.update']};row={...row,isActive:false};relations=[{...episode,person:{...episode.person,isActive:false}}];app('/people/person');
-    expect(await screen.findByRole('button',{name:'Reactivar persona'})).toBeVisible();expect(await screen.findByText('Persona inactiva; vínculo conservado.')).toBeVisible();
+    expect(await screen.findByRole('button',{name:'Reactivar persona'})).toBeVisible();expect(await screen.findByText('Coordinadora')).toBeVisible();
   });
   it('desactivación de persona describe el efecto y espera confirmación explícita',async()=>{
     actor={...actor,role:'ADMINISTRATOR',permissions:[...actor.permissions,'directory.status.update']};const user=userEvent.setup();app('/people/person');
@@ -389,7 +344,7 @@ describe('Personas y episodios institucionales en UI',()=>{
     expect(screen.queryByText(/internal detail/)).not.toBeInTheDocument();
   });
   it('logout limpia personas y episodios de caché',async()=>{
-    relations=[episode];app('/people/person');await screen.findByRole('link',{name:'Organización A'});expect(client.getQueriesData({queryKey:['directory','qa']}).length).toBeGreaterThan(1);
+    relations=[episode];app('/people/person');await screen.findByText('Organización A');expect(client.getQueriesData({queryKey:['directory','qa']}).length).toBeGreaterThan(0);
     await userEvent.setup().click(screen.getByRole('button',{name:'Cerrar sesión'}));await screen.findByRole('heading',{name:'Iniciar sesión'});expect(client.getQueriesData({queryKey:['directory']})).toHaveLength(0);
   });
   it('Zod valida persona parcial, fechas completas y coherencia temporal',()=>{
@@ -399,15 +354,15 @@ describe('Personas y episodios institucionales en UI',()=>{
     expect(relationFormSchema.safeParse({...blank,startDate:'2025-01-01',endDate:'2024-01-01'}).success).toBe(false);
   });
   it('corrección mantiene entidad y organización; no ofrece reemplazarlas',async()=>{
-    relations=[episode];app('/people/person');await userEvent.setup().click(await screen.findByRole('button',{name:'Corregir episodio'}));
-    expect(screen.queryByRole('radio')).not.toBeInTheDocument();expect(screen.getByText('Organización: Organización A')).toBeVisible();
-    const form=screen.getByRole('button',{name:'Guardar corrección'}).closest('form')!;expect(within(form).getByRole('checkbox',{name:'Vínculo vigente'})).toBeChecked();
+    relations=[episode];app('/people/person');await userEvent.setup().click(await screen.findByRole('button',{name:'Editar datos de la persona'}));
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();expect(screen.getByText('Organización A')).toBeVisible();
+    const form=screen.getByRole('button',{name:'Guardar cambios'}).closest('form')!;expect(within(form).queryByRole('checkbox',{name:'Vínculo vigente'})).not.toBeInTheDocument();
   });
   it('recarga fallida después de conflicto conserva el borrador del episodio',async()=>{
-    relations=[episode];conflicting=true;const user=userEvent.setup();app('/people/person');await user.click(await screen.findByRole('button',{name:'Corregir episodio'}));
-    await user.clear(screen.getByLabelText('Cargo (opcional)'));await user.type(screen.getByLabelText('Cargo (opcional)'),'Mi dato conservado');
-    await user.click(screen.getByRole('button',{name:'Guardar corrección'}));await screen.findByRole('alert');state='reload-error';
-    await user.click(screen.getByRole('button',{name:'Recargar ficha y descartar cambios'}));expect(await screen.findByText(/No se pudo recargar el episodio/)).toBeVisible();
-    expect(screen.getByLabelText('Cargo (opcional)')).toHaveValue('Mi dato conservado');
+    relations=[episode];conflicting=true;const user=userEvent.setup();app('/people/person');await user.click(await screen.findByRole('button',{name:'Editar datos de la persona'}));
+    await user.clear(screen.getByLabelText('Cargo institucional (opcional)'));await user.type(screen.getByLabelText('Cargo institucional (opcional)'),'Mi dato conservado');
+    await user.click(screen.getByRole('button',{name:'Guardar cambios'}));await screen.findByRole('alert');state='reload-error';
+    await user.click(screen.getByRole('button',{name:'Recargar ficha y descartar cambios'}));expect(await screen.findByText('No se pudo recargar la ficha. Tus cambios se conservan.')).toBeVisible();
+    expect(screen.getByLabelText('Cargo institucional (opcional)')).toHaveValue('Mi dato conservado');
   });
 });

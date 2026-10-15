@@ -50,7 +50,7 @@ test('el libro contiene cuatro hojas pequeñas y solo contactos de dominios rese
   const contactValues = demoSheets.flatMap((sheet) => sheet.rows.flatMap((row) => row.filter((value) => typeof value === 'string' && value.includes('@'))));
   assert.ok(contactValues.length > 0);
   assert.ok(contactValues.every((value) => /@[^@]+\.example\.test$/u.test(value)));
-  assert.equal(workbook.worksheets.find((sheet) => sheet.name === 'Organizaciones').getRow(1).getCell(6).value, 'Categoría propuesta');
+  assert.equal(workbook.worksheets.find((sheet) => sheet.name === 'Organizaciones').getRow(1).getCell(6).value, 'Área de interés sugerida');
 });
 for (const failure of [null, 'create', 'change', 'established']) {
   test(`aprovisionamiento usa contraseña inicial y contrato vigente; fallo=${failure}`, async () => {

@@ -1,5 +1,6 @@
+import { canReadDirectoryHistory } from './directory-permissions';
 import { useRef, useState } from 'react';
-import { NavLink, Outlet, useParams } from 'react-router';
+import { NavLink, Outlet, useParams, useMatch } from 'react-router';
 import { useSession } from '../auth/session';
 import { organizationSchema, type Organization } from './contracts';
 import { useDirectoryMutation, useOrganization } from './queries';
@@ -22,6 +23,10 @@ const sections = [
 
 export function OrganizationDetailPage() {
   const { id = '' } = useParams();
+  const personProfile = useMatch('/organizations/:id/people/:personId');
+  const contactProfile = useMatch('/organizations/:id/contacts/:contactId');
+  const branchProfile=useMatch('/organizations/:id/locations/:branchId');
+  const branchContactProfile = useMatch('/organizations/:id/locations/:branchId/contacts/:contactId');
   const identity = useSession().data;
   const statusAction = useRef<HTMLButtonElement>(null);
   const detail = useOrganization(identity, id);
@@ -43,8 +48,10 @@ export function OrganizationDetailPage() {
     } catch { /* El error visible conserva la confirmación. */ }
   }
 
+  if (personProfile || contactProfile || branchContactProfile || branchProfile) return <div className="organization-workspace-content"><Outlet context={{ identity, organization, readOnly: !!organization.duplicateOfId, addBranch: () => setCreatingBranch(true) } satisfies OrganizationWorkspaceContext} /></div>;
+
   return <section className="directory-detail organization-detail organization-workspace">
-    <PageHeader back={<ActionLink appearance="back" to="/organizations">Volver a Organizaciones</ActionLink>} eyebrow="Directorio / Organizaciones" title={organization.name}
+    <PageHeader back={<ActionLink appearance="back" to="/organizations">Volver a Organizaciones</ActionLink>} title={organization.name}
       metadata={<div className="organization-header-metadata">
         <StatusBadge tone={organization.isActive ? 'success' : 'neutral'}>{organization.isActive ? 'Activa' : 'Inactiva'}</StatusBadge>
         {organization.country && <span>{organization.country}</span>}
@@ -67,12 +74,12 @@ export function OrganizationDetailPage() {
     <MutationError modern error={mutation.error} reload={async () => { await detail.refetch(); mutation.reset(); }} />
 
     <nav className="organization-section-nav" aria-label="Secciones de la organización">
-      {sections.map(section => <NavLink key={section.label} to={section.path} end={'end' in section ? section.end : undefined}
+      {sections.filter(section => section.path !== 'control' || canReadDirectoryHistory(identity)).map(section => <NavLink key={section.label} to={section.path} end={'end' in section ? section.end : undefined}
         className={({ isActive }) => isActive ? 'organization-section-link is-active' : 'organization-section-link'}>{section.label}</NavLink>)}
     </nav>
 
     {(editing || creatingBranch) ? <Surface className="organization-workspace-content organization-form-surface" heading={editing ? 'Editar ficha institucional' : 'Añadir sede o representación'}>
-      <OrganizationForm identity={identity} initial={editing ?? undefined} branchOfId={creatingBranch ? id : undefined}
+      <OrganizationForm identity={identity} initial={editing ?? undefined} branchOfId={creatingBranch ? id : undefined} branchOwnerName={creatingBranch?organization.name:organization.branchOf?.name}
         saved={() => { setEditing(null); setCreatingBranch(false); }} cancel={() => { setEditing(null); setCreatingBranch(false); }}
         reload={async () => { const response = await detail.refetch(); if (!response.isSuccess) return undefined; setEditing(response.data); return response.data; }} />
     </Surface> : <div className="organization-workspace-content"><Outlet context={{ identity, organization, readOnly: !!organization.duplicateOfId,

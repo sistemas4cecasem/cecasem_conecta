@@ -278,7 +278,7 @@ model AuditEvent {
   passwordResetToken   PasswordResetToken? @relation(fields: [passwordResetTokenId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   emailAccount         EmailAccount? @relation(fields: [emailAccountId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   organization         Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  category             Category? @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  category             ArchivedCategory? @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   person               Person? @relation(fields: [personId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   personRelation       PersonOrganizationRelation? @relation(fields: [personRelationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   contactMethod        ContactMethod? @relation(fields: [contactMethodId], references: [id], onDelete: Restrict, onUpdate: Restrict)
@@ -331,7 +331,8 @@ model Organization {
   legacyLastVerifiedAt DateTime? @ignore @db.Timestamptz(3)
   branchOf        Organization? @relation("OrganizationBranches", fields: [branchOfId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   branches        Organization[] @relation("OrganizationBranches")
-  categories      OrganizationCategory[]
+  interestAreas   String[] @default([])
+  archivedCategories ArchivedOrganizationCategory[]
   changes         DirectoryChange[]
   auditEvents     AuditEvent[]
   personRelations PersonOrganizationRelation[]
@@ -342,29 +343,31 @@ model Organization {
   historicalVerifications HistoricalVerification[] @ignore
 }
 
-model Category {
-  id             String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+/// Retired catalog, preserved only for historical references.
+model ArchivedCategory {
+  id             String @id(map: "Category_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name           String @db.VarChar(150)
-  normalizedName String @unique @db.VarChar(150)
+  normalizedName String @unique(map: "Category_normalizedName_key") @db.VarChar(150)
   isActive       Boolean @default(true)
   version        Int @default(1)
   createdAt      DateTime @default(now()) @db.Timestamptz(3)
   updatedAt      DateTime @default(now()) @updatedAt @db.Timestamptz(3)
-  organizations  OrganizationCategory[]
+  organizations  ArchivedOrganizationCategory[]
   changes        DirectoryChange[]
   auditEvents    AuditEvent[]
 
-  @@index([isActive, name, id])
+  @@index([isActive, name, id], map: "Category_isActive_name_id_idx")
 }
 
-model OrganizationCategory {
+/// Frozen links from the retired catalog.
+model ArchivedOrganizationCategory {
   organizationId String @db.Uuid
   categoryId     String @db.Uuid
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  category       Category @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "OrganizationCategory_organizationId_fkey")
+  category       ArchivedCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Restrict, map: "OrganizationCategory_categoryId_fkey")
 
-  @@id([organizationId, categoryId])
-  @@index([categoryId])
+  @@id([organizationId, categoryId], map: "OrganizationCategory_pkey")
+  @@index([categoryId], map: "OrganizationCategory_categoryId_idx")
 }
 
 model DirectoryChange {
@@ -384,7 +387,7 @@ model DirectoryChange {
   actorUserId    String @db.Uuid
   createdAt      DateTime @default(now()) @db.Timestamptz(3)
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  category       Category? @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  category       ArchivedCategory? @relation(fields: [categoryId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   person         Person? @relation(fields: [personId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   personRelation PersonOrganizationRelation? @relation(fields: [personRelationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   contactMethod ContactMethod? @relation(fields: [contactMethodId], references: [id], onDelete: Restrict, onUpdate: Restrict)

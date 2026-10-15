@@ -19,10 +19,10 @@ describe('Filtros institucionales: permisos y proyección acotada', () => {
   it('sin identidad no permite filtrar por ausencia ni presencia de comunicaciones', async () => {
     await expect(service.predicate({ withCommunications: false }, tx)).rejects.toThrow(); expect(identity).not.toHaveBeenCalled();
   });
-  it('parametriza datos de país y categoría y combina el estado', async () => {
+  it('parametriza datos de país y combina el estado', async () => {
     const country = "Bolivia' OR TRUE --";
-    const sql = await service.predicate({ country, categoryId: '11111111-1111-4111-8111-111111111111', status: 'inactive' }, tx);
+    const sql = await service.predicate({ country, status: 'inactive' }, tx);
     expect(sql.values).toContain(country); expect(sql.text).not.toContain(country);
-    expect(sql.text).toContain('"OrganizationCategory"'); expect(sql.text).toContain('o."isActive"'); expect(sql.text).toContain(' AND ');
+    expect(sql.text).toContain('o."isActive"'); expect(sql.text).toContain(' AND ');
   });
 });

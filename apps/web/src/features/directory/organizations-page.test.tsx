@@ -11,7 +11,7 @@ import type { Organization } from './contracts';
 const stamp = '2026-10-07T00:00:00Z';
 const category = { id: '11111111-1111-4111-8111-111111111111', name: 'Educación', isActive: true, version: 1, createdAt: stamp, updatedAt: stamp };
 const organization = { id: 'org-ui23', name: 'Organización institucional', country: 'Bolivia', alias: null, description: null, officialWebsite: null,
-  isActive: true, branchOfId: 'branch-owner', branchOf: { id: 'branch-owner', name: 'Organización regional', isActive: true }, categories: [category], version: 1, createdAt: stamp, updatedAt: stamp, };
+  isActive: true, branchOfId: null, branchOf: null, interestAreas: [category.name], version: 1, createdAt: stamp, updatedAt: stamp, };
 const baseIdentity: AuthIdentity = { id: 'ui23', givenNames: 'QA', familyNames: 'Directorio', username: 'ui23', email: 'qa@example.test', role: 'ADMINISTRATOR',
   permissions: ['directory.read', 'directory.write', 'relationships.process.read', 'communications.read'] };
 function Location() { return <output aria-label="URL actual">{useLocation().search}</output>; }
@@ -45,6 +45,12 @@ describe('UI 2.3 listado de organizaciones', () => {
     if (toggle.getAttribute('aria-expanded') === 'false') await userEvent.click(toggle);
   }
 
+  it('el directorio no envía un filtro de sedes aunque venga en una URL antigua',async()=>{
+    view('/organizations?branchOfId=branch-owner');await screen.findByRole('link',{name:row.name});
+    const calls=fetchMock.mock.calls.filter(([url])=>url.includes('/organizations?'));
+    expect(calls.length).toBeGreaterThan(0);expect(calls.every(([url])=>!url.includes('branchOfId'))).toBe(true);
+    expect(results().queryByText('Sede de')).not.toBeInTheDocument();
+  });
   it('presenta contexto, título único y creación con la ruta original', async () => {
     view(); expect(await screen.findByRole('heading', { level: 1, name: 'Organizaciones' })).toBeVisible();
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
@@ -81,10 +87,11 @@ describe('UI 2.3 listado de organizaciones', () => {
       expect(within(directory).getByRole('link', { name: 'Personas externas' })).toHaveAttribute('href', '/people');
     }
   });
-  it('mantiene la administración de categorías en el formulario contextual de organizaciones', async () => {
+  it('permite añadir áreas libres sin enlaces al catálogo retirado', async () => {
     view('/organizations/new');
     expect(await screen.findByRole('heading', { level: 1, name: 'Crear organización' })).toBeVisible();
-    expect(screen.getByRole('link', { name: 'Mantener categorías' })).toHaveAttribute('href', '/organizations/categories');
+    expect(screen.queryByRole('link', { name: 'Mantener categorías' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Área de interés')).toBeVisible();
   });
   it('muestra lectura sin creación cuando no tiene directory.write', async () => {
     identity = { ...baseIdentity, role: 'PLANNING', permissions: ['directory.read'] }; view();
@@ -97,12 +104,12 @@ describe('UI 2.3 listado de organizaciones', () => {
     view(); const link = await screen.findByRole('link', { name: row.name });
     expect(link).toHaveAttribute('href', '/organizations/org-ui23');
     const item = within(document.querySelector('.organizations-results .organizations-list > li')!);
-    for (const text of ['Activa', 'Bolivia', 'Educación', 'Sede de', 'Organización regional']) expect(item.getByText(text)).toBeVisible();
+    for (const text of ['Activa', 'Bolivia', 'Educación']) expect(item.getByText(text)).toBeVisible();
   });
   it('mantiene los fallbacks y el estado inactivo sin depender del color', async () => {
-    row = { ...organization, country: null, branchOf: null, categories: [], isActive: false }; view('/organizations?status=inactive');
+    row = { ...organization, country: null, branchOf: null, interestAreas: [], isActive: false }; view('/organizations?status=inactive');
     await screen.findByRole('link', { name: row.name });
-    for (const text of ['Inactiva', 'País sin registrar', 'Sin categorías']) expect(results().getByText(text)).toBeVisible();
+    for (const text of ['Inactiva', 'País sin registrar', 'Sin áreas de interés']) expect(results().getByText(text)).toBeVisible();
   });
   it('busca al escribir y limpia solo los filtros originales manteniendo nombre y otros parámetros', async () => {
     view('/organizations?country=Perú&status=inactive&verificationStatus=NEVER_VERIFIED&withCommunications=true&categoryId=' + category.id + '&page=3&context=retain');

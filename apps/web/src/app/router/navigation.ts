@@ -24,7 +24,6 @@ export const AUTHENTICATED_NAVIGATION: readonly NavigationItem[] = [
 // Estas pantallas siguen siendo rutas autenticadas, pero no son destinos del sidebar.
 const CONTEXTUAL_NAVIGATION: readonly NavigationItem[] = [
   { label: 'Búsqueda', to: '/directory/search', requiredPermission: 'directory.read' },
-  { label: 'Categorías', to: '/organizations/categories', requiredPermission: 'directory.read' },
 ];
 
 export const NAVIGATION_GROUPS = [

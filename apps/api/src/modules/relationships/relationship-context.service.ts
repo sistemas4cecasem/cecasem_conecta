@@ -19,6 +19,7 @@ export class RelationshipContextService {
     private readonly directory: DirectoryTargetService, private readonly restrictions: ContactRestrictionsService, private readonly communications: CommunicationsService) {}
   async get(input: RelationshipContextQueryDto, actorId: string): Promise<RelationshipContextDto> {
     const target = contextTarget(input);
+    if (input.view === 'person-profile' && !target.personId) throw new ContextError('INVALID_CONTEXT_TARGET');
     return this.prisma.$transaction(async tx => {
       const user = await this.users.findIdentityById(actorId, tx);
       if (!user?.isActive || !CONTEXT_READ_PERMISSIONS.every(permission => hasPermission(user.role, permission))) throw new ContextError('FORBIDDEN');
@@ -28,6 +29,16 @@ export class RelationshipContextService {
         throw error;
       }
       const direct = await this.actorContext(target, summary, tx);
+      if (input.view === 'person-profile' && target.personId) {
+        const addresses = await this.directory.personEmailAddresses(target.personId, tx);
+        const where: Prisma.RelationshipProcessWhereInput = { communications: { some: { OR: [
+          { senderNormalizedAddress: { in: addresses } }, { recipients: { some: { normalizedAddress: { in: addresses } } } }
+        ] } } };
+        const items = addresses.length ? await tx.relationshipProcess.findMany({ where, select: { id: true, purpose: true, state: true },
+          orderBy: [{ lastActivityAt: 'desc' }, { id: 'desc' }], take: CONTEXT_ITEM_LIMIT }) : [];
+        const total = addresses.length ? await tx.relationshipProcess.count({ where }) : 0;
+        return { ...direct, relatedOrganizationContext: { items: [], total: 0 }, emailProcesses: { addresses, items, total } };
+      }
       const organizations = target.personId ? await this.directory.currentOrganizationContext(target.personId, CONTEXT_ORGANIZATION_LIMIT, tx) : { items: [], total: 0 };
       const related: ActorContextDto[] = [];
       for (const organization of organizations.items) related.push(await this.actorContext({ organizationId: organization.id }, organization, tx));

@@ -16,6 +16,6 @@ const actorSchema = z.object({ target: targetSchema, restriction: restrictionSch
   hasRelationshipHistory: z.boolean(), hasRegisteredCommunicationHistory: z.boolean(),
   communicationSummary: z.object({ total: z.number().int().nonnegative(), lastOccurredAt: z.iso.datetime().nullable(), lastDirection: z.enum(['SENT', 'RECEIVED']).nullable() }),
   recentCommunications: z.array(historyItemSchema).max(5) });
-export const relationshipContextSchema = actorSchema.extend({ relatedOrganizationContext: z.object({ items: z.array(actorSchema), total: z.number().int().nonnegative() }) });
+export const relationshipContextSchema = actorSchema.extend({ emailProcesses: z.object({addresses:z.array(z.string()),items:z.array(z.object({id:z.uuid(),purpose:z.string(),state:processStateSchema})),total:z.number().int().nonnegative()}).optional(), relatedOrganizationContext: z.object({ items: z.array(actorSchema), total: z.number().int().nonnegative() }) });
 export type ActorContext = z.infer<typeof actorSchema>;
 export type RelationshipContext = z.infer<typeof relationshipContextSchema>;

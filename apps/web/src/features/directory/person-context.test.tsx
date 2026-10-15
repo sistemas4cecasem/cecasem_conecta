@@ -8,7 +8,7 @@ import { createQueryClient } from '../../lib/query/query-client';
 const stamp='2026-10-13T00:00:00Z';
 const organizationId='630c7a1d-c107-4b39-ad12-ab5ed139c8f4';
 const personId='2a4482a7-e407-48ba-8923-b9cb8ae5070f';
-const organization={id:organizationId,name:'Institución contextual',country:null,alias:null,description:null,officialWebsite:null,branchOfId:null,branchOf:null,categories:[],isActive:true,version:1,createdAt:stamp,updatedAt:stamp};
+const organization={id:organizationId,name:'Institución contextual',country:null,alias:null,description:null,officialWebsite:null,branchOfId:null,branchOf:null,interestAreas:[],isActive:true,version:1,createdAt:stamp,updatedAt:stamp};
 const base={id:personId,displayName:'Persona objetivo',givenNames:null,familyNames:null,isActive:true,version:1,createdAt:stamp,updatedAt:stamp,currentRelationsCount:0,institutionalStatus:'NO_KNOWN_LINKS'};
 const page=(items:unknown[])=>({items,total:items.length,page:1,pageSize:25});
 describe('Identidad de persona directa y contextual AF-01',()=>{
@@ -22,7 +22,8 @@ describe('Identidad de persona directa y contextual AF-01',()=>{
       if(path==='organizations'&&method==='GET')return Response.json(page([organization]));
       if(path==='people/'+organizationId){unexpected.push(path);if(method==='PATCH')wrongPerson={...wrongPerson,isActive:false};return Response.json(wrongPerson);}
       if(path.startsWith('people/'+organizationId+'/')){unexpected.push(path);if(method==='PATCH')wrongPerson={...wrongPerson,isActive:false};return Response.json(method==='PATCH'?wrongPerson:page([]));}
-      if(path==='people/'+personId&&method==='PUT'){const body=JSON.parse(String(options?.body));expect(body.expectedVersion).toBe(row.version);row={...row,displayName:body.displayName,version:row.version+1};return Response.json(row);}
+      if(path==='people/'+personId+'/profile'&&method==='GET')return Response.json({person:row,contacts:[],relations:[]});
+      if(path==='people/'+personId+'/profile'&&method==='PUT'){const body=JSON.parse(String(options?.body));expect(body.expectedVersion).toBe(row.version);expect(body.contacts).toEqual([{type:'PHONE',value:'+591 76543210',label:''}]);expect(body.expectedContacts).toEqual([]);expect(body.relations).toEqual([]);row={...row,displayName:body.displayName,version:row.version+1};return Response.json(row);}
       if(path==='people/'+personId&&method==='GET')return Response.json(row);
       if(path==='people/'+personId+'/status'&&method==='PATCH'){const body=JSON.parse(String(options?.body));expect(body.expectedVersion).toBe(row.version);row={...row,isActive:body.isActive,version:row.version+1};return Response.json(row);}
       if(method==='GET'&&['contacts','relations','duplicate-candidates'].some(section=>path==='people/'+personId+'/'+section))return Response.json(page([]));
@@ -35,16 +36,21 @@ describe('Identidad de persona directa y contextual AF-01',()=>{
   it.each(['/people/'+personId,'/organizations/'+organizationId+'/people/'+personId])('%s consulta y escribe únicamente en la persona objetivo',async path=>{
     const user=userEvent.setup();render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[path]}><AppRoutes/></MemoryRouter></QueryClientProvider>);
     await screen.findByRole('heading',{name:row.displayName});
-    await waitFor(()=>{for(const section of ['contacts','relations','duplicate-candidates','history'])expect(requests).toContainEqual({path:'people/'+personId+'/'+section,method:'GET'});});
+    await waitFor(()=>expect(requests).toContainEqual({path:'people/'+personId+'/profile',method:'GET'}));
     expect(screen.getByRole('link',{name:path.startsWith('/organizations')?'Volver a Institución contextual · Personas':'Volver a personas'})).toHaveAttribute('href',path.startsWith('/organizations')?'/organizations/'+organizationId+'/people':'/people');
-    await user.click(screen.getByRole('button',{name:'Registrar medio de contacto'}));await user.selectOptions(screen.getByLabelText('Tipo de medio'),'PHONE');await user.type(screen.getByLabelText('Valor del medio'),'+591 76543210');await user.click(screen.getByRole('button',{name:'Registrar medio y asociar'}));
-    await waitFor(()=>expect(screen.queryByLabelText('Valor del medio')).not.toBeInTheDocument());
-    await user.click(screen.getByRole('button',{name:'Registrar nuevo episodio'}));await user.click(await screen.findByRole('radio',{name:organization.name}));await user.click(screen.getByRole('button',{name:'Registrar episodio'}));
-    await waitFor(()=>expect(screen.queryByRole('button',{name:'Registrar episodio'})).not.toBeInTheDocument());
-    await user.click(screen.getByRole('button',{name:'Editar persona'}));await user.clear(screen.getByLabelText('Nombre de presentación'));await user.type(screen.getByLabelText('Nombre de presentación'),'Persona objetivo corregida');await user.click(screen.getByRole('button',{name:'Guardar persona'}));await screen.findByRole('heading',{name:'Persona objetivo corregida'});
-    expect(requests).toContainEqual({path:'people/'+personId,method:'PUT'});
+    expect(screen.queryByRole('button',{name:'Editar contexto'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:'Registrar medio de contacto'})).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button',{name:'Editar datos de la persona'}));
+    await user.clear(screen.getByLabelText('Nombre de presentación'));
+    await user.type(screen.getByLabelText('Nombre de presentación'),'Persona objetivo corregida');
+    await user.click(screen.getByRole('button',{name:'Agregar medio de contacto'}));
+    await user.selectOptions(screen.getByLabelText('Tipo de medio'),'PHONE');
+    await user.type(screen.getByLabelText('Dato de contacto'),'+591 76543210');
+    await user.click(screen.getByRole('button',{name:'Guardar cambios'}));
+    await screen.findByRole('heading',{name:'Persona objetivo corregida'});
+    expect(requests).toContainEqual({path:'people/'+personId+'/profile',method:'PUT'});
     await user.click(screen.getByRole('button',{name:'Desactivar persona'}));await user.click(screen.getByRole('button',{name:'Confirmar desactivación'}));await screen.findByRole('button',{name:'Reactivar persona'});
-    for(const section of ['contacts','relations'])expect(requests).toContainEqual({path:'people/'+personId+'/'+section,method:'POST'});
+
     expect(requests).toContainEqual({path:'people/'+personId+'/status',method:'PATCH'});expect(wrongPerson).toEqual({...base,id:organizationId,displayName:'Otra persona existente'});expect(unexpected).toEqual([]);
     const keys=client.getQueryCache().getAll().map(q=>JSON.stringify(q.queryKey));expect(keys.some(key=>key.includes('people/'+organizationId+'/'))).toBe(false);
   });

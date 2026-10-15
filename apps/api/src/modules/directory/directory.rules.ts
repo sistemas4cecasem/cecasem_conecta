@@ -10,9 +10,11 @@ export function institutionalText(value: string | null | undefined, maximum: num
   if (normalized.length > maximum || required && !normalized) throw new DirectoryError('INVALID_DIRECTORY');
   return normalized || null;
 }
-export function categoryName(value: string): { name: string; normalizedName: string } {
-  const name = institutionalText(value, 150, true)!;
-  return { name, normalizedName: name.toLowerCase() };
+export function interestAreas(value: string[] | undefined): string[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > 100) throw new DirectoryError('INVALID_DIRECTORY');
+  const names = value.map(item => institutionalText(item, 150, true)!);
+  return names.filter((name, index) => names.findIndex(other => other.toLowerCase() === name.toLowerCase()) === index);
 }
 export function website(value: string | null | undefined): string | null {
   const normalized = institutionalText(value, 2048);

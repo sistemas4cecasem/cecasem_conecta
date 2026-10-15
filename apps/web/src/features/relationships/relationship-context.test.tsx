@@ -81,6 +81,17 @@ describe('Contexto institucional previo', () => {
   const writes = () => fetchMock.mock.calls.filter(([, options]) => options?.method === 'POST');
   const reads = () => fetchMock.mock.calls.filter(([url]) => url.includes('/relationship-context?'));
   function restrict() { row.restriction = { id: itemId, reason: 'Solicitud explícita', createdAt: at }; row.contactAllowed = false; }
+  it('el perfil personal conserva procesos por correo y oculta la identidad repetida y el contexto de organizaciones', async () => {
+    row = { ...empty(), target: { kind:'PERSON', id:personId, label:'Persona QA', isActive:true },
+      relatedOrganizationContext:{items:[empty()],total:1},
+      emailProcesses:{addresses:['persona@example.test'],items:[{id:itemId,purpose:'Seguimiento por correo',state:'WAITING_RESPONSE'}],total:1} };
+    render(<QueryClientProvider client={client}><MemoryRouter><RelationshipContextPanel identity={identity} target={{kind:'PERSON',id:personId,label:'Persona QA'}} presentation="person-profile" /></MemoryRouter></QueryClientProvider>);
+    expect(await screen.findByRole('link',{name:'Seguimiento por correo'})).toHaveAttribute('href','/relationship-processes/'+itemId);
+    expect(screen.queryByRole('link',{name:'Persona QA'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('region',{name:'Contexto de organizaciones vinculadas'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('link',{name:'Fundación QA'})).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([url])=>url.includes('view=person-profile'))).toBe(true);
+  });
   it('vacío distingue gestiones de comunicaciones y no afirma contacto', async () => {
     panel(); expect(await screen.findByText('No hay gestiones registradas para este objetivo.')).toBeVisible();
     expect(screen.getByText(/No hay comunicaciones válidas registradas en CECASEM Conecta/)).toBeVisible(); expect(writes()).toHaveLength(0);

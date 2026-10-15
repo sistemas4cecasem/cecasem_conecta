@@ -1,6 +1,7 @@
+import { canReadDirectoryHistory } from './directory-permissions';
 import { ActionLink } from '../../components/ui/actions';
 import { useState } from 'react';
-import { useParams } from 'react-router';
+import { useOutletContext, useParams } from 'react-router';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useSession,type AuthIdentity } from '../auth/session';
@@ -9,6 +10,9 @@ import { useDirectoryMutation } from './queries';
 import { useContactMethod } from './contacts.queries';
 import { contactCorrectionSchema,contactMethodSchema,contactLabels,conditionLabels,type ContactCorrectionValues,type ContactMethod } from './contacts.contracts';
 import { ContactMethodAssociations } from './contact-associations';
+import type { OrganizationWorkspaceContext } from './organization-workspace-context';
+import { dateLabel } from './date-label';
+import './organization-presentation.css';
 import { DirectoryHistory } from './directory-history';
 import { Field,inputClass,buttonClass,MutationError,QueryState } from './directory-ui';
 import { PageHeader, Surface } from '../../components/ui/layout';
@@ -28,22 +32,25 @@ function ContactCorrectionForm({identity,initial,saved,cancel,onExisting}:{ident
     <div className="flex flex-wrap gap-3"><button className={buttonClass} disabled={mutation.isPending}>Guardar corrección del medio</button><button type="button" className={buttonClass} onClick={cancel}>Cancelar corrección del medio</button></div></form>;
 }
 export function ContactDetailPage() {
-  const {id=''}=useParams();const identity=useSession().data;const query=useContactMethod(identity,id);const mutation=useDirectoryMutation(identity);
+  const {id:routeId='',contactId,branchId}=useParams();const id=contactId??routeId;
+  const organizationContext=useOutletContext<OrganizationWorkspaceContext|undefined>();const organization=contactId?organizationContext?.organization:undefined;
+  const identity=useSession().data;const query=useContactMethod(identity,id);const mutation=useDirectoryMutation(identity);
   const [editing,setEditing]=useState<ContactMethod|null>(null),[replacementId,setReplacementId]=useState<string>();const replacement=useContactMethod(identity,replacementId);
   if(!identity?.permissions.includes('directory.read'))return <p role="alert">No tienes permiso para consultar medios de contacto.</p>;
   if(!query.data)return <QueryState pending={query.isPending} error={query.isError} retry={query.refetch}/>;
   const row=query.data;
-  return <section className="ui-detail-page"><PageHeader eyebrow="Directorio / Medios de contacto" title={'Medio de contacto: ' + row.value} description={`${contactLabels[row.type]} · ${conditionLabels[row.condition]}`} back={<ActionLink appearance="back" to="/organizations">Volver al directorio</ActionLink>} />
+  const writable=identity.permissions.includes('directory.write')&&!organizationContext?.readOnly;
+  return <section className="ui-detail-page"><PageHeader title={'Medio de contacto: ' + row.value} description={`${contactLabels[row.type]} · ${conditionLabels[row.condition]}`} back={<ActionLink appearance="back" to={organization?`/organizations/${organization.id}/${branchId?'locations':'contacts'}`:'/organizations'}>{organization?'Volver a '+organization.name+(branchId?' · Sedes':' · Contactos'):'Volver al directorio'}</ActionLink>} />
     <Surface heading="Información del medio">{row.label&&<p>Etiqueta: {row.label}</p>}
-    <p>{row.associationCount>1?'Medio compartido':'Medio canónico'} · {row.associationCount} asociaciones.</p></Surface>
+    <p>Última actualización: <time dateTime={row.updatedAt}>{dateLabel(row.updatedAt)}</time></p></Surface>
     {editing?<ContactCorrectionForm identity={identity} initial={editing} saved={()=>{setEditing(null);setReplacementId(undefined);}} cancel={()=>setEditing(null)} onExisting={setReplacementId}/>:
-      identity.permissions.includes('directory.write')&&<button className={buttonClass} onClick={()=>setEditing(row)}>Corregir medio de contacto</button>}
-    {identity.permissions.includes('directory.write')&&<button className={buttonClass} disabled={mutation.isPending} onClick={()=>{void mutation.mutateAsync({path:'contact-methods/'+id+'/condition',method:'PATCH',body:{condition:row.condition==='USABLE'?'UNUSABLE':'USABLE',expectedVersion:row.version}}).catch(()=>undefined);}}>{row.condition==='USABLE'?'Marcar medio no utilizable':'Restablecer medio disponible'}</button>}
+      writable&&<button className={buttonClass} onClick={()=>setEditing(row)}>Corregir medio de contacto</button>}
+    {writable&&<button className={buttonClass} disabled={mutation.isPending} onClick={()=>{void mutation.mutateAsync({path:'contact-methods/'+id+'/condition',method:'PATCH',body:{condition:row.condition==='USABLE'?'UNUSABLE':'USABLE',expectedVersion:row.version}}).catch(()=>undefined);}}>{row.condition==='USABLE'?'Marcar medio no utilizable':'Restablecer medio disponible'}</button>}
     <MutationError error={mutation.error} reload={async()=>{const fresh=await query.refetch();if(fresh.isSuccess)mutation.reset();}}/>
     {replacementId&&<><QueryState pending={replacement.isPending} error={replacement.isError} retry={replacement.refetch}/>{replacement.data&&<Alert tone="warning">
       <p>El correo ya existe como {replacement.data.value}. Elige explícitamente abajo qué asociación sustituir. Los actores y el otro medio conservan sus identidades.</p>
       <ActionLink className="inline-flex min-h-11" to={'/contact-methods/'+replacementId}>Ver ficha del correo existente</ActionLink><ContactMethodAssociations identity={identity} methodId={replacementId} readOnly/>
       <button className={buttonClass} onClick={()=>setReplacementId(undefined)}>Cancelar reutilización para corrección</button></Alert>}</>}
-    <Surface heading="Asociaciones del medio"><ContactMethodAssociations key={id} identity={identity} methodId={id} replacement={replacement.data}/></Surface>
-    {identity.permissions.includes('directory.history.read')&&<DirectoryHistory key={'history-'+id} identity={identity} path={'contact-methods/'+id+'/history'}/>}</section>;
+    {(!organization||editing&&row.associationCount>1||replacementId)&&<Surface heading={organization?'Este contacto también se utiliza en':'Asociaciones del medio'}><ContactMethodAssociations key={id} identity={identity} methodId={id} replacement={replacement.data}/></Surface>}
+    {canReadDirectoryHistory(identity)&&<DirectoryHistory key={'history-'+id} identity={identity} path={'contact-methods/'+id+'/history'}/>}</section>;
 }

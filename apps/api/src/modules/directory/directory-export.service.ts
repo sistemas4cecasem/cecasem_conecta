@@ -8,7 +8,7 @@ import { OrganizationFilterService } from './organization-filter.service';
 
 const organizationSelect = {
   id: true, name: true, alias: true, country: true, isActive: true, branchOf: { select: { id: true, name: true } },
-  categories: { orderBy: { categoryId: 'asc' }, select: { category: { select: { id: true, name: true } } } },
+  interestAreas: true,
   contacts: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: { id: true, isActive: true, dataImportBatchId: true,
     contactMethod: { select: { id: true, type: true, value: true, label: true, condition: true } } } },
   createdAt: true, updatedAt: true, dataImportBatchId: true,
@@ -30,7 +30,7 @@ const personSelect = {
 } satisfies Prisma.PersonSelect;
 
 export interface OrganizationExportFilters {
-  name?: string; country?: string; categoryId?: string; status?: 'active' | 'inactive' | 'all';
+  name?: string; country?: string; status?: 'active' | 'inactive' | 'all';
   withCommunications?: boolean;
 }
 export interface ContactsExportFilters { name?: string; status?: 'active' | 'inactive' | 'all'; contactType?: string; relationStatus?: 'current' | 'historical' | 'all' }

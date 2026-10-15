@@ -34,3 +34,12 @@ export const contactCorrectionSchema=z.object({...contactValueShape,confirmShare
 export type ContactCorrectionValues=z.infer<typeof contactCorrectionSchema>;
 export const contactReplacementSchema=contactContextSchema.extend({confirmed:z.boolean().refine(value=>value,'Confirma la sustitución para continuar.')});
 export const contactAssociationResultSchema=z.object({outcome:z.enum(['created','existing']),association:contactAssociationSchema});
+
+const contactMethodFieldsSchema = z.object({type:z.enum(contactTypes),value:z.string(),label:z.string()});
+export const optionalContactMethodsSchema = z.array(contactMethodFieldsSchema).superRefine((methods,context)=>{
+  methods.forEach((method,index)=>{
+    if(!method.value.trim())return;
+    const parsed=contactCreateFormSchema.safeParse({...method,sourceDescription:'',sourceUrl:'',notes:''});
+    if(!parsed.success) for(const issue of parsed.error.issues) context.addIssue({...issue,path:[index,...issue.path]});
+  });
+});

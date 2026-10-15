@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -15,16 +15,17 @@ const stamp = '2026-10-02T00:00:00.000Z';
 const catA = { id: 'cat-a', name: 'Educación QA', isActive: true, version: 1, createdAt: stamp, updatedAt: stamp };
 const catB = { ...catA, id: 'cat-b', name: 'Ambiente QA' };
 const base: Organization = { id: 'org', name: 'Institución QA', country: null, alias: null, description: null, officialWebsite: null,
-  isActive: true, version: 1, branchOfId: null, branchOf: null, categories: [], createdAt: stamp, updatedAt: stamp, };
+  isActive: true, version: 1, branchOfId: null, branchOf: null, interestAreas: [], createdAt: stamp, updatedAt: stamp, };
 const branchOwner = { id: 'branch-owner', name: 'Organización regional', isActive: true };
 const page = (items: unknown[], total = items.length, number = 1) => ({ items, total, page: number, pageSize: 25 });
 
 describe('Directorio operativo', () => {
   let client = createQueryClient(); let current = identity; let row = { ...base };
+  let branchFailure=false;
   let listState = 'ok'; let conflicting = false; let detailStatus = 200; let total = 1; let withCategories = true; let loggedOut = false; let showHistory = false;
   const fetchMock = vi.fn<(url: string, options?: RequestInit) => Promise<Response>>();
   beforeEach(() => {
-    client = createQueryClient(); current = { ...identity }; row = { ...base }; listState = 'ok'; conflicting = false; detailStatus = 200; total = 1; withCategories = true; loggedOut = false; showHistory = false;
+    branchFailure=false;client = createQueryClient(); current = { ...identity }; row = { ...base }; listState = 'ok'; conflicting = false; detailStatus = 200; total = 1; withCategories = true; loggedOut = false; showHistory = false;
     fetchMock.mockReset();
     fetchMock.mockImplementation((url, options) => {
       const path = url.replace('/api/v1/', '');
@@ -37,6 +38,8 @@ describe('Directorio operativo', () => {
         ...page(showHistory ? [{operationId:'operation-qa',createdAt:stamp,objectType:'ORGANIZATION',actor:{id:identity.id,givenNames:identity.givenNames,familyNames:identity.familyNames,isActive:true},contextRecorded:true,relatedReferences:[],replacement:null,changes:[{field:'categoryIds',label:'Categorías',previousValue:[],newValue:[catA.id,catB.id],previousReferences:[],newReferences:[{id:catA.id,kind:'category',label:catA.name},{id:catB.id,kind:'category',label:catB.name}],added:[{id:catA.id,kind:'category',label:catA.name},{id:catB.id,kind:'category',label:catB.name}],removed:[]}]}] : []),
         references: { [catA.id]: catA.name, [catB.id]: catB.name },
       }));
+      if(path==='organizations/org/branches'&&method==='POST'&&branchFailure)return Promise.resolve(Response.json({code:'CONTACT_EMAIL_EXISTS'},{status:409}));
+      if(path==='organizations/org/branches'&&method==='POST')return Promise.resolve(Response.json({...base,id:'branch',name:row.name,...JSON.parse(String(options?.body)),branchOfId:'org',interestAreas:[],branchOf:{id:'org',name:row.name,isActive:true}},{status:201}));
       if (path.includes('/branches')) return Promise.resolve(Response.json(page([])));
       if (path.includes('/people?')) return Promise.resolve(Response.json(page([])));
       if (path.includes('/contacts?')) return Promise.resolve(Response.json(page([])));
@@ -138,33 +141,50 @@ describe('Directorio operativo', () => {
     await user.click(screen.getByRole('button', { name: 'Guardar organización' }));
     await screen.findByRole('heading', { name: 'Nueva institución' });
     const call = fetchMock.mock.calls.find(([url, options]) => url.endsWith('/organizations') && options?.method === 'POST');
-    expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ name: 'Nueva institución', branchOfId: null, categoryIds: [] });
+    expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ name: 'Nueva institución', branchOfId: null, interestAreas: [] });
     expect(JSON.parse(String(call?.[1]?.body))).not.toHaveProperty('lastVerifiedAt');
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['directory', 'qa'] });
   });
   it('registra una sede con datos institucionales y la asocia a la organización actual', async () => {
     const user = userEvent.setup(); app('/organizations/org/locations');
     await user.click(await screen.findByRole('button', { name: 'Añadir sede o representación' }));
-    await user.type(await screen.findByLabelText('Nombre'), 'Sede regional QA');
-    await user.type(screen.getByLabelText('País (opcional)'), 'Bolivia');
+    expect(await screen.findByLabelText('Nombre')).toHaveValue(base.name);expect(screen.getByLabelText('Nombre')).toHaveAttribute('readonly');
+    await user.type(screen.getByLabelText('Lugar de la sede'), 'La Paz, Bolivia');
     await user.type(screen.getByLabelText('Sitio oficial (opcional)'), 'https://sede.example.test');
-    await user.click(screen.getByRole('checkbox', { name: 'Educación QA' }));
+    expect(screen.queryByLabelText('Área de interés')).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText('Dato de contacto'),'sede@example.test');
+    await user.click(screen.getByRole('button',{name:'Agregar otro medio'}));
+    await user.type(within(screen.getByRole('group',{name:'Medio de contacto 2'})).getByLabelText('Dato de contacto'),'otra.sede@example.test');
     await user.click(screen.getByRole('button', { name: 'Guardar sede' }));
     await screen.findByRole('button', { name: 'Añadir sede o representación' });
-    const call = fetchMock.mock.calls.find(([url, options]) => url.endsWith('/organizations') && options?.method === 'POST');
-    expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ name: 'Sede regional QA', country: 'Bolivia', officialWebsite: 'https://sede.example.test', branchOfId: 'org', categoryIds: ['cat-a'] });
+    const call = fetchMock.mock.calls.find(([url, options]) => url.endsWith('/organizations/org/branches') && options?.method === 'POST');
+    expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ country: 'La Paz, Bolivia', officialWebsite: 'https://sede.example.test', contactMethods:[{type:'EMAIL',value:'sede@example.test',label:''},{type:'EMAIL',value:'otra.sede@example.test',label:''}] });
   });
-  it('edita la ficha de una sede y conserva su organización asociada y categorías', async () => {
-    row = { ...base, branchOfId: branchOwner.id, branchOf: branchOwner };
+  it('un correo ocupado conserva los datos y los contactos de la sede en el formulario',async()=>{
+    branchFailure=true;const user=userEvent.setup();app('/organizations/org/locations');
+    await user.click(await screen.findByRole('button',{name:'Añadir sede o representación'}));
+    await user.type(screen.getByLabelText('Lugar de la sede'),'La Paz');await user.type(screen.getByLabelText('Dato de contacto'),'ocupado@example.test');
+    await user.click(screen.getByRole('button',{name:'Guardar sede'}));expect(await screen.findByRole('alert')).toHaveTextContent('Este correo ya está registrado');
+    expect(screen.getByLabelText('Nombre')).toHaveValue(base.name);expect(screen.getByLabelText('Dato de contacto')).toHaveValue('ocupado@example.test');
+  });
+  it('una sede exige su lugar antes de guardar y no permite editar el nombre automático',async()=>{
+    const user=userEvent.setup();app('/organizations/org/locations');await user.click(await screen.findByRole('button',{name:'Añadir sede o representación'}));
+    expect(screen.getByLabelText('Lugar de la sede')).toBeRequired();expect(screen.getByLabelText('Nombre')).toHaveAttribute('readonly');
+    await user.click(screen.getByRole('button',{name:'Guardar sede'}));
+    expect(fetchMock.mock.calls.some(([,options])=>options?.method==='POST')).toBe(false);
+    await user.type(screen.getByLabelText('Lugar de la sede'),'   ');await user.click(screen.getByRole('button',{name:'Guardar sede'}));
+    expect(await screen.findByText('Indica el lugar de la sede.')).toBeVisible();
+  });
+  it('edita la ficha de una sede y conserva su organización asociada sin áreas propias', async () => {
+    row = { ...base, country:'La Paz', branchOfId: branchOwner.id, branchOf: branchOwner };
     const user = userEvent.setup(); app('/organizations/org');
     await user.click(await screen.findByRole('button', { name: 'Editar ficha' }));
     await user.type(screen.getByLabelText('Descripción (opcional)'), 'Descripción revisada');
-    await user.click(await screen.findByRole('checkbox', { name: 'Educación QA' }));
-    await user.click(screen.getByRole('checkbox', { name: 'Ambiente QA' }));
+    expect(screen.queryByLabelText('Área de interés')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Guardar sede' }));
     await screen.findByRole('button', { name: 'Editar ficha' });
     const call = fetchMock.mock.calls.find(([, options]) => options?.method === 'PUT');
-    expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ expectedVersion: 1, branchOfId: branchOwner.id, categoryIds: ['cat-a', 'cat-b'], description: 'Descripción revisada' });
+    expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ expectedVersion: 1, branchOfId: branchOwner.id, interestAreas: [], description: 'Descripción revisada' });
   });
   it('409 conserva borrador, no reintenta y recarga solo con advertencia visible', async () => {
     const user = userEvent.setup(); conflicting = true; app('/organizations/org');
@@ -190,6 +210,7 @@ describe('Directorio operativo', () => {
     expect(screen.getByRole('button', { name: 'Siguiente' })).toBeDisabled();
   });
   it('historial vacío, sede asociada y sedes registradas son visibles', async () => {
+    current = { ...identity, role: 'ADMINISTRATOR' };
     row = { ...row, branchOfId: branchOwner.id, branchOf: branchOwner };
     const user = userEvent.setup(); app('/organizations/org/locations');
     await screen.findByRole('heading', { name: 'Institución QA' });
@@ -198,15 +219,9 @@ describe('Directorio operativo', () => {
     await user.click(screen.getByRole('link', { name: /^Control$/ }));
     expect(await screen.findByText('Aún no hay modificaciones.')).toBeVisible();
   });
-  it('catálogo mínimo crea categoría sin seeds', async () => {
-    withCategories = false; const user = userEvent.setup(); app('/organizations/categories');
-    await user.type(await screen.findByLabelText('Nombre de categoría'), 'Categoría QA');
-    await user.click(screen.getByRole('button', { name: 'Crear categoría' }));
-    await waitFor(() => expect(fetchMock.mock.calls.some(([url, options]) => url.endsWith('/categories') && options?.method === 'POST')).toBe(true));
-    await waitFor(() => expect(screen.getByLabelText('Nombre de categoría')).toHaveValue(''));
-  });
+
   it('historial muestra nombres de asociaciones y valores anteriores sin códigos técnicos', async () => {
-    showHistory = true; app('/organizations/org/control');
+    current = { ...identity, role: 'ADMINISTRATOR' }; showHistory = true; app('/organizations/org/control');
     await userEvent.click(await screen.findByText('Ver detalle del cambio'));
     expect(await screen.findByText('Después: Educación QA, Ambiente QA')).toBeVisible();
     expect(screen.getByText('Antes: Sin categorías')).toBeVisible();
@@ -224,8 +239,36 @@ describe('Directorio operativo', () => {
     expect(client.getQueriesData({ queryKey: ['directory'] })).toHaveLength(0);
     expect(client.getQueryData(AUTH_QUERY_KEY)).toBeNull();
   });
+  it('añade áreas libres, evita duplicados y guarda también el texto pendiente', async () => {
+    const user = userEvent.setup(); app('/organizations/new');
+    await user.type(await screen.findByLabelText('Nombre'), 'Institución con áreas');
+    const input = screen.getByLabelText('Área de interés');
+    await user.type(input, ' Educación   ambiental ');
+    await user.keyboard('{Enter}');
+    expect(screen.getByRole('button', { name: 'Quitar Educación ambiental' })).toBeVisible();
+    await user.type(input, 'EDUCACIÓN AMBIENTAL');
+    await user.click(screen.getByRole('button', { name: 'Añadir área de interés' }));
+    expect(screen.getByText('Esta área ya está añadida.')).toBeVisible();
+    await user.clear(input); await user.type(input, 'Salud comunitaria');
+    await user.click(screen.getByRole('button', { name: 'Guardar organización' }));
+    await screen.findByRole('heading', { name: 'Institución con áreas' });
+    const call = fetchMock.mock.calls.find(([url, options]) => url.endsWith('/organizations') && options?.method === 'POST');
+    expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ interestAreas: ['Educación ambiental', 'Salud comunitaria'] });
+    expect(fetchMock.mock.calls.some(([url]) => url.includes('/categories'))).toBe(false);
+  });
+  it('quitar todas las áreas guarda el arreglo vacío en una edición', async () => {
+    row = { ...base, interestAreas: ['Salud', 'Educación'] };
+    const user = userEvent.setup(); app('/organizations/org');
+    await user.click(await screen.findByRole('button', { name: 'Editar ficha' }));
+    await user.click(screen.getByRole('button', { name: 'Quitar Salud' }));
+    await user.click(screen.getByRole('button', { name: 'Quitar Educación' }));
+    await user.click(screen.getByRole('button', { name: 'Guardar organización' }));
+    await screen.findByRole('button', { name: 'Editar ficha' });
+    const call = fetchMock.mock.calls.find(([, options]) => options?.method === 'PUT');
+    expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({ interestAreas: [], expectedVersion: 1 });
+  });
   it('Zod valida nombre, sitio y opcionales sin completar datos desconocidos', () => {
-    const blank = { name: '', country: '', alias: '', description: '', officialWebsite: '', branchOfId: '', categoryIds: [] };
+    const blank = { name: '', country: '', alias: '', description: '', officialWebsite: '', branchOfId: '', interestAreas: [] };
     expect(organizationFormSchema.safeParse(blank).success).toBe(false);
     expect(organizationFormSchema.safeParse({ ...blank, name: ' Parcial  ' }).success).toBe(true);
     expect(organizationFormSchema.safeParse({ ...blank, name: 'Ficha', officialWebsite: 'javascript:alert(1)' }).success).toBe(false);

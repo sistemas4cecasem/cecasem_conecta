@@ -11,6 +11,7 @@ export function historyValueLabel(change: HistoryChange, side: 'previous' | 'new
   const refs = side === 'previous' ? change.previousReferences : change.newReferences;
   if (value === null || value === '') return 'Sin dato';
   if (refs.length) return refs.map(referenceLabel).join(', ');
+  if (change.field === 'interestAreas' && Array.isArray(value)) return value.join(', ') || 'Sin áreas de interés';
   if (Array.isArray(value)) return value.length ? 'Referencias conservadas (etiquetas históricas no registradas)' : change.field === 'categoryIds' ? 'Sin categorías' : 'Sin fichas consolidadas';
   if (typeof value === 'boolean') return change.field === 'isCurrent' ? (value ? 'Vigente' : 'Finalizado') : (value ? 'Activa' : 'Inactiva');
   if (change.field === 'condition') return value === 'USABLE' ? 'Disponible' : 'No utilizable (reportado)';

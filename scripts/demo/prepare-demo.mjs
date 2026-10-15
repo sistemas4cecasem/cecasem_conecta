@@ -160,12 +160,10 @@ export async function prepareDemoDataset({ baseUrl = defaultBaseUrl, adminEmail,
 
   const users = collectionItems(await request('GET', 'users?status=all'));
   const organizations = collectionItems(await request('GET', 'organizations?status=all&page=1&pageSize=100'));
-  const categories = collectionItems(await request('GET', 'categories?status=all&page=1&pageSize=100'));
   const batches = collectionItems(await request('GET', 'data-exchange/imports?page=1&pageSize=100'));
   const markers = [
     users.some((user) => user.email === 'directorio@demo.example.test' || user.email === 'investigacion@demo.example.test' || user.email === 'seguimiento@demo.example.test' || user.email === 'planificacion@demo.example.test'),
     organizations.some((organization) => organization.name === 'Fundación Horizonte Comunitario Demo' || organization.name === 'Fundación Horizonte Comunitaria Demo' || organization.name === 'Colectivo Umbral Claro Demo'),
-    categories.some((category) => category.name === 'Cooperación comunitaria (demo 6.2)'),
     batches.some((batch) => batch.originalFilename === demoWorkbookFilename()),
   ];
   if (markers.some(Boolean)) throw new Error('Ya existe parte del dataset 6.2. No se hicieron cambios; reconstruye solo la base aislada cecasem-demo para repetirlo.');
@@ -187,7 +185,6 @@ export async function prepareDemoDataset({ baseUrl = defaultBaseUrl, adminEmail,
     await saveRoleCredentials(credentialsPath, credentials);
   }
 
-  const category = await request('POST', 'categories', { body: { name: 'Cooperación comunitaria (demo 6.2)' } });
   const diego = actors.get('RESEARCH');
   const pedro = actors.get('RESEARCH_FOLLOW_UP');
   const planning = actors.get('PLANNING');
@@ -195,7 +192,7 @@ export async function prepareDemoDataset({ baseUrl = defaultBaseUrl, adminEmail,
   const organization = await request('POST', 'organizations', { body: {
     name: 'Fundación Horizonte Comunitario Demo', country: 'Bolivia', alias: 'Horizonte Demo',
     description: 'Organización ficticia creada solo para mostrar continuidad de gestión institucional.',
-    officialWebsite: 'https://horizonte.example.test', categoryIds: [category.id],
+    officialWebsite: 'https://horizonte.example.test', interestAreas: ['Cooperación comunitaria (demo 6.2)'],
   }, headers: { Cookie: diego.cookie } });
   const similarOrganization = await request('POST', 'organizations', { body: {
     name: 'Fundación Horizonte Comunitaria Demo', country: 'Bolivia', alias: 'Horizonte Comunitaria',

@@ -8,9 +8,10 @@ export const canReadRelationshipContext = (identity: AuthIdentity) => contextPer
 export function contextIdentityKey(identity: AuthIdentity) {
   return ['relationship-context', identity.id, identity.role, contextPermissions.filter(permission => identity.permissions.includes(permission)).join(',')] as const;
 }
-export function useRelationshipContext(identity: AuthIdentity, target: PickedDirectoryTarget | null) {
+export function useRelationshipContext(identity: AuthIdentity, target: PickedDirectoryTarget | null, view?: 'person-profile') {
   const parameters = new URLSearchParams(target ? { [target.kind === 'ORGANIZATION' ? 'organizationId' : 'personId']: target.id } : {});
-  return useQuery({ queryKey: [...contextIdentityKey(identity), target?.kind, target?.id], enabled: !!target && canReadRelationshipContext(identity),
+  if (view) parameters.set('view', view);
+  return useQuery({ queryKey: [...contextIdentityKey(identity), target?.kind, target?.id, ...(view ? [view] : [])], enabled: !!target && canReadRelationshipContext(identity),
     queryFn: async ({ signal }) => relationshipContextSchema.parse(await apiRequest('relationship-context?' + parameters, { signal })), retry: false });
 }
 export async function clearForbiddenContext(client: QueryClient, identity: AuthIdentity | null) {

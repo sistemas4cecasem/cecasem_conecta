@@ -36,7 +36,7 @@ describe('5.5 exportación PostgreSQL/HTTP', () => {
   let app: INestApplication<Server>, prisma: PrismaService, users: UsersService;
   const userIds: string[] = [], processIds: string[] = [], opportunityIds: string[] = [], orgIds: string[] = [], personIds: string[] = [], contactIds: string[] = [], relationIds: string[] = [], categoryIds: string[] = [];
   const actors = new Map<UserRole, { id: string; cookie: string }>();
-  let organizationId: string, personId: string, processId: string, categoryId: string, deactivatedCookie = '';
+  let organizationId: string, personId: string, processId: string, deactivatedCookie = '';
 
   beforeAll(async () => {
     if (!new URL(databaseUrl).pathname.endsWith('_test')) throw new Error('Exportación requiere una base aislada _test.');
@@ -52,11 +52,8 @@ describe('5.5 exportación PostgreSQL/HTTP', () => {
       actors.set(role, { id: user.id, cookie: (login.headers['set-cookie'] as unknown as string[])[0].split(';')[0] });
     }
     const admin = actors.get(UserRole.ADMINISTRATOR)!;
-    const category = await prisma.category.create({ data: { name: 'QA Export Category', normalizedName: 'qa export category' } });
-    categoryId = category.id; categoryIds.push(category.id);
-    const organization = await prisma.organization.create({ data: { name: '=HYPERLINK("https://example.test")', country: 'Bolivia' } });
+    const organization = await prisma.organization.create({ data: { name: '=HYPERLINK("https://example.test")', country: 'Bolivia', interestAreas: ['QA Export Area'] } });
     organizationId = organization.id; orgIds.push(organization.id);
-    await prisma.organizationCategory.create({ data: { organizationId, categoryId } });
     const person = await prisma.person.create({ data: { displayName: '+cmd' } });
     personId = person.id; personIds.push(person.id);
     const contact = await prisma.contactMethod.create({ data: { type: ContactType.OTHER, value: '=SUM(1,1)', label: 'QA formula check' } });
@@ -95,10 +92,10 @@ describe('5.5 exportación PostgreSQL/HTTP', () => {
       prisma.personContact.deleteMany({ where: { personId: { in: personIds } } }),
       prisma.contactMethod.deleteMany({ where: { id: { in: contactIds } } }),
       prisma.person.deleteMany({ where: { id: { in: personIds } } }),
-      prisma.organizationCategory.deleteMany({ where: { organizationId: { in: orgIds } } }),
+      prisma.archivedOrganizationCategory.deleteMany({ where: { organizationId: { in: orgIds } } }),
       prisma.organization.deleteMany({ where: { id: { in: orgIds } } }),
       prisma.organization.deleteMany({ where: { name: { startsWith: 'QA Bulk Export ' } } }),
-      prisma.category.deleteMany({ where: { id: { in: categoryIds } } }),
+      prisma.archivedCategory.deleteMany({ where: { id: { in: categoryIds } } }),
       prisma.userSession.deleteMany({ where: { userId: { in: userIds } } }),
       prisma.userEmailAccount.deleteMany({ where: { userId: { in: userIds } } }),
       prisma.emailAccount.deleteMany({ where: { id: { in: links.map(link => link.emailAccountId) } } }),
@@ -113,7 +110,7 @@ describe('5.5 exportación PostgreSQL/HTTP', () => {
     .post(`/api/v1/data-exchange/exports/${type}`).set('Cookie', cookie).send({ filters }).buffer(true).parse(parseBinary);
 
   it('exports filtered organizations and all four roles only through their domain read permissions', async () => {
-    const filters = { country: 'Bolivia', categoryId, organizationStatus: 'active' };
+    const filters = { country: 'Bolivia', organizationStatus: 'active' };
     for (const role of Object.values(UserRole)) {
       await preview('organizations', actors.get(role)!.cookie, filters).expect(200, { type: 'organizations', count: 1, unit: 'registros' });
     }
@@ -126,7 +123,7 @@ describe('5.5 exportación PostgreSQL/HTTP', () => {
     expect(sheet.getRow(2).getCell(2).value).toBe('=HYPERLINK("https://example.test")');
     expect(sheet.getRow(2).getCell(2).type).toBe(ExcelJS.ValueType.String);
     expect(sheet.getRow(2).getCell(10).value).toBeNull();
-    expect(workbook.getWorksheet('Categorías')?.rowCount).toBe(2);
+    expect(workbook.getWorksheet('Áreas de interés')?.rowCount).toBe(2);
     expect(sheet.getRow(2).getCell(9).value).toBeNull();
   });
 

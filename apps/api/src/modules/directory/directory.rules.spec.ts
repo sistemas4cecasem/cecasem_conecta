@@ -1,7 +1,7 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { OrganizationInputDto, OrganizationEditDto, DirectoryQueryDto, OrganizationQueryDto } from './directory.dto';
-import { assertAcyclic, assertVersion, categoryName, institutionalText, website } from './directory.rules';
+import { assertAcyclic, assertVersion, interestAreas, institutionalText, website } from './directory.rules';
 
 describe('Reglas del directorio', () => {
   it.each(['', '  ', null, undefined])('rechaza nombre requerido %s', value => {
@@ -12,9 +12,10 @@ describe('Reglas del directorio', () => {
     expect(institutionalText('', 150)).toBeNull(); expect(institutionalText(undefined, 150)).toBeNull();
     expect(() => institutionalText('x'.repeat(151), 150)).toThrow();
   });
-  it('normaliza categorías equivalentes sin eliminar acentos ni cambiar identidad', () => {
-    expect(categoryName('  Educación   Ambiental  ')).toEqual({ name: 'Educación Ambiental', normalizedName: 'educación ambiental' });
-    expect(categoryName('EDUCACIÓN ambiental').normalizedName).toBe(categoryName('Educación Ambiental').normalizedName);
+  it('normaliza áreas libres y elimina repeticiones sin distinguir mayúsculas', () => {
+    expect(interestAreas(['  Educación   Ambiental  ', 'EDUCACIÓN AMBIENTAL', 'Salud'])).toEqual(['Educación Ambiental', 'Salud']);
+    expect(interestAreas(undefined)).toEqual([]);
+    for (const value of [[' '], ['x'.repeat(151)], Array(101).fill('Salud')]) expect(() => interestAreas(value)).toThrow();
   });
   it.each(['javascript:alert(1)', 'ftp://example.test', 'example.test', 'https://user:pass@example.test'])('rechaza sitio %s', value => {
     expect(() => website(value)).toThrow();
@@ -33,9 +34,9 @@ describe('Reglas del directorio', () => {
     expect(() => assertVersion(2, 0)).toThrow('INVALID_DIRECTORY');
     expect(() => assertVersion(2, 2)).not.toThrow();
   });
-  it('DTO permite solo nombre, rechaza categorías duplicadas y campos ajenos', async () => {
+  it('DTO permite solo nombre, rechaza áreas inválidas y campos ajenos', async () => {
     expect(await validate(plainToInstance(OrganizationInputDto, { name: '  Fundación  ' }))).toHaveLength(0);
-    expect(await validate(plainToInstance(OrganizationInputDto, { name: 'Fundación', categoryIds: [null] }))).not.toHaveLength(0);
+    expect(await validate(plainToInstance(OrganizationInputDto, { name: 'Fundación', interestAreas: [null] }))).not.toHaveLength(0);
     expect(await validate(plainToInstance(OrganizationInputDto, { name: 'Fundación', lastVerifiedAt: new Date() }), { whitelist: true, forbidNonWhitelisted: true })).not.toHaveLength(0);
   });
   it('DTO exige versión para editar y acota paginación', async () => {
@@ -43,12 +44,8 @@ describe('Reglas del directorio', () => {
     expect(await validate(plainToInstance(DirectoryQueryDto, { pageSize: 101 }))).not.toHaveLength(0);
     expect(await validate(plainToInstance(DirectoryQueryDto, { page: '2', pageSize: '25' }))).toHaveLength(0);
   });
-  it('permite categoría UUID opcional junto con estado y paginación, sin extender el catálogo', async () => {
-    const options = { whitelist: true, forbidNonWhitelisted: true };
-    expect(await validate(plainToInstance(OrganizationQueryDto, {}), options)).toHaveLength(0);
-    const input = { categoryId: '11111111-1111-4111-8111-111111111111', status: 'inactive', page: '2', pageSize: '1' };
-    expect(await validate(plainToInstance(OrganizationQueryDto, input), options)).toHaveLength(0);
-    expect(await validate(plainToInstance(DirectoryQueryDto, input), options)).not.toHaveLength(0);
+  it('rechaza filtros retirados incluso con un UUID válido', async () => {
+    expect(await validate(plainToInstance(OrganizationQueryDto, { categoryId: '11111111-1111-4111-8111-111111111111' }), { whitelist: true, forbidNonWhitelisted: true })).not.toHaveLength(0);
   });
   it.each(['', 'no-es-uuid', 'null', null, ['11111111-1111-4111-8111-111111111111']])('rechaza categoryId inválido %j', async categoryId => {
     expect(await validate(plainToInstance(OrganizationQueryDto, { categoryId }), { whitelist: true, forbidNonWhitelisted: true })).not.toHaveLength(0);

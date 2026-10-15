@@ -1,3 +1,4 @@
+import type { ProfileContactDto, ProfileContactSnapshotDto } from './contact-profile.dto';
 import { organizationContactOrigins, personContactOrigins, provenanceContract } from './consolidation-provenance';
 import { DirectoryActorPolicy } from './directory-actor.policy';
 import { Injectable } from '@nestjs/common';
@@ -57,6 +58,87 @@ export class ContactsService {
     const where=query.type?{type:query.type}:{};
     const [rows,total]=await this.prisma.$transaction([this.prisma.contactMethod.findMany({where,select:methodSelect,orderBy:[{createdAt:'desc'},{id:'desc'}],...paging(query)}),this.prisma.contactMethod.count({where})],{isolationLevel:Prisma.TransactionIsolationLevel.RepeatableRead});
     return {items:rows.map(methodContract),total,page:query.page,pageSize:query.pageSize};
+  }
+  async personProfileContacts(personId: string, tx: Prisma.TransactionClient) {
+    const rows = await tx.personContact.findMany({ where: { personId, isActive: true }, select: personSelect, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
+    return rows.map(associationContract);
+  }
+  async organizationProfileContacts(organizationId:string,tx:Prisma.TransactionClient) {
+    const rows=await tx.organizationContact.findMany({where:{organizationId,isActive:true},select:organizationSelect,orderBy:[{createdAt:'asc'},{id:'asc'}]});
+    return rows.map(associationContract);
+  }
+  async reconcilePersonProfile(personId:string,expected:ProfileContactSnapshotDto[],inputs:ProfileContactDto[],actorId:string,tx:Prisma.TransactionClient) {
+    return this.reconcileProfile({personId},expected,inputs,actorId,tx);
+  }
+  async reconcileOrganizationProfile(organizationId:string,expected:ProfileContactSnapshotDto[],inputs:ProfileContactDto[],actorId:string,tx:Prisma.TransactionClient) {
+    return this.reconcileProfile({organizationId},expected,inputs,actorId,tx);
+  }
+  private async profileContext(kind:AssociationKind,row:AssociationRow,input:ProfileContactDto,actorId:string,tx:Prisma.TransactionClient) {
+    const fields=contactContext(input),changes:FieldChange[]=[];
+    for(const field of ['sourceDescription','sourceUrl','notes'] as const)if(input[field]!==undefined&&row[field]!==fields[field])changes.push({field,previousValue:row[field],newValue:fields[field]});
+    if(!changes.length)return false;
+    const updates=Object.fromEntries(changes.map(change=>[change.field,fields[change.field as keyof typeof fields]]));
+    await this.updateAssociation(kind,row.id,{...updates,version:{increment:1}},tx);
+    await this.record(targetOf(kind,row.id),actorId,changes,AuditAction.CONTACT_ASSOCIATION_UPDATED,tx);
+    return true;
+  }
+  private async reconcileProfile(actor:ContactActor,expected:ProfileContactSnapshotDto[],inputs:ProfileContactDto[],actorId:string,tx:Prisma.TransactionClient):Promise<boolean> {
+    const kind=kindOf(actor);
+    const current='personId' in actor?await this.personProfileContacts(actor.personId,tx):await this.organizationProfileContacts(actor.organizationId,tx);
+    if (new Set(expected.map(row => row.id)).size !== expected.length || expected.length !== current.length) throw new DirectoryError('VERSION_CONFLICT');
+    for (const row of current) {
+      const snapshot = expected.find(item => item.id === row.id);
+      if (!snapshot) throw new DirectoryError('VERSION_CONFLICT');
+      assertVersion(row.version, snapshot.version); assertVersion(row.contactMethod.version, snapshot.methodVersion);
+    }
+    const retainedIds = inputs.flatMap(row => row.id ? [row.id] : []);
+    if (new Set(retainedIds).size !== retainedIds.length || retainedIds.some(id => !current.some(row => row.id === id))) throw new DirectoryError('INVALID_DIRECTORY');
+    // Lock existing canonical media in a deterministic order before changing any associations.
+    const desired = inputs.map(input => contactFields(input));
+    const existingTargets = desired.length ? await tx.contactMethod.findMany({where:{OR:desired.map(fields => fields.type === ContactType.EMAIL ? {type:fields.type,normalizedValue:fields.normalizedValue} : {type:fields.type,value:fields.value})},select:{id:true}}) : [];
+    for (const id of [...new Set([...current.map(row => row.contactMethodId), ...existingTargets.map(row => row.id)])].sort()) await this.lockMethod(id, tx);
+    for (const row of current) {
+      const association = await this.association(kind, row.id, tx);
+      if (!association.isActive) throw new DirectoryError('VERSION_CONFLICT');
+      assertVersion(association.version, expected.find(item => item.id === row.id)!.version);
+      const method = await this.method(row.contactMethodId, tx);
+      assertVersion(method.version, expected.find(item => item.id === row.id)!.methodVersion);
+    }
+    let changed = false;
+    const selectedMethods = new Set<string>();
+    for (const input of inputs) {
+      const fields = contactFields(input);
+      const previous = input.id ? current.find(row => row.id === input.id)! : undefined;
+      if (previous && previous.contactMethod.type === fields.type && previous.contactMethod.value === fields.value) {
+        if (selectedMethods.has(previous.contactMethodId)) throw new DirectoryError('CONTACT_VALUE_EXISTS');
+        selectedMethods.add(previous.contactMethodId);
+        if (previous.contactMethod.label !== fields.label) {
+          const method = await this.method(previous.contactMethodId, tx);
+          if (method._count.people + method._count.organizations > 1) throw new DirectoryError('SHARED_CONTACT_CONFIRMATION_REQUIRED');
+          await tx.contactMethod.update({ where: { id: method.id }, data: { label: fields.label, version: { increment: 1 } } });
+          await this.record({ contactMethodId: method.id }, actorId, [{ field: 'label', previousValue: method.label, newValue: fields.label }], AuditAction.CONTACT_METHOD_UPDATED, tx);
+          changed = true;
+        }
+        if(await this.profileContext(kind,await this.association(kind,previous.id,tx),input,actorId,tx))changed=true;
+        continue;
+      }
+      const result = await this.createAndAssociateWithinTransaction(actor, {...fields,...contactContext({...previous,...input})}, actorId, tx);
+      if (selectedMethods.has(result.association.contactMethodId)) throw new DirectoryError('CONTACT_VALUE_EXISTS');
+      selectedMethods.add(result.association.contactMethodId);
+      // Reuse can find an old inactive association. Reactivation is explicit in this saved profile.
+      const target = await this.association(kind, result.association.id, tx);
+      if (target.contactMethod.condition === ContactCondition.UNUSABLE) throw new DirectoryError('CONTACT_UNUSABLE');
+      await this.setAssociationState(kind, target.id, target, true, actorId, AuditAction.CONTACT_ASSOCIATION_STATUS_CHANGED, tx);
+      await this.profileContext(kind,target,input,actorId,tx);
+      changed = true;
+    }
+    // A replaced or removed address remains preserved with its original context and references.
+    for (const row of current) if (!selectedMethods.has(row.contactMethodId)) {
+      const association = await this.association(kind, row.id, tx);
+      await this.setAssociationState(kind, row.id, association, false, actorId, AuditAction.CONTACT_ASSOCIATION_ENDED, tx);
+      changed = true;
+    }
+    return changed;
   }
   async get(id:string) {return methodContract(await this.method(id));}
   async exactEmail(email:string) {
@@ -118,6 +200,8 @@ export class ContactsService {
     if(existing)return {outcome:'existing' as const,association:associationContract(existing)};
     if(expectedMethodVersion!==undefined)assertVersion(method.version,expectedMethodVersion);
     if(method.condition===ContactCondition.UNUSABLE)throw new DirectoryError('CONTACT_UNUSABLE');
+    // Un correo con propietario previo no se comparte; sus asociaciones históricas se conservan.
+    if(method.type===ContactType.EMAIL && method._count.people+method._count.organizations>0)throw new DirectoryError('CONTACT_EMAIL_EXISTS',{contactMethodId:method.id});
     const row='personId' in actor?await tx.personContact.create({data:{...actor,contactMethodId:methodId,...context},select:personSelect}):
       await tx.organizationContact.create({data:{...actor,contactMethodId:methodId,...context},select:organizationSelect});
     const changes:FieldChange[]=[{field:'associationCreated',previousValue:null,newValue:methodId}];

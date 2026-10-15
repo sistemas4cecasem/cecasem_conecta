@@ -1,3 +1,4 @@
+import { canReadDirectoryHistory } from './directory-permissions';
 import { useState } from 'react';
 import type { AuthIdentity } from '../auth/session';
 import { useHistory } from './queries';
@@ -9,6 +10,7 @@ export function DirectoryHistory({ identity, path, modern = false, headingLevel 
   const history = useHistory(identity, path + '?page=' + page);
   const Heading = headingLevel === 3 ? 'h3' : 'h2';
   const OperationHeading = headingLevel === 3 ? 'h4' : 'h3';
+  if (!canReadDirectoryHistory(identity)) return null;
   return <section className="min-w-0 space-y-3 break-words" aria-label="Historial de modificaciones">
     <Heading className={modern?'directory-history-heading':'text-xl font-semibold'}>Historial de modificaciones</Heading>
     <p>Los cambios de una misma operación se muestran juntos. La paginación cuenta operaciones completas.</p>

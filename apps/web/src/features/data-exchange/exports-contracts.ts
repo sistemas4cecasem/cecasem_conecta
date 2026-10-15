@@ -1,5 +1,5 @@
 export type ExportType = 'organizations' | 'contacts' | 'processes' | 'opportunities';
-export type ExportFilters = Partial<Record<'name' | 'country' | 'categoryId' | 'organizationStatus' | 'withCommunications' |
+export type ExportFilters = Partial<Record<'name' | 'country' | 'organizationStatus' | 'withCommunications' |
   'personStatus' | 'contactType' | 'relationStatus' | 'processState' | 'createdByUserId' | 'processOrganizationId' | 'processPersonId' |
   'opportunityStatus' | 'opportunityOrganizationId' | 'opportunityProcessId', string>>;
 export interface ExportPreview { type: ExportType; count: number; unit: 'registros' | 'personas' }
@@ -26,14 +26,14 @@ const labels: Partial<Record<keyof ExportFilters, Record<string, string>>> = {
   opportunityStatus: { PENDING_REVIEW: 'Pendiente de revisión', PREPARING: 'En preparación', SUBMITTED: 'Postulada', DISCARDED: 'Descartada', FINISHED: 'Finalizada', all: 'Todos los estados' },
 };
 const fieldLabels: Partial<Record<keyof ExportFilters, string>> = {
-  name: 'Nombre contiene', country: 'País', categoryId: 'Identificador de categoría', organizationStatus: 'Estado de organización',
+  name: 'Nombre contiene', country: 'País', organizationStatus: 'Estado de organización',
   withCommunications: 'Comunicaciones', personStatus: 'Estado de persona', contactType: 'Tipo de medio',
   relationStatus: 'Vínculos institucionales', processState: 'Estado de proceso', createdByUserId: 'Creador', processOrganizationId: 'Organización',
   processPersonId: 'Persona', opportunityStatus: 'Estado de oportunidad', opportunityOrganizationId: 'Organización', opportunityProcessId: 'Proceso',
 };
 
 export function filterSummary(type: ExportType, filters: ExportFilters): string {
-  const allowed = type === 'organizations' ? ['name', 'country', 'categoryId', 'organizationStatus', 'withCommunications'] :
+  const allowed = type === 'organizations' ? ['name', 'country', 'organizationStatus', 'withCommunications'] :
     type === 'contacts' ? ['name', 'personStatus', 'contactType', 'relationStatus'] : type === 'processes' ? ['processState', 'processOrganizationId', 'processPersonId', 'createdByUserId'] :
       ['opportunityStatus', 'opportunityOrganizationId', 'opportunityProcessId'];
   const entries = allowed.flatMap(key => {

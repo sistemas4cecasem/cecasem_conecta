@@ -33,7 +33,7 @@ describe('preparación del dataset de demostración 6.2 PostgreSQL/HTTP', () => 
   afterAll(async () => {
     if (prisma) {
       await prisma.$executeRawUnsafe('TRUNCATE TABLE "User" CASCADE');
-      await prisma.$executeRawUnsafe('TRUNCATE TABLE "Category" CASCADE');
+      await prisma.$executeRawUnsafe('TRUNCATE TABLE "ArchivedCategory" CASCADE');
       await prisma.$executeRawUnsafe('TRUNCATE TABLE "EmailAccount" CASCADE');
     }
     if (app) await app.close();

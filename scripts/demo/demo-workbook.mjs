@@ -7,7 +7,7 @@ const ExcelJS = requireFromApi('exceljs');
 export const demoSheets = [
   {
     name: 'Organizaciones',
-    headers: ['Organización', 'País', 'Nombre alternativo', 'Descripción', 'Sitio web oficial', 'Categoría propuesta'],
+    headers: ['Organización', 'País', 'Nombre alternativo', 'Descripción', 'Sitio web oficial', 'Área de interés sugerida'],
     rows: [
       ['Fundación Horizonte Comunitaria Demo', 'Bolivia', 'Horizonte Comunitaria', 'Organización enteramente ficticia para revisar cooperación comunitaria.', 'https://horizonte-comunitaria.example.test', 'Cooperación comunitaria'],
       ['Red Semilla Andina Demo', 'Perú', 'Red Semilla', 'Red ficticia dedicada a iniciativas locales de aprendizaje.', 'https://red-semilla.example.test', 'Educación'],

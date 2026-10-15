@@ -34,7 +34,6 @@ const idPrefixes = {
   user: 'a1000000-0000-4000-a000',
   organization: 'a2000000-0000-4000-a000',
   person: 'a3000000-0000-4000-a000',
-  category: 'a4000000-0000-4000-a000',
   contactMethod: 'a5000000-0000-4000-a000',
   relation: 'a6000000-0000-4000-a000',
   association: 'a7000000-0000-4000-a000',
@@ -71,9 +70,6 @@ function daysAhead(now: Date, days: number, hours = 0): Date {
 function dateOnly(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 }
-function normalizedCategory(name: string): string {
-  return name.toLowerCase();
-}
 
 const seedUsers = [
   { key: 'admin1', givenNames: 'Alicia', familyNames: 'Administradora Demo', email: 'admin1@seed.example.test', role: UserRole.ADMINISTRATOR },
@@ -90,7 +86,7 @@ const seedUsers = [
 type SeedUserKey = typeof seedUsers[number]['key'];
 type SeedUser = typeof seedUsers[number] & { id: string };
 
-const categories = [
+const areasOfInterest = [
   'Cooperación internacional',
   'Educación y formación',
   'Salud comunitaria',
@@ -99,16 +95,16 @@ const categories = [
 ] as const;
 
 const organizations = [
-  { name: 'Fundación Semilla Andina (Demo)', alias: 'Semilla Andina Demo', category: 0, area: 'Cochabamba', summary: 'Organización ficticia para probar alianzas de desarrollo comunitario.' },
-  { name: 'Asociación Puentes del Sur (Demo)', alias: 'Puentes del Sur Demo', category: 1, area: 'La Paz', summary: 'Organización ficticia para probar intercambio de metodologías educativas.' },
-  { name: 'Instituto Voces del Territorio (Demo)', alias: 'Voces del Territorio Demo', category: 0, area: 'Oruro', summary: 'Organización ficticia para probar investigación y participación territorial.' },
-  { name: 'Red Mujeres del Altiplano (Demo)', alias: 'Mujeres del Altiplano Demo', category: 2, area: 'La Paz', summary: 'Organización ficticia para probar coordinación de iniciativas comunitarias.' },
-  { name: 'Centro de Innovación Rural (Demo)', alias: 'Innovación Rural Demo', category: 3, area: 'Tarija', summary: 'Organización ficticia para probar proyectos productivos y convocatorias.' },
-  { name: 'Universidad Comunitaria del Valle (Demo)', alias: 'Universidad del Valle Demo', category: 1, area: 'Cochabamba', summary: 'Organización ficticia para probar convenios académicos y formación.' },
-  { name: 'Cooperativa Bosques Vivos (Demo)', alias: 'Bosques Vivos Demo', category: 4, area: 'Santa Cruz', summary: 'Organización ficticia para probar colaboración ambiental.' },
-  { name: 'Observatorio de Salud Local (Demo)', alias: 'Salud Local Demo', category: 2, area: 'Potosí', summary: 'Organización ficticia para probar intercambio de información en salud.' },
-  { name: 'Fundación Ruta de Aprendizaje (Demo)', alias: 'Ruta de Aprendizaje Demo', category: 1, area: 'Sucre', summary: 'Organización ficticia con una restricción de contacto activa para pruebas.' },
-  { name: 'Alianza Manos Abiertas (Demo)', alias: 'Manos Abiertas Demo', category: 0, area: 'Beni', summary: 'Organización ficticia con una restricción de contacto activa para pruebas.' },
+  { name: 'Fundación Semilla Andina (Demo)', alias: 'Semilla Andina Demo', interestArea: 0, area: 'Cochabamba', summary: 'Organización ficticia para probar alianzas de desarrollo comunitario.' },
+  { name: 'Asociación Puentes del Sur (Demo)', alias: 'Puentes del Sur Demo', interestArea: 1, area: 'La Paz', summary: 'Organización ficticia para probar intercambio de metodologías educativas.' },
+  { name: 'Instituto Voces del Territorio (Demo)', alias: 'Voces del Territorio Demo', interestArea: 0, area: 'Oruro', summary: 'Organización ficticia para probar investigación y participación territorial.' },
+  { name: 'Red Mujeres del Altiplano (Demo)', alias: 'Mujeres del Altiplano Demo', interestArea: 2, area: 'La Paz', summary: 'Organización ficticia para probar coordinación de iniciativas comunitarias.' },
+  { name: 'Centro de Innovación Rural (Demo)', alias: 'Innovación Rural Demo', interestArea: 3, area: 'Tarija', summary: 'Organización ficticia para probar proyectos productivos y convocatorias.' },
+  { name: 'Universidad Comunitaria del Valle (Demo)', alias: 'Universidad del Valle Demo', interestArea: 1, area: 'Cochabamba', summary: 'Organización ficticia para probar convenios académicos y formación.' },
+  { name: 'Cooperativa Bosques Vivos (Demo)', alias: 'Bosques Vivos Demo', interestArea: 4, area: 'Santa Cruz', summary: 'Organización ficticia para probar colaboración ambiental.' },
+  { name: 'Observatorio de Salud Local (Demo)', alias: 'Salud Local Demo', interestArea: 2, area: 'Potosí', summary: 'Organización ficticia para probar intercambio de información en salud.' },
+  { name: 'Fundación Ruta de Aprendizaje (Demo)', alias: 'Ruta de Aprendizaje Demo', interestArea: 1, area: 'Sucre', summary: 'Organización ficticia con una restricción de contacto activa para pruebas.' },
+  { name: 'Alianza Manos Abiertas (Demo)', alias: 'Manos Abiertas Demo', interestArea: 0, area: 'Beni', summary: 'Organización ficticia con una restricción de contacto activa para pruebas.' },
 ] as const;
 
 const people = [
@@ -206,20 +202,12 @@ async function seed(): Promise<void> {
         });
       }
 
-      for (const [index, name] of categories.entries()) {
-        const id = seedId('category', index + 1);
-        await tx.category.upsert({ where: { id }, create: { id, name, normalizedName: normalizedCategory(name) }, update: {} });
-      }
 
       for (const [index, organization] of organizations.entries()) {
         const id = seedId('organization', index + 1);
         const data = { name: organization.name, alias: organization.alias, country: 'Bolivia', description: organization.summary,
-          officialWebsite: `https://org-${index + 1}.example.test`, isActive: true };
+          officialWebsite: `https://org-${index + 1}.example.test`, interestAreas: [areasOfInterest[organization.interestArea]], isActive: true };
         await tx.organization.upsert({ where: { id }, create: { id, ...data, createdAt: daysAgo(now, 200 - index), updatedAt: daysAgo(now, 200 - index) }, update: {} });
-        await tx.organizationCategory.upsert({
-          where: { organizationId_categoryId: { organizationId: id, categoryId: seedId('category', organization.category + 1) } },
-          create: { organizationId: id, categoryId: seedId('category', organization.category + 1) }, update: {},
-        });
       }
 
       for (const [index, person] of people.entries()) {

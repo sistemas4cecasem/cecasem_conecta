@@ -24,7 +24,7 @@ if (!new URL(databaseUrl).pathname.endsWith('_test')) throw new Error('Historial
 type HistoryPage = Omit<Awaited<ReturnType<DirectoryHistoryService['list']>>, 'items'> & {
   items: Array<Omit<Awaited<ReturnType<DirectoryHistoryService['list']>>['items'][number], 'createdAt'> & { createdAt: string }>;
 };
-const prefixes = ['organizations', 'categories', 'people', 'person-organization-relations', 'contact-methods', 'person-contacts', 'organization-contacts'];
+const prefixes = ['organizations', 'people', 'person-organization-relations', 'contact-methods', 'person-contacts', 'organization-contacts'];
 describe('Historial de fichas PostgreSQL y HTTP', () => {
   let app: INestApplication<Server>, prisma: PrismaService, users: UsersService, directory: DirectoryService, people: PeopleService,
     contacts: ContactsService, history: DirectoryHistoryService, passwordHash: string;
@@ -47,9 +47,9 @@ describe('Historial de fichas PostgreSQL y HTTP', () => {
       prisma.personOrganizationRelation.deleteMany({ where: { personId: { in: personIds } } }),
       prisma.contactMethod.deleteMany({ where: { id: { in: methodIds } } }),
       prisma.person.deleteMany({ where: { id: { in: personIds } } }),
-      prisma.organizationCategory.deleteMany({ where: { organizationId: { in: organizationIds } } }),
+      prisma.archivedOrganizationCategory.deleteMany({ where: { organizationId: { in: organizationIds } } }),
       prisma.organization.deleteMany({ where: { id: { in: organizationIds } } }),
-      prisma.category.deleteMany({ where: { id: { in: categoryIds } } }),
+      prisma.archivedCategory.deleteMany({ where: { id: { in: categoryIds } } }),
       prisma.userSession.deleteMany({ where: { userId: { in: userIds } } }), prisma.user.deleteMany({ where: { id: { in: userIds } } }),
     ]);
     userIds.length = organizationIds.length = personIds.length = categoryIds.length = methodIds.length = 0;
@@ -67,15 +67,15 @@ describe('Historial de fichas PostgreSQL y HTTP', () => {
     const row = await directory.createOrganization({ name }, actor); organizationIds.push(row.id); return row;
   }
   async function person(actor: string) { const row = await people.create({ displayName: 'María histórica' }, actor); personIds.push(row.id); return row; }
-  async function category(actor: string) { const row = await directory.createCategory({ name: 'Derechos Humanos' }, actor); categoryIds.push(row.id); return row; }
+  async function category() { const row = await prisma.archivedCategory.create({ data: { name: 'Derechos Humanos', normalizedName: 'derechos humanos' } }); categoryIds.push(row.id); return row; }
   async function medium(actor: string) { const row = await contacts.create({ type: ContactType.EMAIL, value: randomUUID() + '@example.test' }, actor); methodIds.push(row.id); return row; }
   async function targets(actor: string) {
-    const org = await organization(actor), p = await person(actor), cat = await category(actor), m = await medium(actor);
+    const org = await organization(actor), p = await person(actor), m = await medium(actor);
     const relation = await people.createRelation(p.id, { organizationId: org.id, isCurrent: true, positionTitle: 'Coordinadora' }, actor);
     const pc = await contacts.associate({ personId: p.id }, m.id, { expectedMethodVersion: 1, sourceDescription: 'Fuente personal' }, actor);
     const oc = await contacts.associate({ organizationId: org.id }, m.id, { expectedMethodVersion: 2, sourceDescription: 'Fuente institucional' }, actor);
-    return { org, p, cat, m, relation, pc: pc.association, oc: oc.association,
-      paths: [org.id, cat.id, p.id, relation.id, m.id, pc.association.id, oc.association.id].map((id, index) => prefixes[index] + '/' + id + '/history') };
+    return { org, p, m, relation, pc: pc.association, oc: oc.association,
+      paths: [org.id, p.id, relation.id, m.id, pc.association.id, oc.association.id].map((id, index) => prefixes[index] + '/' + id + '/history') };
   }
   async function read(path: string, auth: string) {
     return (await request(app.getHttpServer()).get('/api/v1/' + path).set('Cookie', auth).expect(200)).body as HistoryPage;
@@ -87,10 +87,11 @@ describe('Historial de fichas PostgreSQL y HTTP', () => {
     const actor = await user(); jest.spyOn(app.get(SessionsService), 'findIdentity').mockResolvedValue({ ...actor, role: 'UNKNOWN' as UserRole });
     await request(app.getHttpServer()).get('/api/v1/' + prefix + '/' + randomUUID() + '/history').set('Cookie', 'cecasem_session=fixture').expect(403);
   });
-  it.each(Object.values(UserRole))('%s puede leer los siete tipos con la proyección pública de autoría', async role => {
+  it.each(Object.values(UserRole))('%s accede al historial solo cuando es Administrador', async role => {
     const actor = await user(role), auth = await cookie(actor), rows = await targets(actor.id);
     for (const path of rows.paths) {
-      const response = await request(app.getHttpServer()).get('/api/v1/' + path).set('Cookie', auth).expect(200);
+      const response = await request(app.getHttpServer()).get('/api/v1/' + path).set('Cookie', auth).expect(role === UserRole.ADMINISTRATOR ? 200 : 403);
+      if (role !== UserRole.ADMINISTRATOR) continue;
       expect(response.headers['cache-control']).toBe('no-store');
       for (const operation of (response.body as HistoryPage).items) {
         expect(Object.keys(operation.actor).sort()).toEqual(['familyNames', 'givenNames', 'id', 'isActive']);
@@ -134,25 +135,24 @@ describe('Historial de fichas PostgreSQL y HTTP', () => {
     expect(ids).toEqual([newest, second, first]);
     expect((await directory.organizationHistory(org.id, { page: 4, pageSize: 1 }))).toMatchObject({ total: 3, items: [] });
   });
-  it('renombrar categoría y organización asociada no reescribe etiquetas históricas', async () => {
-    const actor = await user(), org = await organization(actor.id), owner = await organization(actor.id, 'Organización regional'), cat = await category(actor.id);
-    await directory.editOrganization(org.id, { name: org.name, branchOfId: owner.id, categoryIds: [cat.id], expectedVersion: 1 }, actor.id);
+  it('renombrar organización asociada no reescribe etiquetas históricas', async () => {
+    const actor = await user(), org = await organization(actor.id), owner = await organization(actor.id, 'Organización regional');
+    await directory.editOrganization(org.id, { name: org.name, branchOfId: owner.id, interestAreas: ['Derechos Humanos'], expectedVersion: 1 }, actor.id);
     const before = await prisma.directoryChange.findMany({ where: { organizationId: org.id }, orderBy: { field: 'asc' } });
-    await directory.editCategory(cat.id, { name: 'Derechos y Ciudadanía', expectedVersion: 1 }, actor.id);
     await directory.editOrganization(owner.id, { name: 'Organización renombrada', expectedVersion: 1 }, actor.id);
     const result = await directory.organizationHistory(org.id, { page: 1, pageSize: 25 });
     expect(result.items[0].changes.find(change => change.field === 'branchOfId')?.newReferences).toEqual([{ id: owner.id, kind: 'organization', label: 'Organización regional' }]);
-    expect(result.items[0].changes.find(change => change.field === 'categoryIds')?.added).toEqual([{ id: cat.id, kind: 'category', label: 'Derechos Humanos' }]);
+    expect(result.items[0].changes.find(change => change.field === 'interestAreas')?.newValue).toEqual(['Derechos Humanos']);
     expect(await prisma.directoryChange.findMany({ where: { organizationId: org.id }, orderBy: { field: 'asc' } })).toEqual(before);
     await directory.editOrganization(org.id, { name: org.name, expectedVersion: 2 }, actor.id);
     const removal = await directory.organizationHistory(org.id, { page: 1, pageSize: 25 });
-    expect(removal.items[0].changes.find(change => change.field === 'categoryIds')?.removed).toEqual([{ id: cat.id, kind: 'category', label: 'Derechos y Ciudadanía' }]);
+    expect(removal.items[0].changes.find(change => change.field === 'interestAreas')?.previousValue).toEqual(['Derechos Humanos']);
   });
   it('las relaciones iniciales al crear una ficha ya tienen etiquetas históricas', async () => {
-    const actor = await user(), owner = await organization(actor.id), cat = await category(actor.id);
-    const org = await directory.createOrganization({ name: 'Sede inicial', branchOfId: owner.id, categoryIds: [cat.id] }, actor.id); organizationIds.push(org.id);
+    const actor = await user(), owner = await organization(actor.id);
+    const org = await directory.createOrganization({ name: 'Sede inicial', branchOfId: owner.id, interestAreas: ['Derechos Humanos'] }, actor.id); organizationIds.push(org.id);
     const result = await directory.organizationHistory(org.id, { page: 1, pageSize: 25 });
-    expect(result.total).toBe(1); expect(result.items[0].changes.map(change => change.field)).toEqual(['branchOfId', 'categoryIds']);
+    expect(result.total).toBe(1); expect(result.items[0].changes.map(change => change.field)).toEqual(['branchOfId', 'interestAreas']);
   });
   it('vínculo y asociaciones conservan actores y canal observados al registrar, después de correcciones', async () => {
     const actor = await user(), rows = await targets(actor.id);
@@ -168,20 +168,20 @@ describe('Historial de fichas PostgreSQL y HTTP', () => {
     expect(association.items[0].relatedReferences.map(ref => ref.label)).toEqual(['María histórica', rows.m.value]);
   });
   it('historia previa sin snapshot conserva datos, pero jamás inventa etiquetas después de renombrar', async () => {
-    const actor = await user(), org = await organization(actor.id), cat = await category(actor.id);
+    const actor = await user(), org = await organization(actor.id), cat = await category();
     await prisma.directoryChange.create({ data: { organizationId: org.id, actorUserId: actor.id, operationId: randomUUID(), field: 'categoryIds', previousValue: [], newValue: [cat.id] } });
-    await directory.editCategory(cat.id, { name: 'Nombre actual', expectedVersion: 1 }, actor.id);
     const result = await directory.organizationHistory(org.id, { page: 1, pageSize: 25 });
     expect(result.items[0]).toMatchObject({ contextRecorded: false, relatedReferences: [] });
     expect(result.items[0].changes[0]).toMatchObject({ newValue: [cat.id], newReferences: [{ id: cat.id, kind: 'category', label: null }] });
   });
-  it('RF-24 conserva autora desactivada, FK y entradas; lector sin users.read puede identificarlas', async () => {
+  it('RF-24 conserva autora desactivada, FK y entradas; solo Administrador puede consultarlas', async () => {
     const author = await user(UserRole.BOARD), administrator = await user(), reader = await user(UserRole.RESEARCH), org = await organization(author.id);
     await directory.editOrganization(org.id, { name: org.name, country: 'Bolivia', expectedVersion: 1 }, author.id);
     const before = await prisma.directoryChange.findMany({ where: { organizationId: org.id } });
     const administratorCookie = await cookie(administrator), authorCookie = await cookie(author), readerCookie = await cookie(reader);
     await request(app.getHttpServer()).post('/api/v1/users/' + author.id + '/deactivate').set('Cookie', administratorCookie).expect(204);
-    const result = await read('organizations/' + org.id + '/history', readerCookie);
+    await request(app.getHttpServer()).get('/api/v1/organizations/' + org.id + '/history').set('Cookie', readerCookie).expect(403);
+    const result = await read('organizations/' + org.id + '/history', administratorCookie);
     expect(result.items[0].actor).toEqual({ id: author.id, givenNames: author.givenNames, familyNames: author.familyNames, isActive: false });
     expect(await prisma.directoryChange.findMany({ where: { organizationId: org.id } })).toEqual(before);
     await request(app.getHttpServer()).get('/api/v1/users').set('Cookie', readerCookie).expect(403);
@@ -190,10 +190,9 @@ describe('Historial de fichas PostgreSQL y HTTP', () => {
     expect((await users.findIdentityById(author.id))?.isActive).toBe(false);
     await expect(prisma.directoryChange.create({ data: { organizationId: org.id, actorUserId: randomUUID(), operationId: randomUUID(), field: 'country', previousValue: Prisma.JsonNull, newValue: 'Perú' } })).rejects.toThrow();
   });
-  it('estado lógico no oculta historial de los siete tipos', async () => {
+  it('estado lógico no oculta historial de los seis tipos', async () => {
     const actor = await user(), rows = await targets(actor.id), auth = await cookie(actor);
     await directory.organizationStatus(rows.org.id, { isActive: false, expectedVersion: 1 }, actor.id);
-    await directory.categoryStatus(rows.cat.id, { isActive: false, expectedVersion: 1 }, actor.id);
     await people.status(rows.p.id, { isActive: false, expectedVersion: 1 }, actor.id);
     await people.endRelation(rows.relation.id, { expectedVersion: 1 }, actor.id);
     await contacts.condition(rows.m.id, { condition: ContactCondition.UNUSABLE, expectedVersion: 3 }, actor.id);
@@ -203,7 +202,6 @@ describe('Historial de fichas PostgreSQL y HTTP', () => {
   it('no-op coherente para fichas, vínculos, canales y asociaciones no fabrica historial', async () => {
     const actor = await user(), rows = await targets(actor.id), count = await prisma.directoryChange.count();
     await directory.editOrganization(rows.org.id, { name: rows.org.name, expectedVersion: 1 }, actor.id);
-    await directory.editCategory(rows.cat.id, { name: rows.cat.name, expectedVersion: 1 }, actor.id);
     await people.edit(rows.p.id, { displayName: rows.p.displayName, expectedVersion: 1 }, actor.id);
     await people.editRelation(rows.relation.id, { isCurrent: true, positionTitle: 'Coordinadora', expectedVersion: 1 }, actor.id);
     await contacts.correct(rows.m.id, { value: rows.m.value, expectedVersion: 3, confirmShared: true }, actor.id);

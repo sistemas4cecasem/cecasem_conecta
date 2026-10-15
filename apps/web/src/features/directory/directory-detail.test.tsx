@@ -10,7 +10,7 @@ import { AUTH_QUERY_KEY, type AuthIdentity } from '../auth/session';
 const stamp = '2026-10-07T00:00:00Z';
 const category = { id: 'category', name: 'Educación', isActive: false, version: 1, createdAt: stamp, updatedAt: stamp };
 const organization = { id: 'org', name: 'Institución de prueba', country: 'Bolivia', alias: 'IP', description: 'Información institucional real del contrato.', officialWebsite: null,
-  isActive: true, version: 3, branchOfId: 'parent', branchOf: { id: 'parent', name: 'Sede principal de prueba', isActive: true }, categories: [category], createdAt: stamp, updatedAt: stamp, };
+  isActive: true, version: 3, branchOfId: 'parent', branchOf: { id: 'parent', name: 'Sede principal de prueba', isActive: true }, interestAreas: [category.name], createdAt: stamp, updatedAt: stamp, };
 const person = { id: 'person', displayName: 'Ana Prueba', givenNames: 'Ana', familyNames: 'Prueba', isActive: true, version: 3, createdAt: stamp, updatedAt: stamp, currentRelationsCount: 1 };
 const episode = { id: 'episode', personId: 'person', organizationId: 'org', person: { id: 'person', displayName: person.displayName, isActive: true },
   organization: { id: 'org', name: organization.name, isActive: true }, positionTitle: 'Coordinadora', area: 'Programas', isCurrent: true, startDate: null, endDate: null,
@@ -38,16 +38,30 @@ describe('UI 2.5 fichas institucionales', () => {
       if (path.includes('/relations?') || path.includes('/people?')) return Promise.resolve(Response.json(page(independent ? [] : [episode, { ...episode, id: 'past', positionTitle: 'Consultora', isCurrent: false, endDate: null }])));
       if (path.includes('/branches?')) return Promise.resolve(Response.json(page([{ ...organization, id: 'office', name: 'Sede de prueba', isActive: false }])));
       if (path === 'organizations/org') return Promise.resolve(Response.json({ ...organization, ...(consolidated ? { duplicateOfId: 'principal', duplicateOf: { id: 'principal', name: 'Principal de prueba' } } : {}) }));
+      if (path.startsWith('people/person/profile')) return Promise.resolve(Response.json({person:{...person,currentRelationsCount: independent ? 0 : 1},contacts:[{...association,isActive:true,personId:person.id,person:episode.person}],relations:independent?[]:[episode,{...episode,id:'past',positionTitle:'Consultora',isCurrent:false}]}));
       if (path === 'people/person') return Promise.resolve(Response.json({ ...person, currentRelationsCount: independent ? 0 : 1 }));
       return Promise.reject(new Error('Ruta no prevista: ' + path));
     }); vi.stubGlobal('fetch', fetchMock);
   });
   afterEach(() => { client.clear(); vi.unstubAllGlobals(); });
-  function view(kind: 'organizations' | 'people', section?: 'people' | 'contacts' | 'locations' | 'control') {
+  function view(kind: 'organizations' | 'people', section?: 'people' | 'contacts' | 'locations' | 'control', contextual = false) {
     client.setQueryData(AUTH_QUERY_KEY, identity); client.setQueryDefaults(AUTH_QUERY_KEY, { staleTime: Infinity });
-    const basePath = `/${kind}/${kind === 'people' ? 'person' : 'org'}`;
+    const basePath = contextual ? '/organizations/org/people/person' : `/${kind}/${kind === 'people' ? 'person' : 'org'}`;
     render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[section ? `${basePath}/${section}` : basePath]}><AppRoutes /></MemoryRouter></QueryClientProvider>);
   }
+  it('el perfil contextual muestra solo la persona, sus contactos y una vuelta a la organización', async () => {
+    view('people', undefined, true);
+    await screen.findByRole('heading', { level: 1, name: person.displayName });
+    await screen.findByText(method.value);
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.queryByRole('heading', { name: organization.name })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Volver a Institución de prueba · Personas' })).toHaveAttribute('href', '/organizations/org/people');
+    expect(screen.queryByRole('link', { name: 'Volver a Organizaciones' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: person.displayName })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Vínculos institucionales' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Posibles duplicados' })).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([url]) => url.includes('/duplicate-candidates') || url.includes('/relations?'))).toBe(false);
+  });
   it('UI 2.12 cancelar desactivación devuelve el foco sin cambiar estado ni escribir', async () => {
     view('organizations');
     const trigger = await screen.findByRole('button', { name: 'Desactivar organización' });
@@ -58,31 +72,32 @@ describe('UI 2.5 fichas institucionales', () => {
     expect(screen.getByText('Activa')).toBeVisible();
     expect(fetchMock.mock.calls.some(([, options]) => options?.method && options.method !== 'GET')).toBe(false);
   });
-  it('organización conserva identidad, sede asociada, categorías inactivas y sede navegable', async () => {
+  it('organización conserva identidad, sede asociada, áreas de interés y sede navegable', async () => {
     view('organizations'); expect(await screen.findByRole('heading', { level: 1, name: organization.name })).toBeVisible();
     const summary = within(screen.getByRole('region', { name: 'Información institucional' }));
-    expect(summary.getByText('Bolivia')).toBeVisible(); expect(summary.getByText('Educación (inactiva)')).toBeVisible();
+    expect(summary.getByText('Bolivia')).toBeVisible(); expect(summary.getByText('Educación')).toBeVisible();
     expect(summary.getByRole('link', { name: 'Sede principal de prueba' })).toHaveAttribute('href', '/organizations/parent');
     await userEvent.click(screen.getByRole('link', { name: /^Sedes$/ }));
-    expect(await screen.findByRole('link', { name: 'Sede de prueba' })).toHaveAttribute('href', '/organizations/office');
+    expect(await screen.findByRole('link', {name:'Sede de prueba'})).toHaveAttribute('href','/organizations/org/locations/office');
+    expect(screen.queryByRole('button',{name:'Editar sede'})).not.toBeInTheDocument();
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   });
   it.each(['organizations', 'people'] as const)('%s preserva contacto compartido, antecedente, condición y fuente por asociación', async kind => {
-    view(kind, kind === 'organizations' ? 'contacts' : undefined); expect(await screen.findByRole('link', { name: method.value })).toHaveAttribute('href', '/contact-methods/method');
-    expect(screen.getByText('Asociación inactiva / antecedente · Medio: Disponible')).toBeVisible();
-    expect(screen.getByText('Medio compartido entre 2 asociaciones.')).toBeVisible();
+    view(kind, kind === 'organizations' ? 'contacts' : undefined); if(kind==='people'){expect(await screen.findByText(method.value)).toBeVisible();expect(screen.queryByText(/Asociación activa/)).not.toBeInTheDocument();expect(screen.queryByRole('button',{name:'Editar contexto'})).not.toBeInTheDocument();return;} expect(await screen.findByRole('link', { name: method.value })).toHaveAttribute('href', '/organizations/org/contacts/method');
+    expect(screen.getByText('Retirado')).toBeVisible();
+    expect(screen.queryByText(/Medio compartido entre/)).not.toBeInTheDocument();
     if (kind === 'organizations') await userEvent.click(screen.getByText('Ver detalles y acciones'));
     expect(await screen.findByText('Fuente: Fuente exclusiva de la asociación')).toBeVisible();
   });
   it('persona mantiene episodios actuales e históricos, cargos y fechas desconocidas', async () => {
-    view('people'); await screen.findByText('Vigente · Cargo: Coordinadora');
-    expect(screen.getByText('Histórico / finalizado · Cargo: Consultora')).toBeVisible();
-    expect(screen.getByText('Período: Inicio desconocido → Fin desconocido')).toBeVisible();
-    expect(screen.getAllByRole('link', { name: organization.name }).every(link => link.getAttribute('href') === '/organizations/org')).toBe(true);
+    view('people'); await screen.findByText('Coordinadora');
+    expect(screen.getByText('Consultora')).toBeVisible();
+    expect(screen.queryByText(/Inicio desconocido/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:'Corregir episodio'})).not.toBeInTheDocument();
   });
   it('persona independiente conserva contexto comprensible sin inventar cargo u organización', async () => {
     independent = true; view('people'); expect(await screen.findByText(/Sin vínculos vigentes: persona independiente/)).toBeVisible();
-    expect(await screen.findByText('No hay vínculos en esta selección.')).toBeVisible(); expect(screen.queryByText('Vigente · Cargo: Coordinadora')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading',{name:'Cargo y función'})).not.toBeInTheDocument(); expect(screen.queryByText('Vigente · Cargo: Coordinadora')).not.toBeInTheDocument();
   });
   it('historial de modificaciones preserva valores anteriores y posteriores y autor', async () => {
     view('people'); const history = await screen.findByRole('region', { name: 'Historial de modificaciones' });
@@ -96,8 +111,12 @@ describe('UI 2.5 fichas institucionales', () => {
   });
   it.each(['ADMINISTRATOR', 'RESEARCH', 'BOARD', 'PLANNING'] as const)('capabilities de lectura mantienen ficha completa sin mutaciones para %s', async role => {
     identity = { ...actor, role, permissions: ['directory.read', 'directory.history.read'] }; view('people'); await screen.findByRole('heading', { level: 1, name: person.displayName });
-    await screen.findByRole('link', { name: method.value }); const main = within(screen.getByRole('main'));
+    await screen.findByText(method.value); const main = within(screen.getByRole('main'));
     expect(main.queryByRole('button', { name: /Editar|Desactivar|Registrar|Corregir|Finalizar|Reactivar/u })).not.toBeInTheDocument();
-    expect(main.getByRole('region', { name: 'Historial de modificaciones' })).toBeVisible();
+    if (role === 'ADMINISTRATOR') expect(main.getByRole('region', { name: 'Historial de modificaciones' })).toBeVisible();
+    else {
+      expect(main.queryByRole('region', { name: 'Historial de modificaciones' })).not.toBeInTheDocument();
+      expect(fetchMock.mock.calls.some(([url]) => url.includes('/history'))).toBe(false);
+    }
   });
 });

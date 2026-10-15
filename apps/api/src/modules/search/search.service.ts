@@ -20,7 +20,7 @@ export class SearchService {
     const processAllowed = hasPermission(actor.role, PERMISSIONS.PROCESS_READ);
     const historyAllowed = processAllowed && hasPermission(actor.role, PERMISSIONS.COMMUNICATION_READ);
     if (query.organizationWithCommunications !== undefined && !historyAllowed) throw new ForbiddenException();
-    const organizationFilters = { country: query.organizationCountry, categoryId: query.organizationCategoryId,
+    const organizationFilters = { country: query.organizationCountry,
       status: query.organizationStatus, withCommunications: query.organizationWithCommunications };
     const organizationQuery = Object.values(organizationFilters).some(value => value !== undefined) ? { ...query, organizationFilters, actorId } : query;
     const [organizations, people, email, processes, emailHistory] = await Promise.all([

@@ -13,23 +13,13 @@
   .directory-search-main .ui-field-label { color: var(--color-brand-primary); font-weight: 600; }
   .directory-search-secondary { margin-top: 1rem; }
   .directory-search-inactive { display: flex; align-items: center; gap: 0.5rem; min-height: 2.75rem; font-size: 0.875rem; margin-bottom: 0.75rem; }
-  .directory-category-layout { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 1.5rem; }
-  .directory-category-layout > * { min-width: 0; }
-  .directory-category-filter .ui-filter-controls { max-width: 20rem; }
   .directory-search-context { color: var(--color-app-muted); font-size: 0.875rem; line-height: 1.6; }
   .directory-search-results h3 { font-size: 0.875rem; font-weight: 600; margin-block: 0.75rem; }
   .directory-result-title { color: var(--color-brand-primary); font-size: 1rem; font-weight: 600; }
   .directory-search-results p, .directory-search-secondary > section > p { font-size: 0.875rem; line-height: 1.6; }
   .directory-search-secondary > section > p { color: var(--color-app-muted); }
-  @media (min-width: 80rem) {
-    .directory-category-layout { grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.5fr); }
-    .directory-category-create { grid-column: 2; grid-row: 1; }
-    .directory-category-results { grid-column: 1; grid-row: 1; }
-    .directory-category-readonly { grid-template-columns: minmax(0, 1fr); }
-  }
   @media (max-width: 39.999rem) {
     .directory-people .ui-filter-controls { grid-template-columns: minmax(0, 1fr); }
     .directory-page .ui-metadata { flex-direction: column; gap: 0.25rem; }
-    .directory-category-actions > .ui-button { flex: 0 1 auto; }
   }
 }

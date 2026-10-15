@@ -55,10 +55,10 @@ describe('Candidatos y consolidación PostgreSQL/HTTP', () => {
       prisma.contactMethod.deleteMany({ where: { id: { in: methodIds } } }),
       prisma.person.updateMany({ where: { id: { in: personIds } }, data: { duplicateOfId: null } }),
       prisma.person.deleteMany({ where: { id: { in: personIds } } }),
-      prisma.organizationCategory.deleteMany({ where: { organizationId: { in: organizationIds } } }),
+      prisma.archivedOrganizationCategory.deleteMany({ where: { organizationId: { in: organizationIds } } }),
       prisma.organization.updateMany({ where: { id: { in: organizationIds } }, data: { duplicateOfId: null, branchOfId: null } }),
       prisma.organization.deleteMany({ where: { id: { in: organizationIds } } }),
-      prisma.category.deleteMany({ where: { id: { in: categoryIds } } }),
+      prisma.archivedCategory.deleteMany({ where: { id: { in: categoryIds } } }),
       prisma.userSession.deleteMany({ where: { userId: { in: userIds } } }), prisma.user.deleteMany({ where: { id: { in: userIds } } }),
     ]);
     userIds.length = organizationIds.length = personIds.length = categoryIds.length = methodIds.length = 0;
@@ -72,7 +72,7 @@ describe('Candidatos y consolidación PostgreSQL/HTTP', () => {
     const result = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ email: actor.email, password }).expect(200);
     return (result.headers['set-cookie'] as unknown as string[])[0].split(';')[0];
   }
-  async function organization(actor: string, name = 'Fundación Esperanza', extra: { branchOfId?: string; categoryIds?: string[] } = {}) {
+  async function organization(actor: string, name = 'Fundación Esperanza', extra: { branchOfId?: string; interestAreas?: string[] } = {}) {
     const row = await directory.createOrganization({ name, ...extra }, actor); organizationIds.push(row.id); return row;
   }
   async function person(actor: string, displayName = 'María Fernanda Pérez') {
@@ -186,18 +186,19 @@ describe('Candidatos y consolidación PostgreSQL/HTTP', () => {
     const input = await proposal(candidate, a.id, actor.id);
     await expect(consolidation.consolidate(candidate.id, { ...input, confirmed: false }, actor.id)).rejects.toMatchObject({ code: 'CONSOLIDATION_CONFIRMATION_REQUIRED' });
   });
-  it('consolidación institucional conserva categorías originales, contactos y vínculos', async () => {
+  it('consolidación institucional conserva áreas originales, contactos y vínculos', async () => {
     const actor = await user(), { a, b, candidate } = await orgPair(actor.id), p = await person(actor.id), m = await medium(actor.id);
-    const category = await directory.createCategory({ name: 'Categoría ' + randomUUID() }, actor.id); categoryIds.push(category.id);
+    const area = 'Salud comunitaria';
     // Preparar clasificación antes de reevaluar: las versiones examinadas se actualizan explícitamente.
-    await directory.editOrganization(b.id, { name: b.name, categoryIds: [category.id], expectedVersion: 1 }, actor.id);
+    await directory.editOrganization(b.id, { name: b.name, interestAreas: [area], expectedVersion: 1 }, actor.id);
     const pc = await contacts.associate({ organizationId: b.id }, m.id, { expectedMethodVersion: 1, sourceDescription: 'Evidencia institucional' }, actor.id);
     const relation = await people.createRelation(p.id, { organizationId: b.id, positionTitle: 'Coordinadora', isCurrent: true, startDate: '2020-01-01' }, actor.id);
     const current = (await detection.listActor('organization', a.id, page, actor.id)).items.find(row => row.id === candidate.id)!;
     const input = await proposal(current, a.id, actor.id), session = await cookie(actor);
     await request(app.getHttpServer()).post('/api/v1/duplicate-candidates/' + candidate.id + '/consolidate').set('Cookie', session).send(input).expect(201);
     expect(await prisma.organization.findUniqueOrThrow({ where: { id: b.id } })).toMatchObject({ duplicateOfId: a.id, name: b.name, isActive: true });
-    expect(await prisma.organizationCategory.count({ where: { categoryId: category.id } })).toBe(2);
+    expect((await directory.getOrganization(a.id)).interestAreas).toEqual([area]);
+    expect((await directory.getOrganization(b.id)).interestAreas).toEqual([area]);
     expect(await prisma.personOrganizationRelation.findUniqueOrThrow({ where: { id: relation.id } })).toMatchObject({ organizationId: b.id, isCurrent: true });
     const primaryContact = await prisma.organizationContact.findFirstOrThrow({ where: { organizationId: a.id } });
     expect(primaryContact).toMatchObject({ contactMethodId: m.id, sourceDescription: 'Evidencia institucional' });

@@ -50,6 +50,7 @@ describe('Contexto institucional PostgreSQL/HTTP', () => {
       prisma.contactIntent.deleteMany({ where: { authorUserId: { in: userIds } } }),
       prisma.directoryChange.deleteMany({ where: { actorUserId: { in: userIds } } }),
       prisma.organizationContact.deleteMany({ where: { organizationId: { in: orgIds } } }),
+      prisma.personContact.deleteMany({ where: { personId: { in: personIds } } }),
       prisma.contactMethod.deleteMany({ where: { id: { in: methodIds } } }),
       prisma.personOrganizationRelation.deleteMany({ where: { personId: { in: personIds } } }),
       prisma.person.updateMany({ where: { id: { in: personIds } }, data: { duplicateOfId: null } }),
@@ -104,6 +105,23 @@ describe('Contexto institucional PostgreSQL/HTTP', () => {
   });
   it.each(['organizationId', 'personId'])('%s inexistente', async field => {
     const owner = await actor(); expect((await get(owner.cookie, { [field]: randomUUID() }).expect(404)).body).toMatchObject({ code: 'CONTEXT_TARGET_NOT_FOUND' });
+  });
+  it('perfil personal incluye procesos por correo exacto sin contexto de organizaciones', async () => {
+    const owner = await actor(), person = await target(owner.id, 'person'), organization = await target(owner.id);
+    await app.get(PeopleService).createRelation(person.personId!, { organizationId: organization.organizationId!, isCurrent: true }, owner.id);
+    const email = await app.get(ContactsService).create({ type: 'EMAIL', value: 'actor@example.test' }, owner.id); methodIds.push(email.id);
+    await app.get(ContactsService).associate({ personId: person.personId! }, email.id, { expectedMethodVersion: 1 }, owner.id);
+    const matched = await processes.create({ ...organization, purpose: 'Proceso por destinatario y remitente' }, owner.id);
+    const unrelated = await processes.create({ ...organization, purpose: 'Otro proceso institucional' }, owner.id);
+    await outgoing(matched.id, owner.id, undefined, ['ACTOR@example.test']);
+    await incoming(matched.id, owner.id);
+    await outgoing(unrelated.id, owner.id, undefined, ['another@example.test']);
+    const result = (await get(owner.cookie, { ...person, view: 'person-profile' }).expect(200)).body as RelationshipContextDto;
+    expect(result.relatedOrganizationContext).toEqual({ items: [], total: 0 });
+    expect(result.emailProcesses).toMatchObject({ addresses: ['actor@example.test'], total: 1, items: [{ id: matched.id }] });
+    expect(result.activeProcesses.total).toBe(0);
+    expect(JSON.stringify(result)).not.toContain('Original privado enviado');
+    await get(owner.cookie, { ...organization, view: 'person-profile' }).expect(400);
   });
   it('sesión obligatoria y permisos de lectura; rol actual revalidado', async () => {
     const owner = await actor(), goal = await target(owner.id), stale = await users.findIdentityById(owner.id);

@@ -11,7 +11,7 @@ import { clearForbiddenDirectory } from './queries';
 const identity: AuthIdentity = { id: 'qa52', givenNames: 'QA', familyNames: 'Filtros', username: 'qa52', email: 'qa52@example.test', role: 'PLANNING', permissions: ['directory.read', 'relationships.process.read', 'communications.read'] };
 const categoryId = '11111111-1111-4111-8111-111111111111', stamp = '2026-10-05T00:00:00Z';
 const category = { id: categoryId, name: 'Educación', version: 1, isActive: true, createdAt: stamp, updatedAt: stamp };
-const row = { id: 'org52', name: 'Organización Bolivia', country: 'Bolivia', alias: null, description: null, officialWebsite: null, branchOfId: null, branchOf: null, isActive: true, version: 1, categories: [category], createdAt: stamp, updatedAt: stamp, };
+const row = { id: 'org52', name: 'Organización Bolivia', country: 'Bolivia', alias: null, description: null, officialWebsite: null, branchOfId: null, branchOf: null, isActive: true, version: 1, interestAreas: [category.name], createdAt: stamp, updatedAt: stamp, };
 function Location() {
   const location = useLocation(), navigate = useNavigate();
   return <><output aria-label="URL actual">{location.pathname + location.search}</output><button onClick={() => navigate(-1)}>Volver filtro</button><button onClick={() => navigate(1)}>Avanzar filtro</button></>;
@@ -51,17 +51,16 @@ describe('5.2 controles, URL y caché de filtros', () => {
   it('restaura filtros vigentes y página al abrir URL compartida', async () => {
     view('/organizations?country=Bolivia&categoryId=' + categoryId + '&status=all&verificationStatus=REVIEW_DUE&withCommunications=false&page=2');
     await screen.findByRole('link', { name: 'Segunda página' });
-    expect(screen.getByRole('button', { name: 'Filtros, 3 activos' })).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByLabelText('País')).toHaveValue('Bolivia'); expect(screen.getByLabelText('Categoría')).toHaveValue(categoryId);
+    expect(screen.getByRole('button', { name: 'Filtros, 2 activos' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByLabelText('País')).toHaveValue('Bolivia'); expect(screen.queryByLabelText('Categoría')).not.toBeInTheDocument();
     expect(screen.getByLabelText('Estado')).toHaveValue('all'); expect(screen.getByLabelText('Comunicaciones externas')).toHaveValue('false');
     expect(last().get('page')).toBe('2'); expect(last().get('withCommunications')).toBe('false'); expect(last().has('verificationStatus')).toBe(false);
   });
   it('combina filtros en petición y URL y limpia sin conservar parámetros eliminados', async () => {
     view(); await screen.findByRole('link', { name: row.name });
     fireEvent.change(screen.getByLabelText('País'), { target: { value: 'Bolivia' } });
-    await userEvent.selectOptions(screen.getByLabelText('Categoría'), categoryId);
     await userEvent.selectOptions(screen.getByLabelText('Comunicaciones externas'), 'true');
-    await waitFor(() => expect(last().get('withCommunications')).toBe('true')); expect(last().get('country')).toBe('Bolivia'); expect(last().get('categoryId')).toBe(categoryId);
+    await waitFor(() => expect(last().get('withCommunications')).toBe('true')); expect(last().get('country')).toBe('Bolivia'); expect(last().has('categoryId')).toBe(false);
     expect(screen.getByLabelText('URL actual').textContent).toContain('withCommunications=true');
     await userEvent.click(screen.getByRole('button', { name: 'Limpiar filtros' }));
     await waitFor(() => expect(last().has('country')).toBe(false)); expect(last().has('categoryId')).toBe(false); expect(last().has('withCommunications')).toBe(false);

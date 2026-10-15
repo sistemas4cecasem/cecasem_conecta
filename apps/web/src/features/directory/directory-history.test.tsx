@@ -12,14 +12,14 @@ import type { HistoryChange, HistoryOperation, Organization } from './contracts'
 import { clearForbiddenDirectory } from './queries';
 
 const stamp = '2026-10-02T21:00:00.000Z';
-const identity: AuthIdentity = { id: 'reader', givenNames: 'Lector', familyNames: 'QA', username: 'reader', email: 'reader@example.test', role: 'RESEARCH',
+const identity: AuthIdentity = { id: 'reader', givenNames: 'Lector', familyNames: 'QA', username: 'reader', email: 'reader@example.test', role: 'ADMINISTRATOR',
   permissions: ['directory.read', 'directory.history.read', 'directory.write'] };
 const change = (field = 'country', before: string | null = null, after = 'Bolivia'): HistoryChange => ({ field, label: field === 'country' ? 'País' : 'Descripción',
   previousValue: before, newValue: after, previousReferences: [], newReferences: [], added: [], removed: [] });
 const operation = (id = 'operation', changes = [change()]): HistoryOperation => ({ operationId: id, createdAt: stamp, objectType: 'ORGANIZATION',
   actor: { id: 'author', givenNames: 'Autora', familyNames: 'QA', isActive: true }, contextRecorded: true, relatedReferences: [], replacement: null, changes });
 const organization: Organization = { id: 'organization', name: 'Organización QA', country: null, description: null, alias: null, officialWebsite: null,
-  branchOfId: null, branchOf: null, categories: [], isActive: false, version: 1, createdAt: stamp, updatedAt: stamp, };
+  branchOfId: null, branchOf: null, interestAreas: [], isActive: false, version: 1, createdAt: stamp, updatedAt: stamp, };
 describe('Historial agrupado de fichas', () => {
   let client = createQueryClient(), operations: HistoryOperation[] = [], mode = 'ok', loggedOut = false;
   const fetchMock = vi.fn<(url: string, options?: RequestInit) => Promise<Response>>();
@@ -52,6 +52,12 @@ describe('Historial agrupado de fichas', () => {
       {fullApp ? <AppRoutes /> : <DirectoryHistory identity={identity} path="organizations/organization/history" />}
     </MemoryRouter></QueryClientProvider>);
   }
+  it.each(['BOARD','RESEARCH','PLANNING'] as const)('oculta y no consulta historial para %s aunque conserve una capability antigua', async role => {
+    render(<QueryClientProvider client={client}><DirectoryHistory identity={{...identity,role}} path="people/person/history" /></QueryClientProvider>);
+    expect(screen.queryByRole('region',{name:'Historial de modificaciones'})).not.toBeInTheDocument();
+    await act(async () => { await Promise.resolve(); });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
   it('muestra vacío sin inventar operaciones', async () => { operations = []; view(); expect(await screen.findByText('Aún no hay modificaciones.')).toBeVisible(); });
   it('muestra fecha, autora y antes/después con null comprensible', async () => {
     view(); expect(await screen.findByText('Después: Bolivia')).toBeVisible(); expect(screen.getByText('Antes: Sin dato')).toBeVisible();

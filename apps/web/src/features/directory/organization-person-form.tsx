@@ -24,7 +24,7 @@ export function OrganizationPersonForm({ identity, organizationId, saved, cancel
     defaultValues: {
       person: { givenNames: '', familyNames: '' },
       contactMethods: [{type:'EMAIL',value:'',label:''}],
-      positionTitle: '', area: '', isCurrent: true, notes: '',
+      positionTitle: '', area: '', notes: '',
     },
   });
   const contactMethods = useFieldArray({control:form.control,name:'contactMethods'});
@@ -38,7 +38,7 @@ export function OrganizationPersonForm({ identity, organizationId, saved, cancel
       personMode: 'new',
       person:{...person,displayName:[person.givenNames,person.familyNames].filter(Boolean).join(' ')},
       contactMethods:methods.filter(method=>method.value.trim()),
-      ...episode,
+      ...episode, isCurrent: true,
     };
     try {
       const result = organizationPersonContextResponseSchema.parse(await mutation.mutateAsync({
@@ -71,7 +71,8 @@ export function OrganizationPersonForm({ identity, organizationId, saved, cancel
     <fieldset className="organization-person-contacts">
       <legend>Medios de contacto</legend>
       <p>Agrega los medios disponibles, como correo, teléfono o LinkedIn. Puedes añadir más de uno.</p>
-      {contactMethods.fields.map((method,index)=><div className="organization-person-contact-method" key={method.id}>
+      {contactMethods.fields.map((method,index)=><div className="organization-person-contact-method" role="group" aria-label={`Medio de contacto ${index + 1}`} key={method.id}>
+        <p className="organization-person-contact-heading">Medio de contacto {index + 1}</p>
         <Field label="Tipo de medio" error={form.formState.errors.contactMethods?.[index]?.type?.message}>
           <select className={inputClass} {...form.register(`contactMethods.${index}.type`)}>
             {contactTypes.map(type=><option key={type} value={type}>{contactLabels[type]}</option>)}
@@ -97,7 +98,6 @@ export function OrganizationPersonForm({ identity, organizationId, saved, cancel
       <Field label="Área o función (opcional)" error={form.formState.errors.area?.message}>
         <input className={inputClass} maxLength={250} {...form.register('area')} />
       </Field>
-      <label className="organization-person-current"><input type="checkbox" {...form.register('isCurrent')} /> El vínculo está vigente</label>
       <Field label="Observaciones (opcional)" error={form.formState.errors.notes?.message}>
         <textarea className={inputClass} maxLength={5000} {...form.register('notes')} />
       </Field>

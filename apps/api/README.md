@@ -535,9 +535,9 @@ El comando `bootstrap:admin` no acepta contraseña ni existe como endpoint HTTP.
 
 ## Organizaciones — Subfase 2.1
 
-`DirectoryModule` implementa organizaciones, sedes, categorías N:N, versión,
-historial y auditoría transaccional. Los cuatro roles tienen lectura, edición e
-historial del directorio; el cambio de estado corresponde a Administrador.
+`DirectoryModule` implementa organizaciones, sedes, áreas de interés libres (arreglo de texto), versión,
+historial y auditoría transaccional. Los cuatro roles tienen lectura y edición
+del directorio; el historial y el cambio de estado corresponden a Administrador.
 Contratos, decisiones y migraciones están en
 [Organizaciones](../../docs/subfase-2.1-organizaciones.md).
 

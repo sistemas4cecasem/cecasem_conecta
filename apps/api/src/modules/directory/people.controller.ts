@@ -1,3 +1,4 @@
+import { PersonProfileEditDto, PersonProfileQueryDto } from './person-profile.dto';
 import { Body, Controller, Get, Header, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req, UseFilters } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '../auth/authorization/require-permissions.decorator';
@@ -22,6 +23,12 @@ export class PeopleController {
   edit(@Param('id',new ParseUUIDPipe()) id:string,@Body() body:PersonEditDto,@Req() req:AuthenticatedRequest) {return this.people.edit(id,body,req.authenticatedUser.id);}
   @Patch(':id/status') @RequirePermissions(PERMISSIONS.DIRECTORY_STATUS_UPDATE)
   status(@Param('id',new ParseUUIDPipe()) id:string,@Body() body:DirectoryStatusDto,@Req() req:AuthenticatedRequest) {return this.people.status(id,body,req.authenticatedUser.id);}
+  @Get(':id/profile') @Header('Cache-Control','no-store') @RequirePermissions(PERMISSIONS.DIRECTORY_READ)
+  @ApiOperation({summary:'Leer datos personales, contactos y cargos para la edición unificada'})
+  profile(@Param('id',new ParseUUIDPipe()) id:string,@Query() query:PersonProfileQueryDto) {return this.people.profile(id,query.organizationId);}
+  @Put(':id/profile') @RequirePermissions(PERMISSIONS.DIRECTORY_WRITE)
+  @ApiOperation({summary:'Guardar el perfil completo en una sola transacción con versiones esperadas'})
+  editProfile(@Param('id',new ParseUUIDPipe()) id:string,@Body() body:PersonProfileEditDto,@Req() req:AuthenticatedRequest) {return this.people.editProfile(id,body,req.authenticatedUser.id);}
   @Get(':id/history') @Header('Cache-Control','no-store') @RequirePermissions(PERMISSIONS.DIRECTORY_HISTORY_READ)
   history(@Param('id',new ParseUUIDPipe()) id:string,@Query() query:PageQueryDto) {return this.people.personHistory(id,query);}
   @Get(':id/relations') @Header('Cache-Control','no-store') @RequirePermissions(PERMISSIONS.DIRECTORY_READ)

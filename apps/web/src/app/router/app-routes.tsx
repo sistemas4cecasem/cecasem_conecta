@@ -1,3 +1,4 @@
+import { OrganizationBranchProfilePage, OrganizationBranchContactRedirect } from '../../features/directory/organization-branch-profile-page';
 import { ReminderSettingsPage } from '../../features/settings/reminder-settings-page';
 import { MeetingsPage, MeetingCreatePage, MeetingDetailPage } from '../../features/meetings/meetings-pages';
 import { OpportunitiesPage, OpportunityCreatePage, OpportunityDetailPage } from '../../features/opportunities/opportunities-pages';
@@ -18,7 +19,6 @@ import { OrganizationPeoplePage } from '../../features/directory/organization-pe
 import { OrganizationContactsPage } from '../../features/directory/organization-contacts-page';
 import { OrganizationLocationsPage } from '../../features/directory/organization-locations-page';
 import { OrganizationControlPage } from '../../features/directory/organization-control-page';
-import { CategoriesPage } from '../../features/directory/categories-page';
 import { PeoplePage, PersonCreationPage } from '../../features/directory/people-page';
 import { PersonDetailPage } from '../../features/directory/person-detail-page';
 import { ContactDetailPage } from '../../features/directory/contact-detail-page';
@@ -62,13 +62,15 @@ export function AppRoutes() {
         <Route path="organizations" element={<OrganizationsPage />} />
         <Route path="directory/search" element={<Suspense fallback={<p role="status">Cargando búsqueda…</p>}><DirectorySearchPage /></Suspense>} />
         <Route path="organizations/new" element={<OrganizationCreationPage />} />
-        <Route path="organizations/categories" element={<CategoriesPage />} />
         <Route path="organizations/:id" element={<OrganizationDetailPage />}>
           <Route index element={<OrganizationSummary />} />
           <Route path="people" element={<OrganizationPeoplePage />} />
           <Route path="people/:personId" element={<PersonDetailPage />} />
           <Route path="contacts" element={<OrganizationContactsPage />} />
+          <Route path="contacts/:contactId" element={<ContactDetailPage />} />
           <Route path="locations" element={<OrganizationLocationsPage />} />
+          <Route path="locations/:branchId" element={<OrganizationBranchProfilePage />} />
+          <Route path="locations/:branchId/contacts/:contactId" element={<OrganizationBranchContactRedirect />} />
           <Route path="control" element={<OrganizationControlPage />} />
         </Route>
         <Route path="people" element={<PeoplePage />} />

@@ -15,7 +15,7 @@ const contextSchema = z.object({ sourceDescription: z.string().nullable(), sourc
 const previewActorSchema = duplicateActorSchema.extend({
   label: z.string(), officialWebsite: z.string().nullable().optional(),
   branches: z.array(z.object({ id: z.string(), name: z.string() })).optional(),
-  categories: z.array(z.object({ categoryId: z.string(), category: z.object({ id: z.string(), name: z.string(), isActive: z.boolean() }) })).optional(),
+  interestAreas: z.array(z.string()).optional(),
   contacts: z.array(contextSchema.extend({ id: z.string(), isActive: z.boolean(),
     contactMethod: z.object({ id: z.string(), type: z.string(), value: z.string(), condition: z.string() }) })),
   relations: z.array(contextSchema.extend({ id: z.string(), isCurrent: z.boolean(), positionTitle: z.string().nullable(), area: z.string().nullable(),
@@ -28,7 +28,7 @@ export const consolidationPreviewSchema = z.object({ candidate: duplicateCandida
     contextConflict: z.boolean(), reactivate: z.boolean(), sourceContext: contextSchema, principalContext: contextSchema.nullable() })),
   relations: z.array(z.object({ sourceId: z.string(), targetId: z.string().nullable(), outcome: z.enum(['CREATED', 'REUSED']),
     positionTitle: z.string().nullable(), area: z.string().nullable() })),
-  categories: z.array(z.object({ id: z.string(), name: z.string(), isActive: z.boolean() })),
+  addedInterestAreas: z.array(z.string()),
 });
 export type DuplicateCandidate = z.infer<typeof duplicateCandidateSchema>;
 export type DuplicateActor = z.infer<typeof duplicateActorSchema>;

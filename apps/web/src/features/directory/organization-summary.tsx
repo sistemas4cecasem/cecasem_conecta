@@ -8,11 +8,10 @@ import { useContactAssociations } from './contacts.queries';
 import { useOrganizationWorkspace } from './organization-workspace-context';
 import { useOrganizations, usePersonRelations } from './queries';
 
-function Metric({ label, value, loading, error, to }: { label: string; value?: number; loading: boolean; error: boolean; to: string }) {
-  return <ActionLink appearance="normal" className="organization-summary-metric" to={to}>
-    <span>{label}</span><strong>{loading ? 'Cargando…' : error || value === undefined ? 'No disponible' : value.toLocaleString('es-BO')}</strong>
-    <span aria-hidden="true">Ver sección →</span>
-  </ActionLink>;
+function Metric({ label, value, loading, error }: { label: string; value?: number; loading: boolean; error: boolean }) {
+  return <dl className="organization-summary-metric">
+    <dt>{label}</dt><dd>{loading ? 'Cargando…' : error || value === undefined ? 'No disponible' : value.toLocaleString('es-BO')}</dd>
+  </dl>;
 }
 
 export function OrganizationSummary() {
@@ -29,16 +28,18 @@ export function OrganizationSummary() {
         { label: 'Sitio web oficial', wide: true, value: organization.officialWebsite
           ? <ExternalLink href={organization.officialWebsite} target="_blank" rel="noreferrer">{organization.officialWebsite}</ExternalLink> : 'Sin dato' },
         ...(organization.branchOf ? [{ label: 'Organización referente', value: <ActionLink to={'/organizations/' + organization.branchOf.id}>{organization.branchOf.name}</ActionLink> }] : []),
-        { label: 'Categorías', wide: true, value: organization.categories.map(category => category.name + (category.isActive ? '' : ' (inactiva)')).join(', ') || 'Sin categorías' },
+        { label: 'Áreas de interés', wide: true, value: organization.interestAreas.length ? <ul className="organization-interest-areas" aria-label="Áreas de interés de la organización">
+          {organization.interestAreas.map(area => <li key={area}>{area}</li>)}
+        </ul> : 'Sin áreas de interés' },
         { label: 'Creación', value: <time dateTime={organization.createdAt}>{dateLabel(organization.createdAt)}</time> },
         { label: 'Última modificación', value: <time dateTime={organization.updatedAt}>{dateLabel(organization.updatedAt)}</time> },
       ]} />
     </Surface>
 
     <section className="organization-summary-metrics" aria-label="Registros relacionados">
-      <Metric label="Vínculos personales" value={people.data?.total} loading={people.isPending} error={people.isError} to="people" />
-      <Metric label="Medios de contacto" value={contacts.data?.total} loading={contacts.isPending} error={contacts.isError} to="contacts" />
-      <Metric label="Sedes y representaciones" value={branches.data?.total} loading={branches.isPending} error={branches.isError} to="locations" />
+      <Metric label="Empleados identificados" value={people.data?.total} loading={people.isPending} error={people.isError} />
+      <Metric label="Medios de contacto" value={contacts.data?.total} loading={contacts.isPending} error={contacts.isError} />
+      <Metric label="Sedes" value={branches.data?.total} loading={branches.isPending} error={branches.isError} />
       {people.isError && <QueryState pending={false} error failure={people.error} retry={people.refetch} />}
       {contacts.isError && <QueryState pending={false} error failure={contacts.error} retry={contacts.refetch} />}
       {branches.isError && <QueryState pending={false} error failure={branches.error} retry={branches.refetch} />}

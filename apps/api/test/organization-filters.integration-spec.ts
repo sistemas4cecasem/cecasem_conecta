@@ -27,7 +27,7 @@ if (!new URL(url).pathname.endsWith('_test')) throw new Error('Filtros requieren
 type Page = Awaited<ReturnType<DirectoryService['listOrganizations']>>;
 describe('5.2 RF-69 filtros institucionales PostgreSQL/HTTP', () => {
   let app: INestApplication<Server>, prisma: PrismaService, directory: DirectoryService, users: UsersService;
-  let actorId: string, cookie: string, categoryId: string, accountId: string;
+  let actorId: string, cookie: string, accountId: string;
   const password = `Qa52!a${randomBytes(24).toString('base64url')}`, ids: string[] = [];
   const now = new Date('2026-10-05T12:00:00.000Z');
   beforeAll(async () => {
@@ -39,7 +39,6 @@ describe('5.2 RF-69 filtros institucionales PostgreSQL/HTTP', () => {
     await prisma.user.update({ where: { id: actorId }, data: { passwordHash: await app.get(PasswordService).hashNew(password) } });
     const login = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ email: actor.email, password }).expect(200);
     cookie = (login.headers['set-cookie'] as unknown as string[])[0].split(';')[0];
-    categoryId = (await directory.createCategory({ name: 'QA52 ' + randomUUID() }, actorId)).id;
     accountId = (await users.createEmailAccount({ address: randomUUID() + '@example.test', displayName: 'QA52' })).id;
     await users.assignEmailAccount(actorId, accountId);
   });
@@ -48,10 +47,10 @@ describe('5.2 RF-69 filtros institucionales PostgreSQL/HTTP', () => {
       ['A vigente', 'Bolivia', true, true], ['B vencida', 'bolivia', true, true], ['C modificada', 'Bolivia', true, true],
       ['D nunca', 'Perú', true, true], ['E inactiva', 'Bolivia', false, true], ['F sin categoría', 'Bolivia', true, false], ['G sin país', null, true, true],
     ] as const) {
-      const row = await directory.createOrganization({ name: 'QA52 ' + name, country, categoryIds: category ? [categoryId] : [] }, actorId); ids.push(row.id);
+      const row = await directory.createOrganization({ name: 'QA52 ' + name, country, interestAreas: category ? ['Salud'] : [] }, actorId); ids.push(row.id);
       if (!active) await directory.organizationStatus(row.id, { expectedVersion: 1, isActive: false }, actorId);
     }
-    await directory.editOrganization(ids[2], { name: 'QA52 C modificada', country: 'Bolivia', description: 'Cambio reciente', categoryIds: [categoryId], expectedVersion: 1 }, actorId);
+    await directory.editOrganization(ids[2], { name: 'QA52 C modificada', country: 'Bolivia', description: 'Cambio reciente', interestAreas: ['Salud'], expectedVersion: 1 }, actorId);
     for (const index of [0, 1, 3]) {
       const process = await app.get(RelationshipProcessesService).create({ organizationId: ids[index], purpose: 'QA52 cooperación' }, actorId);
       if (index === 3) { await app.get(InternalNotesService).create(process.id, 'Solo nota interna', actorId); continue; }
@@ -69,11 +68,11 @@ describe('5.2 RF-69 filtros institucionales PostgreSQL/HTTP', () => {
       prisma.communication.deleteMany({ where: { registeredByUserId: actorId } }), prisma.internalNote.deleteMany({ where: { authorUserId: actorId } }),
       prisma.relationshipProcessEvent.deleteMany({ where: { actorUserId: actorId } }), prisma.processParticipant.deleteMany({ where: { userId: actorId } }),
       prisma.relationshipProcess.deleteMany({ where: { createdByUserId: actorId } }),
-      prisma.organizationCategory.deleteMany({ where: { organizationId: { in: ids } } }), prisma.organization.deleteMany({ where: { id: { in: ids } } }),
+      prisma.archivedOrganizationCategory.deleteMany({ where: { organizationId: { in: ids } } }), prisma.organization.deleteMany({ where: { id: { in: ids } } }),
     ]); ids.length = 0;
   });
   afterAll(async () => {
-    await prisma.$transaction([prisma.category.deleteMany({ where: { id: categoryId } }), prisma.userSession.deleteMany({ where: { userId: actorId } }),
+    await prisma.$transaction([prisma.userSession.deleteMany({ where: { userId: actorId } }),
       prisma.userEmailAccount.deleteMany({ where: { userId: actorId } }), prisma.emailAccount.deleteMany({ where: { id: accountId } }), prisma.user.deleteMany({ where: { id: actorId } })]);
     await app.close();
   });
@@ -83,28 +82,25 @@ describe('5.2 RF-69 filtros institucionales PostgreSQL/HTTP', () => {
     expect(body.items.map(row => row.id)).toEqual(indices.map(index => ids[index])); expect(body.total).toBe(indices.length);
   }
   it('país completo normalizado, nulo excluido y país inexistente vacío', async () => { await match({ country: '  BOLIVIA  ' }, [0, 1, 2, 5]); await match({ country: 'Atlantis' }, []); });
-  it('categoría conserva RF-12 y combina país/estado sin duplicados', async () => {
-    await match({ categoryId }, [0, 1, 2, 3, 6]); await match({ categoryId, country: 'Bolivia' }, [0, 1, 2]);
-    await match({ categoryId, status: 'inactive' }, [4]); await match({ categoryId, country: 'Bolivia', status: 'inactive' }, [4]);
-  });
-  it('país + estado y país + categoría + estado intersecan', async () => { await match({ country: 'Bolivia', status: 'all' }, [0, 1, 2, 4, 5]); await match({ country: 'Bolivia', categoryId, status: 'active' }, [0, 1, 2]); });
+
+  it('país + estado y país + categoría + estado intersecan', async () => { await match({ country: 'Bolivia', status: 'all' }, [0, 1, 2, 4, 5]); await match({ country: 'Bolivia', status: 'active' }, [0, 1, 2, 5]); });
   it('enviada válida y recibida invalidada cuentan; notas y correo de directorio no', async () => {
     const method = await prisma.contactMethod.create({ data: { type: 'EMAIL', value: 'solo.qa52@example.test', normalizedValue: 'solo.qa52@example.test' } });
     await prisma.organizationContact.create({ data: { organizationId: ids[2], contactMethodId: method.id } });
     try { await match({ withCommunications: true }, [0, 1]); await match({ withCommunications: false }, [2, 3, 5, 6]); }
     finally { await prisma.organizationContact.deleteMany({ where: { contactMethodId: method.id } }); await prisma.contactMethod.delete({ where: { id: method.id } }); }
   });
-  it('categoría + comunicaciones y sin comunicaciones + país', async () => { await match({ categoryId, withCommunications: true }, [0, 1]); await match({ country: 'Bolivia', withCommunications: false }, [2, 5]); });
+  it('categoría + comunicaciones y sin comunicaciones + país', async () => { await match({ withCommunications: true }, [0, 1]); await match({ country: 'Bolivia', withCommunications: false }, [2, 5]); });
   it('filtros y paginación comparten predicado de conteo', async () => {
-    await match({ country: 'Bolivia', categoryId, status: 'active', withCommunications: true }, [0, 1]);
-    const a = (await http({ country: 'Bolivia', categoryId, pageSize: 1, page: 2 }).expect(200)).body as Page;
-    expect(a.total).toBe(3); expect(a.items.map(row => row.id)).toEqual([ids[1]]);
-    const b = (await http({ country: 'Bolivia', categoryId, pageSize: 1, page: 9 }).expect(200)).body as Page; expect(b.total).toBe(3); expect(b.items).toEqual([]);
+    await match({ country: 'Bolivia', status: 'active', withCommunications: true }, [0, 1]);
+    const a = (await http({ country: 'Bolivia', pageSize: 1, page: 2 }).expect(200)).body as Page;
+    expect(a.total).toBe(4); expect(a.items.map(row => row.id)).toEqual([ids[1]]);
+    const b = (await http({ country: 'Bolivia', pageSize: 1, page: 9 }).expect(200)).body as Page; expect(b.total).toBe(4); expect(b.items).toEqual([]);
   });
-  it('categoría inexistente válida vacía; nombre vacío no restringe', async () => { await match({ categoryId: randomUUID(), country: 'Bolivia' }, []); const body = (await http({ name: '', country: 'Perú' }).expect(200)).body as Page; expect(body.items.map(row => row.id)).toEqual([ids[3]]); });
+  it('rechaza el filtro de categoría retirado', async () => { await http({ categoryId: randomUUID() }).expect(400); });
   it.each([{ country: '' }, { country: ' ' }, { country: 'x'.repeat(151) }, { country: ['Bolivia', 'Perú'] }, { categoryId: '' }, { categoryId: 'bad' }, { branchOfId: '' }, { status: 'closed' }, { verificationStatus: 'REVIEW_DUE' }, { withCommunications: '' }, { withCommunications: 'yes' }, { withCommunications: '1' }])('rechaza parámetro inválido o retirado %j', async params => { await http(params).expect(400); });
   it('filtros globales reducen solo organizaciones y preservan RF-68 sin ContactMethod', async () => {
-    const response = await request(app.getHttpServer()).get('/api/v1/search').set('Cookie', cookie).query({ q: 'qa52', organizationCountry: 'Bolivia', organizationCategoryId: categoryId, organizationWithCommunications: true }).expect(200);
+    const response = await request(app.getHttpServer()).get('/api/v1/search').set('Cookie', cookie).query({ q: 'qa52', organizationCountry: 'Bolivia', organizationWithCommunications: true }).expect(200);
     const body = response.body as SearchResponseDto; expect(body.organizations.items.map(row => row.id)).toEqual([ids[0], ids[1]]); expect(body.processes?.total).toBe(3);
     const email = (await request(app.getHttpServer()).get('/api/v1/search').set('Cookie', cookie).query({ q: 'historico.qa52@example.test', organizationCountry: 'Atlantis' }).expect(200)).body as SearchResponseDto;
     expect(email.email).toBeNull(); expect(email.emailHistory?.total).toBe(2); expect(email.emailHistory?.items[0].validity).toBe('INVALIDATED'); expect(email.emailHistory?.lastValidContact?.direction).toBe('SENT');
