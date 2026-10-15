@@ -56,16 +56,5 @@ function validateEpisodeDates(value:EpisodeDateValues,context:z.RefinementCtx) {
   if(value.isCurrent&&value.endDate) context.addIssue({code:'custom',message:'Un vínculo vigente no tiene fecha final.',path:['endDate']});
 }
 export const relationFormSchema = z.object({organizationId:z.string().min(1,'Selecciona una organización.'),...episodeFields}).superRefine(validateEpisodeDates);
-const contextualEpisodeFields = z.object(episodeFields);
-export const organizationPersonContextFormSchema = contextualEpisodeFields.extend({
-  personMode:z.enum(['new','existing']),person:z.object({displayName:z.string(),givenNames:z.string(),familyNames:z.string()}).optional(),personId:z.string().optional()
-}).superRefine((value,context)=>{
-  validateEpisodeDates(value,context);
-  if(value.personMode==='new') {
-    const person=personFormSchema.safeParse(value.person);
-    if(!person.success) for(const issue of person.error.issues) context.addIssue({...issue,path:['person',...issue.path]});
-  } else if(!value.personId?.trim()) context.addIssue({code:'custom',message:'Selecciona una persona.',path:['personId']});
-});
 export type RelationFormValues = z.infer<typeof relationFormSchema>;
-export type OrganizationPersonContextFormValues = z.infer<typeof organizationPersonContextFormSchema>;
 export const relationEndFormSchema = z.object({endDate:calendarDate,confirmed:z.boolean().refine(value=>value,'Confirma la finalización para continuar.')});

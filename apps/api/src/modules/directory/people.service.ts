@@ -9,6 +9,7 @@ import { PERMISSIONS, type Permission } from '../auth/authorization/permission';
 import { hasPermission } from '../auth/authorization/role-permissions';
 import { DirectoryHistoryService, type FieldChange, type HistoryValue } from './directory-history.service';
 import { DirectoryService } from './directory.service';
+import { ContactsService } from './contacts.service';
 import { DirectoryError } from './directory.errors';
 import { assertVersion } from './directory.rules';
 import { calendarDate, classifyPersonInstitutionalStatus, personFields, relationFields } from './people.rules';
@@ -45,7 +46,7 @@ function institutionalWhere(filter:PeopleQueryDto['institutionalStatus']):Prisma
 @Injectable()
 export class PeopleService {
   constructor(private readonly actors: DirectoryActorPolicy, private readonly prisma:PrismaService, private readonly users:UsersService, private readonly history:DirectoryHistoryService,
-    private readonly audit:AuditService, private readonly directory:DirectoryService) {}
+    private readonly audit:AuditService, private readonly directory:DirectoryService, private readonly contacts?:ContactsService) {}
   private async authorize(actorId:string, permission:Permission, tx:Prisma.TransactionClient) {
     const actor=await this.users.findIdentityById(actorId,tx);
     if(!actor?.isActive || !hasPermission(actor.role,permission)) throw new DirectoryError('FORBIDDEN');
@@ -92,6 +93,10 @@ export class PeopleService {
         if(!existingPerson.isActive) throw new DirectoryError('PERSON_INACTIVE');
       }
       const episode=await this.createRelationInTransaction(personId,organizationId,relation,actorId,tx);
+      if(input.contactMethods?.length) {
+        if(!this.contacts) throw new Error('ContactsService is required to register contact methods during contextual creation.');
+        for(const contactMethod of input.contactMethods) await this.contacts.createAndAssociateWithinTransaction({personId},contactMethod,actorId,tx);
+      }
       return {person:personContract(await this.person(personId,tx)),relation:relationContract(episode)};
     });
   }

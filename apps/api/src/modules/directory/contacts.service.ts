@@ -87,6 +87,21 @@ export class ContactsService {
       return this.associateInTransaction(actor,method.id,context,actorId,tx);
     });
   }
+  async createAndAssociateWithinTransaction(actor:ContactActor,input:ContactCreateAssociationDto,actorId:string,tx:Prisma.TransactionClient) {
+    const fields=contactFields(input),context=contactContext(input);
+    let methodId:string;
+    if(fields.type===ContactType.EMAIL) {
+      try {methodId=(await this.insertMethod(fields,tx)).id;}
+      catch(error) {
+        if(!(error instanceof DirectoryError) || error.code!=='CONTACT_EMAIL_EXISTS' || !error.details?.contactMethodId) throw error;
+        methodId=error.details.contactMethodId;
+      }
+    } else {
+      const existing=await tx.contactMethod.findFirst({where:{type:fields.type,value:fields.value},select:{id:true}});
+      methodId=existing?.id??(await this.insertMethod(fields,tx)).id;
+    }
+    return this.associateInTransaction(actor,methodId,context,actorId,tx);
+  }
   async associate(actor:ContactActor,methodId:string,input:ContactContextDto & {expectedMethodVersion:number},actorId:string) {
     const context=contactContext(input);
     return this.prisma.$transaction(async tx=>{

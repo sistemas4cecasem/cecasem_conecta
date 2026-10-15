@@ -1,7 +1,8 @@
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsDefined, IsIn, IsInt, IsString, IsUUID, Length, MaxLength, Min, Validate, ValidateIf, ValidateNested, ValidationArguments, ValidatorConstraint, ValidatorConstraintInterface } from 'class-validator';
+import { IsArray, IsBoolean, IsDefined, IsIn, IsInt, IsOptional, IsString, IsUUID, Length, MaxLength, Min, Validate, ValidateIf, ValidateNested, ValidationArguments, ValidatorConstraint, ValidatorConstraintInterface } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PageQueryDto } from './directory.dto';
+import { ContactCreateAssociationDto } from './contacts.dto';
 const trim = ({ value }: { value: unknown }) => typeof value === 'string' ? value.trim().replace(/\s+/gu, ' ') : value;
 export class PersonInputDto {
   @ApiProperty({ maxLength: 250 }) @Transform(trim) @IsString() @Length(1,250) displayName!: string;
@@ -51,6 +52,8 @@ export class OrganizationPersonCreateDto extends RelationFieldsDto {
   @ValidateIf((input:OrganizationPersonCreateDto)=>input.personMode==='existing') @IsUUID() personId?: string;
   @ApiPropertyOptional({ type:PersonInputDto, description:'Obligatorio cuando personMode es new.' })
   @ValidateIf((input:OrganizationPersonCreateDto)=>input.personMode==='new') @IsDefined() @ValidateNested() @Type(()=>PersonInputDto) person?: PersonInputDto;
+  @ApiPropertyOptional({ type:ContactCreateAssociationDto, isArray:true, description:'Medios de contacto para asociar a una persona nueva dentro de la misma transacción.' })
+  @IsOptional() @IsArray() @ValidateNested({each:true}) @Type(()=>ContactCreateAssociationDto) contactMethods?: ContactCreateAssociationDto[];
 }
 export class RelationEditDto extends RelationFieldsDto {
   @ApiProperty({ minimum:1 }) @IsInt() @Min(1) expectedVersion!: number;
